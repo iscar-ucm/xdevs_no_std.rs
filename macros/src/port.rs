@@ -22,18 +22,6 @@ impl fmt::Debug for PortMeta {
     }
 }
 
-impl From<&PortMeta> for TokenStream2 {
-    fn from(value: &PortMeta) -> Self {
-        let name = &value.name;
-        let type_ = &value.ty;
-        let capacity = &value.capacity;
-
-        quote::quote! {
-            pub #name: xdevs::port::Port<#type_, #capacity>
-        }
-    }
-}
-
 impl Parse for PortMeta {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let name: syn::Ident = input.parse()?;
@@ -47,22 +35,20 @@ impl Parse for PortMeta {
     }
 }
 
-#[derive(Debug, Default)]
-pub(crate) struct PortsMeta(Vec<PortMeta>);
-
-impl From<&PortsMeta> for TokenStream2 {
-    fn from(value: &PortsMeta) -> Self {
-        let ports = &value
-            .0
-            .iter()
-            .map(|p| p.into())
-            .collect::<Vec<TokenStream2>>();
+impl PortMeta {
+    pub(crate) fn quote(&self) -> TokenStream2 {
+        let name = &self.name;
+        let type_ = &self.ty;
+        let capacity = &self.capacity;
 
         quote::quote! {
-            #(#ports),*
+            pub #name: xdevs::port::Port<#type_, #capacity>
         }
     }
 }
+
+#[derive(Debug, Default)]
+pub(crate) struct PortsMeta(Vec<PortMeta>);
 
 impl Parse for PortsMeta {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -82,20 +68,25 @@ impl Parse for PortsMeta {
 }
 
 impl PortsMeta {
-    pub(crate) fn quote(&self, ports_name: &syn::Ident) -> TokenStream2 {
+    pub(crate) fn quote_struct(&self, ports_name: &syn::Ident) -> TokenStream2 {
         let struct_ports = self
             .0
             .iter()
-            .map(|p| p.into())
+            .map(|p| p.quote())
             .collect::<Vec<TokenStream2>>();
 
-        let ports_names = self.0.iter().map(|p| &p.name).collect::<Vec<_>>();
-
         quote::quote! {
+            #[derive(Debug, Default)]
             pub struct #ports_name {
                 #(#struct_ports),*
             }
+        }
+    }
 
+    pub(crate) fn quote_methods(&self, ports_name: &syn::Ident) -> TokenStream2 {
+        let ports_names = self.0.iter().map(|p| &p.name).collect::<Vec<_>>();
+
+        quote::quote! {
             impl #ports_name {
                 pub const fn new() -> Self {
                     Self {
@@ -115,6 +106,16 @@ impl PortsMeta {
                     )*
                 }
             }
+        }
+    }
+
+    pub(crate) fn quote(&self, ports_name: &syn::Ident) -> TokenStream2 {
+        let struct_ports = self.quote_struct(ports_name);
+        let struct_methods = self.quote_methods(ports_name);
+
+        quote::quote! {
+            #struct_ports
+            #struct_methods
         }
     }
 }

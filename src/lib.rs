@@ -9,7 +9,17 @@ pub mod port;
 
 use crate as xdevs;
 
-#[component(input=[in_ack<usize, 4>, in_ready<bool, 3>], output=[out_job<usize, 1>])]
-pub struct Component {
-    id: u8,
-}
+atomic!(
+    component = {
+        name = MyAtomic,
+        input = [
+            in_ack<usize, 4>,
+            in_ready<bool, 3>
+        ],
+        output=[
+            out_job<usize, 1>
+        ]
+    },
+    state = usize,
+    constant = true,
+);
