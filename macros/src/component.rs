@@ -103,46 +103,16 @@ impl ComponentMeta {
         }
     }
 
-    pub(crate) fn quote_struct(&self) -> TokenStream2 {
-        let component_ident = self.component_ident();
-        let input_ident = self.input_ident();
-        let output_ident = self.output_ident();
-
-        quote! {
-            #[derive(Debug)]
-            pub struct #component_ident {
-                pub input: #input_ident,
-                pub output: #output_ident,
-            }
-        }
-    }
-
-    pub(crate) fn quote_impl(&self) -> TokenStream2 {
-        let component_ident = self.component_ident();
-        let input_ident = self.input_ident();
-        let output_ident = self.output_ident();
-
-        quote! {
-            impl #component_ident {
-                pub const fn new() -> Self {
-                    Self {
-                        input: #input_ident::new(),
-                        output: #output_ident::new(),
-                    }
-                }
-            }
-        }
-    }
-
     pub(crate) fn quote(&self) -> TokenStream2 {
+        let component_ident = self.component_ident();
+        let input_ident = self.input_ident();
+        let output_ident = self.output_ident();
+
         let ports = self.quote_ports();
-        let component = self.quote_struct();
-        let component_impl = self.quote_impl();
 
         quote! {
             #ports
-            #component
-            #component_impl
+            pub type #component_ident = xdevs::component::Component<#input_ident, #output_ident>;
         }
     }
 }
