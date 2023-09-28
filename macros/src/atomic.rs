@@ -113,6 +113,8 @@ impl AtomicMeta {
         let atomic_ident = self.atomic_ident();
         let state_ident = self.state.path.get_ident().unwrap();
         let component_ident = self.component.component_ident();
+        let input_ident = self.component.input_ident();
+        let output_ident = self.component.output_ident();
 
         if self.constant {
             quote! {
@@ -120,7 +122,7 @@ impl AtomicMeta {
                     pub const fn new(state: #state_ident) -> Self {
                         Self {
                             state,
-                            component: #component_ident::new()
+                            component: #component_ident::new(#input_ident::new(), #output_ident::new())
                         }
                     }
                 }
@@ -131,9 +133,32 @@ impl AtomicMeta {
                     pub fn new(state: #state_ident) -> Self {
                         Self {
                             state,
-                            component: #component_ident::new()
+                            component: #component_ident::new(#input_ident::new(), #output_ident::new())
                         }
                     }
+                }
+            }
+        }
+    }
+
+    pub(crate) fn quote_impl_atomic(&self) -> TokenStream2 {
+        let atomic_ident = self.atomic_ident();
+        let state_ident = self.state.path.get_ident().unwrap();
+        let input_ident = self.component.input_ident();
+        let output_ident = self.component.output_ident();
+
+        quote! {
+            unsafe impl xdevs::atomic::UnsafeAtomic for #atomic_ident {
+                type State = #state_ident;
+                type Input = #input_ident;
+                type Output = #output_ident;
+
+                fn divide(&self) -> (&Self::State, &xdevs::component::Component<Self::Input, Self::Output>) {
+                    (&self.state, &self.component)
+                }
+
+                fn divide_mut(&mut self) -> (&mut Self::State, &mut xdevs::component::Component<Self::Input, Self::Output>) {
+                    (&mut self.state, &mut self.component)
                 }
             }
         }
@@ -143,11 +168,13 @@ impl AtomicMeta {
         let component = self.component.quote();
         let atomic_struct = self.quote_struct();
         let atomic_impl = self.quote_impl();
+        let atomic_impl_atomic = self.quote_impl_atomic();
 
         quote! {
             #component
             #atomic_struct
             #atomic_impl
+            #atomic_impl_atomic
         }
     }
 }

@@ -83,7 +83,7 @@ impl PortsMeta {
         }
     }
 
-    pub(crate) fn quote_methods(&self, ports_name: &syn::Ident) -> TokenStream2 {
+    pub(crate) fn quote_impl(&self, ports_name: &syn::Ident) -> TokenStream2 {
         let ports_names = self.0.iter().map(|p| &p.name).collect::<Vec<_>>();
 
         quote::quote! {
@@ -93,14 +93,18 @@ impl PortsMeta {
                         #(#ports_names: xdevs::port::Port::new()),*
                     }
                 }
+            }
 
-                pub fn is_empty(&self) -> bool {
+            unsafe impl xdevs::port::UnsafePort for #ports_name {
+                #[inline]
+                fn is_empty(&self) -> bool {
                     #(
                         self.#ports_names.is_empty()
                     )&& *
                 }
 
-                pub fn clear(&mut self) {
+                #[inline]
+                fn clear(&mut self) {
                     #(
                         self.#ports_names.clear();
                     )*
@@ -110,12 +114,12 @@ impl PortsMeta {
     }
 
     pub(crate) fn quote(&self, ports_name: &syn::Ident) -> TokenStream2 {
-        let struct_ports = self.quote_struct(ports_name);
-        let struct_methods = self.quote_methods(ports_name);
+        let ports_struct = self.quote_struct(ports_name);
+        let ports_impl = self.quote_impl(ports_name);
 
         quote::quote! {
-            #struct_ports
-            #struct_methods
+            #ports_struct
+            #ports_impl
         }
     }
 }
