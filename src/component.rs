@@ -31,4 +31,17 @@ impl<X: UnsafePort, Y: UnsafePort> Component<X, Y> {
         self.input.clear();
         self.output.clear();
     }
+
+    /// Returns true if the input port is empty.
+    #[inline]
+    pub(crate) fn is_input_empty(&self) -> bool {
+        self.input.is_empty()
+    }
+}
+
+pub unsafe trait UnsafeComponent {
+    fn start(&mut self, t_start: f64) -> f64;
+    fn stop(&mut self, t_stop: f64);
+    fn lambda(&mut self, t: f64);
+    fn delta(&mut self, t: f64) -> f64;
 }
