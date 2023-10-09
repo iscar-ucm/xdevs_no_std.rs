@@ -1,9 +1,10 @@
 use crate::port::PortsMeta;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
+use std::collections::HashSet;
 use syn::{
     parse::{Parse, ParseStream},
-    Ident, Token,
+    Error, Ident, Token,
 };
 
 #[derive(Debug)]
@@ -19,40 +20,29 @@ impl Parse for ComponentMeta {
         let mut input_ports = None;
         let mut output_ports = None;
 
+        let mut cache = HashSet::new();
+
         while !input.is_empty() {
             let token: syn::Ident = input.parse()?;
+            // assert that the token has not been parsed before
+            if cache.contains(&token.to_string()) {
+                return Err(Error::new(
+                    token.span(),
+                    "duplicate component meta argument",
+                ));
+            } else {
+                cache.insert(token.to_string());
+            }
+            input.parse::<Token![=]>()?; // consume the '='
+
             if token == "name" {
-                if name.is_some() {
-                    return Err(syn::Error::new(
-                        token.span(),
-                        "duplicate component meta argument",
-                    ));
-                }
-                input.parse::<Token![=]>()?; // consume the '='
                 name = Some(input.parse::<Ident>()?);
             } else if token == "input" {
-                if input_ports.is_some() {
-                    return Err(syn::Error::new(
-                        token.span(),
-                        "duplicate component meta argument",
-                    ));
-                }
-                input.parse::<Token![=]>()?; // consume the '='
                 input_ports = Some(input.parse::<PortsMeta>()?);
             } else if token == "output" {
-                if output_ports.is_some() {
-                    return Err(syn::Error::new(
-                        token.span(),
-                        "duplicate component meta argument",
-                    ));
-                }
-                input.parse::<Token![=]>()?; // consume the '='
                 output_ports = Some(input.parse::<PortsMeta>()?);
             } else {
-                return Err(syn::Error::new(
-                    token.span(),
-                    "unknown component meta argument",
-                ));
+                return Err(Error::new(token.span(), "unknown component meta argument"));
             }
             if !input.is_empty() {
                 input.parse::<Token![,]>()?; // comma between meta arguments
@@ -60,10 +50,7 @@ impl Parse for ComponentMeta {
         }
 
         if name.is_none() {
-            return Err(syn::Error::new(
-                input.span(),
-                "component name not specified",
-            ));
+            return Err(Error::new(input.span(), "component name not specified"));
         }
 
         Ok(Self {

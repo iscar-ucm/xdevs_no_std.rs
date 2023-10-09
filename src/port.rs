@@ -41,6 +41,12 @@ impl<T: Clone, const N: usize> Port<T, N> {
         self.0.push(item)
     }
 
+    #[inline]
+    #[allow(clippy::result_unit_err)]
+    pub fn add_values(&mut self, items: &[T]) -> Result<(), ()> {
+        self.0.extend_from_slice(items)
+    }
+
     /// Returns a slice of the port's values.
     #[inline]
     pub fn get_values(&self) -> &[T] {

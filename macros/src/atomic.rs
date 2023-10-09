@@ -30,18 +30,15 @@ impl Parse for AtomicMeta {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut component = None;
         let mut state = None;
-        let mut constant = None;
+        let mut constant = false;
 
         let mut cache: HashSet<String> = HashSet::new();
 
         while !input.is_empty() {
-            let token: syn::Ident = input.parse()?;
+            let token: Ident = input.parse()?;
             // assert that the token has not been parsed before
             if cache.contains(&token.to_string()) {
-                return Err(syn::Error::new(
-                    token.span(),
-                    "duplicate atomic meta argument",
-                ));
+                return Err(Error::new(token.span(), "duplicate meta argument"));
             } else {
                 cache.insert(token.to_string());
             }
@@ -54,9 +51,9 @@ impl Parse for AtomicMeta {
             } else if token == "state" {
                 state = Some(input.parse::<TypePath>()?);
             } else if token == "constant" {
-                constant = Some(input.parse::<LitBool>()?.value);
+                constant = input.parse::<LitBool>()?.value;
             } else {
-                return Err(Error::new(token.span(), "unknown atomic meta argument"));
+                return Err(Error::new(token.span(), "unknown meta argument"));
             }
             if !input.is_empty() {
                 input.parse::<Token![,]>()?; // comma between meta arguments
@@ -64,16 +61,16 @@ impl Parse for AtomicMeta {
         }
 
         if component.is_none() {
-            return Err(Error::new(input.span(), "atomic component not specified"));
+            return Err(Error::new(input.span(), "component not specified"));
         }
         if state.is_none() {
-            return Err(Error::new(input.span(), "atomic state not specified"));
+            return Err(Error::new(input.span(), "state not specified"));
         }
 
         Ok(Self {
             component: component.unwrap(),
             state: state.unwrap(),
-            constant: constant.unwrap_or(false),
+            constant,
         })
     }
 }
