@@ -1,9 +1,10 @@
 use crate::component::ComponentMeta;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
+use std::collections::HashSet;
 use syn::{
     parse::{Parse, ParseStream},
-    Ident, LitBool, Token, TypePath,
+    Error, Ident, LitBool, Token, TypePath,
 };
 
 pub(crate) struct AtomicMeta {
@@ -31,42 +32,31 @@ impl Parse for AtomicMeta {
         let mut state = None;
         let mut constant = None;
 
+        let mut cache: HashSet<String> = HashSet::new();
+
         while !input.is_empty() {
             let token: syn::Ident = input.parse()?;
+            // assert that the token has not been parsed before
+            if cache.contains(&token.to_string()) {
+                return Err(syn::Error::new(
+                    token.span(),
+                    "duplicate atomic meta argument",
+                ));
+            } else {
+                cache.insert(token.to_string());
+            }
+            input.parse::<Token![=]>()?; // consume the '='
+
             if token == "component" {
-                if component.is_some() {
-                    return Err(syn::Error::new(
-                        token.span(),
-                        "duplicate atomic meta argument",
-                    ));
-                }
-                input.parse::<Token![=]>()?; // consume the '='
                 let content;
                 syn::braced!(content in input);
                 component = Some(content.parse::<ComponentMeta>()?);
             } else if token == "state" {
-                if state.is_some() {
-                    return Err(syn::Error::new(
-                        token.span(),
-                        "duplicate atomic meta argument",
-                    ));
-                }
-                input.parse::<Token![=]>()?; // consume the '='
                 state = Some(input.parse::<TypePath>()?);
             } else if token == "constant" {
-                if constant.is_some() {
-                    return Err(syn::Error::new(
-                        token.span(),
-                        "duplicate atomic meta argument",
-                    ));
-                }
-                input.parse::<Token![=]>()?; // consume the '='
                 constant = Some(input.parse::<LitBool>()?.value);
             } else {
-                return Err(syn::Error::new(
-                    token.span(),
-                    "unknown atomic meta argument",
-                ));
+                return Err(Error::new(token.span(), "unknown atomic meta argument"));
             }
             if !input.is_empty() {
                 input.parse::<Token![,]>()?; // comma between meta arguments
@@ -74,13 +64,10 @@ impl Parse for AtomicMeta {
         }
 
         if component.is_none() {
-            return Err(syn::Error::new(
-                input.span(),
-                "atomic component not specified",
-            ));
+            return Err(Error::new(input.span(), "atomic component not specified"));
         }
         if state.is_none() {
-            return Err(syn::Error::new(input.span(), "atomic state not specified"));
+            return Err(Error::new(input.span(), "atomic state not specified"));
         }
 
         Ok(Self {

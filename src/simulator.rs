@@ -1,6 +1,10 @@
 use crate::{atomic::Atomic, port::UnsafePort};
 
 /// Interface for simulating DEVS models. All DEVS models must implement this trait.
+///
+/// # Safety
+///
+/// This trait must be implemented via the [`atomic!`] and [`coupled!`] macros. Do not implement it manually.
 pub unsafe trait Simulator {
     /// Returns the time for the last state transition of the inner DEVS [`Component`].
     fn get_t_last(&self) -> f64;

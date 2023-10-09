@@ -38,7 +38,7 @@ impl<T: Clone, const N: usize> Port<T, N> {
     /// Adds a value to the port.
     #[inline]
     pub fn add_value(&mut self, item: T) -> Result<(), T> {
-        self.0.push(item).map_err(|e| e)
+        self.0.push(item)
     }
 
     /// Returns a slice of the port's values.
