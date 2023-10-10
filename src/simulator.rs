@@ -1,11 +1,31 @@
 use crate::atomic::Atomic;
 
+#[repr(transparent)]
+pub struct Simulator<T>(T);
+
+impl<T: AbstractSimulator> Simulator<T> {
+    #[inline]
+    pub const fn new(simulator: T) -> Self {
+        Self(simulator)
+    }
+
+    #[inline]
+    pub fn simulate(&mut self, t_start: f64, t_stop: f64) {
+        let mut t_next = self.0.start(t_start);
+        while t_next < t_stop {
+            self.0.lambda(t_next);
+            t_next = self.0.delta(t_next);
+        }
+        self.0.stop(t_stop);
+    }
+}
+
 /// Interface for simulating DEVS models. All DEVS models must implement this trait.
 ///
 /// # Safety
 ///
 /// This trait must be implemented via the [`atomic!`] and [`coupled!`] macros. Do not implement it manually.
-pub unsafe trait Simulator {
+pub unsafe trait AbstractSimulator {
     /// It starts the simulation, setting the initial time to t_start.
     /// It returns the time for the next state transition of the inner DEVS model.
     fn start(&mut self, t_start: f64) -> f64;
@@ -24,7 +44,7 @@ pub unsafe trait Simulator {
     fn delta(&mut self, t: f64) -> f64;
 }
 
-unsafe impl<T: Atomic> Simulator for T {
+unsafe impl<T: Atomic> AbstractSimulator for T {
     #[inline]
     fn start(&mut self, t_start: f64) -> f64 {
         let (state, component) = self.divide_mut();
