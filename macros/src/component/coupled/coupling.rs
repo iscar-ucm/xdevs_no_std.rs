@@ -3,18 +3,19 @@ use quote::quote;
 use std::collections::HashSet;
 use syn::{
     parse::{Parse, ParseStream},
+    token::Brace,
     Error, Ident, Token,
 };
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-struct CouplingMeta {
-    component_from: Option<Ident>,
-    port_from: Ident,
-    component_to: Option<Ident>,
-    port_to: Ident,
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Coupling {
+    pub component_from: Option<Ident>,
+    pub port_from: Ident,
+    pub component_to: Option<Ident>,
+    pub port_to: Ident,
 }
 
-impl CouplingMeta {
+impl Coupling {
     pub fn is_eoc(&self) -> bool {
         self.component_to.is_none()
     }
@@ -24,18 +25,17 @@ impl CouplingMeta {
         let port_to = &self.port_to;
 
         let origin = if let Some(component_from) = &self.component_from {
-            quote!(self.components.#component_from.component.output.#port_from)
+            quote!(self.#component_from.output.#port_from)
         } else {
-            quote!(self.component.input.#port_from)
+            quote!(self.input.#port_from)
         };
         let destination = if let Some(component_to) = &self.component_to {
-            quote!(self.components.#component_to.component.input.#port_to)
+            quote!(self.#component_to.input.#port_to)
         } else {
-            quote!(self.component.output.#port_to)
+            quote!(self.output.#port_to)
         };
-
         quote! {
-            #destination.add_values(&#origin.get_values());
+            #destination.add_values(&#origin.get_values()).expect("unable to propagate messages; destination port is full");
         }
     }
 
@@ -51,7 +51,7 @@ impl CouplingMeta {
     }
 }
 
-impl Parse for CouplingMeta {
+impl Parse for Coupling {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let source_1: Ident = input.parse()?;
         if let Ok(_) = input.parse::<Token![.]>() {
@@ -93,13 +93,13 @@ impl Parse for CouplingMeta {
     }
 }
 
-#[derive(Clone, Debug, Default)]
 pub struct Couplings {
-    couplings: Vec<CouplingMeta>,
+    pub brace: Brace,
+    pub couplings: Vec<Coupling>,
 }
 
 impl Couplings {
-    pub fn quote(&self, component: &Ident) -> TokenStream2 {
+    pub fn quote(&self) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
         let mut eoc = Vec::new();
         let mut xic = Vec::new();
 
@@ -110,33 +110,19 @@ impl Couplings {
                 xic.push(coupling.quote());
             }
         }
-
-        quote! {
-            impl #component {
-                #[inline]
-                pub fn propagate_eoc(&mut self) {
-                    #(#eoc;)*
-                }
-
-                #[inline]
-                pub fn propagate_xic(&mut self) {
-                    #(#xic;)*
-                }
-            }
-        }
+        (eoc, xic)
     }
 }
 
 impl Parse for Couplings {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        let content;
+        let brace = syn::braced!(content in input);
         let mut couplings = Vec::new();
-
         let mut cache = HashSet::new();
 
-        let content;
-        syn::bracketed!(content in input);
         while !content.is_empty() {
-            let coupling = content.parse::<CouplingMeta>()?;
+            let coupling = content.parse::<Coupling>()?;
             if cache.contains(&coupling) {
                 return Err(Error::new(coupling.span(), "duplicate coupling"));
             }
@@ -147,6 +133,6 @@ impl Parse for Couplings {
                 content.parse::<Token![,]>()?; // comma between meta arguments
             }
         }
-        Ok(Self { couplings })
+        Ok(Self { brace, couplings })
     }
 }

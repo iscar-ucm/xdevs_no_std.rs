@@ -1,4 +1,3 @@
-use crate::port::PortsMeta;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use std::collections::HashSet;
@@ -7,99 +6,209 @@ use syn::{
     Error, Ident, Token,
 };
 
-#[derive(Debug)]
-pub(crate) struct ComponentMeta {
-    pub(crate) name: Ident,
-    pub(crate) input: PortsMeta,
-    pub(crate) output: PortsMeta,
+mod atomic;
+mod coupled;
+mod port;
+use atomic::State;
+use coupled::Coupled;
+use port::Ports;
+
+pub enum ComponentType {
+    Atomic(State),
+    Coupled(Coupled),
 }
 
-impl Parse for ComponentMeta {
+impl ComponentType {
+    pub fn quote(&self, component: &Component) -> TokenStream2 {
+        match self {
+            Self::Atomic(meta) => meta.quote(component),
+            Self::Coupled(meta) => meta.quote(component),
+        }
+    }
+
+    pub fn component_ident(&self) -> Vec<TokenStream2> {
+        match self {
+            Self::Atomic(state) => state.ident(),
+            Self::Coupled(coupled) => coupled.components.ident(),
+        }
+    }
+    pub fn component_ty(&self) -> Vec<TokenStream2> {
+        match self {
+            Self::Atomic(state) => state.ty(),
+            Self::Coupled(coupled) => coupled.components.ty(),
+        }
+    }
+}
+
+pub struct Component {
+    pub ident: Ident,
+    pub ty: ComponentType,
+    pub input: Ports,
+    pub output: Ports,
+}
+
+impl Parse for Component {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let mut name = None;
+        let mut ident = None;
+        let mut state = None;
+        let mut components = None;
+        let mut couplings = None;
         let mut input_ports = None;
         let mut output_ports = None;
 
         let mut cache = HashSet::new();
 
         while !input.is_empty() {
-            let token: syn::Ident = input.parse()?;
+            let token: Ident = input.parse()?;
             // assert that the token has not been parsed before
-            if cache.contains(&token.to_string()) {
+            if cache.contains(&token) {
                 return Err(Error::new(
                     token.span(),
                     "duplicate component meta argument",
                 ));
             } else {
-                cache.insert(token.to_string());
+                cache.insert(token.clone());
             }
             input.parse::<Token![=]>()?; // consume the '='
 
-            if token == "name" {
-                name = Some(input.parse::<Ident>()?);
+            if token == "ident" {
+                ident = Some(input.parse()?);
             } else if token == "input" {
-                input_ports = Some(input.parse::<PortsMeta>()?);
+                input_ports = Some(input.parse()?);
             } else if token == "output" {
-                output_ports = Some(input.parse::<PortsMeta>()?);
+                output_ports = Some(input.parse()?);
+            } else if token == "state" {
+                if components.is_some() {
+                    return Err(Error::new(
+                        token.span(),
+                        "state and components cannot be specified together",
+                    ));
+                }
+                if couplings.is_some() {
+                    return Err(Error::new(
+                        token.span(),
+                        "state and couplings cannot be specified together",
+                    ));
+                }
+                state = Some(input.parse()?);
+            } else if token == "components" {
+                if state.is_some() {
+                    return Err(Error::new(
+                        token.span(),
+                        "components and state cannot be specified together",
+                    ));
+                }
+                components = Some(input.parse()?);
+            } else if token == "couplings" {
+                if state.is_some() {
+                    return Err(Error::new(
+                        token.span(),
+                        "components and state cannot be specified together",
+                    ));
+                }
+                couplings = Some(input.parse()?);
             } else {
                 return Err(Error::new(token.span(), "unknown component meta argument"));
             }
+
             if !input.is_empty() {
                 input.parse::<Token![,]>()?; // comma between meta arguments
             }
         }
 
-        if name.is_none() {
-            return Err(Error::new(input.span(), "component name not specified"));
-        }
+        let ty = if let Some(state) = state {
+            ComponentType::Atomic(state)
+        } else if let Some(components) = components {
+            ComponentType::Coupled(coupled::Coupled {
+                components: components,
+                couplings: couplings,
+            })
+        } else {
+            return Err(Error::new(input.span(), "component type not specified"));
+        };
 
         Ok(Self {
-            name: name.unwrap(),
+            ident: ident.unwrap(),
+            ty,
             input: input_ports.unwrap_or_default(),
             output: output_ports.unwrap_or_default(),
         })
     }
 }
 
-impl ComponentMeta {
-    pub(crate) fn input_ident(&self) -> Ident {
-        let name = format!("{name}Inputs", name = self.name);
-        syn::Ident::new(&name, self.name.span())
+impl Component {
+    pub fn input_ident(&self) -> Ident {
+        let ident = format!("{ident}Input", ident = self.ident);
+        Ident::new(&ident, self.input.span())
     }
 
-    pub(crate) fn output_ident(&self) -> Ident {
-        let name = format!("{name}Outputs", name = self.name);
-        syn::Ident::new(&name, self.name.span())
+    pub fn output_ident(&self) -> Ident {
+        let ident = format!("{ident}Output", ident = self.ident);
+        syn::Ident::new(&ident, self.output.span())
     }
 
-    pub(crate) fn component_ident(&self) -> Ident {
-        let name = format!("{name}Component", name = self.name);
-        syn::Ident::new(&name, self.name.span())
-    }
-
-    pub(crate) fn quote_ports(&self) -> TokenStream2 {
+    pub fn quote(&self) -> TokenStream2 {
+        let ident = &self.ident;
         let input_ident = self.input_ident();
         let output_ident = self.output_ident();
 
-        let input_ports = self.input.quote(&input_ident);
-        let output_ports = self.output.quote(&output_ident);
+        let input_struct = self.input.quote(&input_ident);
+        let output_struct = self.output.quote(&output_ident);
+
+        let other_ident = self.ty.component_ident();
+        let other_ty = self.ty.component_ty();
+        let other_quote = self.ty.quote(self);
 
         quote! {
-            #input_ports
-            #output_ports
-        }
-    }
-
-    pub(crate) fn quote(&self) -> TokenStream2 {
-        let component_ident = self.component_ident();
-        let input_ident = self.input_ident();
-        let output_ident = self.output_ident();
-
-        let ports = self.quote_ports();
-
-        quote! {
-            #ports
-            pub type #component_ident = xdevs::component::Component<#input_ident, #output_ident>;
+            #input_struct
+            #output_struct
+            pub struct #ident {
+                pub input: #input_ident,
+                pub output: #output_ident,
+                pub t_last: f64,
+                pub t_next: f64,
+                #(#other_ty),*
+            }
+            impl #ident {
+                pub const fn new(#(#other_ty),*) -> Self {
+                    Self {
+                        input: #input_ident::new(),
+                        output: #output_ident::new(),
+                        t_last: 0.0,
+                        t_next: f64::INFINITY,
+                        #(#other_ident),*
+                    }
+                }
+            }
+            unsafe impl xdevs::aux::Component for #ident {
+                type Input = #input_ident;
+                type Output = #output_ident;
+                #[inline]
+                fn get_t_last(&self) -> f64 {
+                    self.t_last
+                }
+                #[inline]
+                fn set_t_last(&mut self, t_last: f64) {
+                    self.t_last = t_last;
+                }
+                #[inline]
+                fn get_t_next(&self) -> f64 {
+                    self.t_next
+                }
+                #[inline]
+                fn set_t_next(&mut self, t_next: f64) {
+                    self.t_next = t_next;
+                }
+                #[inline]
+                fn clear_input(&mut self) {
+                    <Self::Input as xdevs::aux::Port>::clear(&mut self.input);
+                }
+                #[inline]
+                fn clear_output(&mut self) {
+                    <Self::Output as xdevs::aux::Port>::clear(&mut self.output);
+                }
+            }
+            #other_quote
         }
     }
 }
