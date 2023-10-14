@@ -15,19 +15,16 @@ mod generator {
         }
     }
 
-    xdevs::atomic!(
-        component = {
-            name = Generator,
-            input = [],
-            output = [
-                out_job<usize>
-            ]
+    xdevs::component!(
+        ident = Generator,
+        input = {},
+        output = {
+            out_job<usize>,
         },
         state = GeneratorState,
-        constant = true,
     );
 
-    impl xdevs::atomic::Atomic for Generator {
+    impl xdevs::Atomic for Generator {
         fn delta_int(state: &mut Self::State) {
             state.count += 1;
             state.sigma = state.period;
@@ -65,21 +62,18 @@ mod processor {
         }
     }
 
-    xdevs::atomic!(
-        component = {
-            name = Processor,
-            input = [
-                in_job<usize, 1>
-            ],
-            output = [
-                out_job<usize>
-            ]
+    xdevs::component!(
+        ident = Processor,
+        input = {
+            in_job<usize, 1>
+        },
+        output = {
+            out_job<usize>
         },
         state = ProcessorState,
-        constant = true,
     );
 
-    impl xdevs::atomic::Atomic for Processor {
+    impl xdevs::Atomic for Processor {
         fn delta_int(state: &mut Self::State) {
             state.sigma = f64::INFINITY;
             if let Some(job) = state.job {
@@ -114,34 +108,25 @@ mod processor {
     }
 }
 
-#[derive(xdevs::Components)]
-struct Components {
-    generator: generator::Generator,
-    processor: processor::Processor,
-}
-
-xdevs::coupled!(
-    component = {
-        name = GPT,
-        input = [],
-        output = [],
+xdevs::component!(
+    ident = GPT,
+    components = {
+        generator: generator::Generator,
+        processor: processor::Processor,
     },
-    components = Components,
-    couplings = [
+    couplings = {
         generator.out_job -> processor.in_job,
-    ]
+    }
 );
 
 fn main() {
     let period = 1.;
     let time = 1.5;
-    //let model = generator::Generator::new(generator::GeneratorState::new(period));
 
-    let components = Components {
-        generator: generator::Generator::new(generator::GeneratorState::new(period)),
-        processor: processor::Processor::new(processor::ProcessorState::new(time)),
-    };
-    let model = GPT::new(components);
+    let generator = generator::Generator::new(generator::GeneratorState::new(period));
+    let processor = processor::Processor::new(processor::ProcessorState::new(time));
+
+    let model = GPT::new(generator, processor);
 
     let mut simulator = xdevs::simulator::Simulator::new(model);
 

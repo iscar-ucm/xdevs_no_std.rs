@@ -1,6 +1,6 @@
 /// Port is a generic structure that can be used to store values of any type `T`.
 /// It is the main artifact to exchange data between components.
-/// Note that, in no_std environment, the capacity of the port, `N`, must be known at compile time.
+/// Note that, in `no_std` environments, the capacity of the port `N` must be known at compile time.
 #[derive(Debug, Default)]
 pub struct Port<T: Clone, const N: usize>(heapless::Vec<T, N>);
 
@@ -41,6 +41,7 @@ impl<T: Clone, const N: usize> Port<T, N> {
         self.0.push(item)
     }
 
+    /// Adds multiple values to the port.
     #[inline]
     #[allow(clippy::result_unit_err)]
     pub fn add_values(&mut self, items: &[T]) -> Result<(), ()> {
@@ -54,26 +55,11 @@ impl<T: Clone, const N: usize> Port<T, N> {
     }
 }
 
-/// UnsafePort is a trait that defines the methods that a port must implement.
-///
-/// # Safety
-///
-/// This trait must be implemented via the [`atomic!`] and [`coupled!`] macros. Do not implement it manually.
-pub unsafe trait UnsafePort {
-    /// Returns `true` if the port(s) is empty.
-    fn is_empty(&self) -> bool;
-
-    /// Clears the port(s), removing all values.
-    fn clear(&mut self);
-}
-
-unsafe impl<T: Clone, const N: usize> UnsafePort for Port<T, N> {
-    #[inline]
+unsafe impl<T: Clone, const N: usize> crate::aux::Port for Port<T, N> {
     fn is_empty(&self) -> bool {
         self.is_empty()
     }
 
-    #[inline]
     fn clear(&mut self) {
         self.clear()
     }
