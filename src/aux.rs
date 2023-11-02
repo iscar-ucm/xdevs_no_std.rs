@@ -35,11 +35,25 @@ pub unsafe trait Component {
     /// Sets the next time the component will be updated.
     fn set_t_next(&mut self, t_next: f64);
 
+    fn get_input(&self) -> &Self::Input;
+
+    fn get_input_mut(&mut self) -> &mut Self::Input;
+
+    fn get_output(&self) -> &Self::Output;
+
+    fn get_output_mut(&mut self) -> &mut Self::Output;
+
     /// Clears the input ports, removing all values.
-    fn clear_input(&mut self);
+    #[inline]
+    fn clear_input(&mut self) {
+        self.get_input_mut().clear()
+    }
 
     /// Clears the output ports, removing all values.
-    fn clear_output(&mut self);
+    #[inline]
+    fn clear_output(&mut self) {
+        self.get_output_mut().clear()
+    }
 }
 
 /// Partial interface for DEVS atomic models.

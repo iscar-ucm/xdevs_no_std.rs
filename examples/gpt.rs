@@ -17,7 +17,9 @@ mod generator {
 
     xdevs::component!(
         ident = Generator,
-        input = {},
+        input = {
+            in_stop<bool>,
+        },
         output = {
             out_job<usize>,
         },
@@ -39,8 +41,14 @@ mod generator {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, _x: &Self::Input) {
+        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
             state.sigma -= e;
+            if let Some(&stop) = x.in_stop.get_values().last() {
+                println!("[G] received stop: {}", stop);
+                if stop {
+                    state.sigma = f64::INFINITY;
+                }
+            }
         }
     }
 }
@@ -108,27 +116,139 @@ mod processor {
     }
 }
 
+mod transducer {
+    pub struct TransducerState {
+        sigma: f64,
+        clock: f64,
+        n_generated: usize,
+        n_processed: usize,
+    }
+
+    impl TransducerState {
+        pub fn new(obs_time: f64) -> Self {
+            Self {
+                sigma: obs_time,
+                clock: 0.0,
+                n_generated: 0,
+                n_processed: 0,
+            }
+        }
+    }
+
+    xdevs::component!(
+        ident = Transducer,
+        input = {
+            in_generator<usize, 1>,
+            in_processor<usize, 1>,
+        },
+        output = {
+            out_stop<bool>
+        },
+        state = TransducerState,
+    );
+
+    impl xdevs::Atomic for Transducer {
+        fn delta_int(state: &mut Self::State) {
+            state.clock += state.sigma;
+            let (acceptance, throughput) = if state.n_processed > 0 {
+                (
+                    state.n_processed as f64 / state.n_generated as f64,
+                    state.n_processed as f64 / state.clock,
+                )
+            } else {
+                (0.0, 0.0)
+            };
+            println!(
+                "[T] acceptance: {:.2}, throughput: {:.2}",
+                acceptance, throughput
+            );
+            state.sigma = f64::INFINITY;
+        }
+
+        fn lambda(_state: &Self::State, output: &mut Self::Output) {
+            output.out_stop.add_value(true).unwrap();
+        }
+
+        fn ta(state: &Self::State) -> f64 {
+            state.sigma
+        }
+
+        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
+            state.sigma -= e;
+            state.clock += e;
+            state.n_generated += x.in_generator.get_values().len();
+            state.n_processed += x.in_processor.get_values().len();
+        }
+    }
+}
+
 xdevs::component!(
     ident = GPT,
     components = {
         generator: generator::Generator,
         processor: processor::Processor,
+        transducer: transducer::Transducer,
     },
     couplings = {
         generator.out_job -> processor.in_job,
+        processor.out_job -> transducer.in_processor,
+        generator.out_job -> transducer.in_generator,
+        transducer.out_stop -> generator.in_stop,
+    }
+);
+
+xdevs::component!(
+    ident = EF,
+    input = {
+        in_processor<usize, 1>,
+    },
+    output = {
+        out_generator<usize, 1>,
+    },
+    components = {
+        generator: generator::Generator,
+        transducer: transducer::Transducer,
+    },
+    couplings = {
+        in_processor -> transducer.in_processor,
+        generator.out_job -> transducer.in_generator,
+        transducer.out_stop -> generator.in_stop,
+        generator.out_job -> out_generator,
+    }
+);
+
+xdevs::component!(
+    ident = EFP,
+    components = {
+        ef: EF,
+        processor: processor::Processor,
+    },
+    couplings = {
+        ef.out_generator -> processor.in_job,
+        processor.out_job -> ef.in_processor,
     }
 );
 
 fn main() {
     let period = 1.;
-    let time = 1.5;
+    let proc_time = 1.1;
+    let obs_time = 10.;
 
     let generator = generator::Generator::new(generator::GeneratorState::new(period));
-    let processor = processor::Processor::new(processor::ProcessorState::new(time));
+    let processor = processor::Processor::new(processor::ProcessorState::new(proc_time));
+    let transducer = transducer::Transducer::new(transducer::TransducerState::new(obs_time));
 
-    let model = GPT::new(generator, processor);
+    let ef = EF::new(generator, transducer);
+    let efp = EFP::new(ef, processor);
 
-    let mut simulator = xdevs::simulator::Simulator::new(model);
+    //let mut simulator = xdevs::simulator::rt_std::Simulator::new(efp, 1., None);
 
-    simulator.simulate(0.0, 10.0);
+    let mut simulator = xdevs::simulator::Simulator::new(efp);
+    // simulator.simulate_vt(0.0, 100.0);
+    simulator.simulate_rt(
+        0.0,
+        100.0,
+        xdevs::simulator::std::wait(0.0, 1.0, None),
+        |_| {},
+    );
 }

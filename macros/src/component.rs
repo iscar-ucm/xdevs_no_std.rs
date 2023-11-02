@@ -200,12 +200,20 @@ impl Component {
                     self.t_next = t_next;
                 }
                 #[inline]
-                fn clear_input(&mut self) {
-                    <Self::Input as xdevs::aux::Port>::clear(&mut self.input);
+                fn get_input(&self) -> &Self::Input {
+                    &self.input
                 }
                 #[inline]
-                fn clear_output(&mut self) {
-                    <Self::Output as xdevs::aux::Port>::clear(&mut self.output);
+                fn get_input_mut(&mut self) -> &mut Self::Input {
+                    &mut self.input
+                }
+                #[inline]
+                fn get_output(&self) -> &Self::Output {
+                    &self.output
+                }
+                #[inline]
+                fn get_output_mut(&mut self) -> &mut Self::Output {
+                    &mut self.output
                 }
             }
             #other_quote
