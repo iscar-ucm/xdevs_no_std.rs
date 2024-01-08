@@ -3,6 +3,9 @@ name = "xdevs-no-std-macros"
 version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0"
+description = "procedural macros for xdevs-no-std"
+keywords = ["embedded", "simulation", "real-time", "no-std"]
+repository = "https://github.com/iscar-ucm/xdevs_no_std.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
