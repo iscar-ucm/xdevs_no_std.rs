@@ -25,6 +25,7 @@ impl Coupled {
 
         quote! {
             unsafe impl xdevs::aux::AbstractSimulator for #coupled_ident {
+                #[inline]
                 fn start(&mut self, t_start: f64) -> f64 {
                     // set t_last to t_start
                     xdevs::aux::Component::set_t_last(self, t_start);
@@ -37,14 +38,16 @@ impl Coupled {
                     t_next
                 }
 
+                #[inline]
                 fn stop(&mut self, t_stop: f64) {
                     // stop all components
-                    #(xdevs::aux::AbstractSimulator::start(&mut self.#component, t_stop);)*
+                    #(xdevs::aux::AbstractSimulator::stop(&mut self.#component, t_stop);)*
                     // set t_last to t_stop and t_next to infinity
                     xdevs::aux::Component::set_t_last(self, t_stop);
                     xdevs::aux::Component::set_t_next(self, f64::INFINITY);
                 }
 
+                #[inline]
                 fn lambda(&mut self, t: f64) {
                     if t >= xdevs::aux::Component::get_t_next(self) {
                         // propagate lambda to all components
@@ -54,6 +57,7 @@ impl Coupled {
                     }
                 }
 
+                #[inline]
                 fn delta(&mut self, t: f64) -> f64 {
                     // propagate EICs and ICs
                      #(#xic);*

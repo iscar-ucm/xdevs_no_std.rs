@@ -3,8 +3,7 @@ use std::time::{Duration, SystemTime};
 
 /// Closure for RT simulation on targets with `std`.
 /// It sleeps until the next state transition.
-///
-pub fn sleep<T: crate::aux::Port>(
+pub fn sleep<T: crate::aux::Bag>(
     t_start: f64,
     time_scale: f64,
     max_jitter: Option<std::time::Duration>,

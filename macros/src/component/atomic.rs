@@ -70,7 +70,7 @@ impl State {
                 #[inline]
                 fn delta(&mut self, t: f64) -> f64 {
                     let mut t_next = xdevs::aux::Component::get_t_next(self);
-                    if !xdevs::aux::Port::is_empty(&self.input) {
+                    if !xdevs::aux::Bag::is_empty(&self.input) {
                         if t >= t_next {
                             // confluent transition
                             <Self as xdevs::Atomic>::delta_conf(&mut self.state, &self.input);

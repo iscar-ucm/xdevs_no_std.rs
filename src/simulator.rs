@@ -33,14 +33,21 @@ impl<M: AbstractSimulator> Simulator<M> {
         mut wait_until: impl FnMut(f64, &mut M::Input) -> f64,
         mut propagate_output: impl FnMut(&M::Output),
     ) {
-        let mut t_next = self.model.start(t_start);
-        while t_next < t_stop {
-            let t = wait_until(t_next, self.model.get_input_mut());
-            if t >= t_next {
+        let mut t = t_start;
+        let mut t_next_internal = self.model.start(t);
+        while t < t_stop {
+            let t_until = if t_next_internal > t_stop {
+                t_stop
+            } else {
+                t_next_internal
+            };
+
+            t = wait_until(t_until, self.model.get_input_mut());
+            if t >= t_next_internal {
                 self.model.lambda(t);
                 propagate_output(self.model.get_output());
             }
-            t_next = self.model.delta(t);
+            t_next_internal = self.model.delta(t);
         }
         self.model.stop(t_stop);
     }

@@ -1,9 +1,9 @@
-/// Trait that defines the methods that a DEVS component port set must implement.
+/// Trait that defines the methods that a DEVS event bag set must implement.
 ///
 /// # Safety
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
-pub unsafe trait Port {
+pub unsafe trait Bag {
     /// Returns `true` if the ports are empty.
     fn is_empty(&self) -> bool;
 
@@ -17,11 +17,11 @@ pub unsafe trait Port {
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
 pub unsafe trait Component {
-    /// Input port set of the model.
-    type Input: Port;
+    /// Input event bag of the model.
+    type Input: Bag;
 
-    /// Output port set of the model.
-    type Output: Port;
+    /// Output event bag of the model.
+    type Output: Bag;
 
     /// Returns the last time the component was updated.
     fn get_t_last(&self) -> f64;
@@ -35,21 +35,25 @@ pub unsafe trait Component {
     /// Sets the next time the component will be updated.
     fn set_t_next(&mut self, t_next: f64);
 
+    /// Returns a reference to the model's input event bag.
     fn get_input(&self) -> &Self::Input;
 
+    /// Returns a mutable reference to the model's input event bag.
     fn get_input_mut(&mut self) -> &mut Self::Input;
 
+    /// Returns a reference to the model's output event bag.
     fn get_output(&self) -> &Self::Output;
 
+    /// Returns a mutable reference to the model's output event bag.
     fn get_output_mut(&mut self) -> &mut Self::Output;
 
-    /// Clears the input ports, removing all values.
+    /// Clears the input bag, removing all values.
     #[inline]
     fn clear_input(&mut self) {
         self.get_input_mut().clear()
     }
 
-    /// Clears the output ports, removing all values.
+    /// Clears the output bag, removing all values.
     #[inline]
     fn clear_output(&mut self) {
         self.get_output_mut().clear()
@@ -57,7 +61,7 @@ pub unsafe trait Component {
 }
 
 /// Partial interface for DEVS atomic models.
-/// It is used as a helper trait to implement the [`Atomic`] trait.
+/// It is used as a helper trait to implement the [`crate::Atomic`] trait.
 ///
 /// # Safety
 ///
