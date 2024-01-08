@@ -170,6 +170,7 @@ impl Component {
                 #(#other_ty),*
             }
             impl #ident {
+                #[inline]
                 pub const fn new(#(#other_ty),*) -> Self {
                     Self {
                         input: #input_ident::new(),

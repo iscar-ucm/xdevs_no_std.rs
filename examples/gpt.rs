@@ -247,8 +247,8 @@ fn main() {
     // simulator.simulate_vt(0.0, 100.0);
     simulator.simulate_rt(
         0.0,
-        100.0,
-        xdevs::simulator::std::wait(0.0, 1.0, None),
+        14.0,
+        xdevs::simulator::std::sleep(0.0, 1.0, None),
         |_| {},
     );
 }
