@@ -241,10 +241,7 @@ fn main() {
     let ef = EF::new(generator, transducer);
     let efp = EFP::new(ef, processor);
 
-    //let mut simulator = xdevs::simulator::rt_std::Simulator::new(efp, 1., None);
-
     let mut simulator = xdevs::simulator::Simulator::new(efp);
-    // simulator.simulate_vt(0.0, 100.0);
     simulator.simulate_rt(
         0.0,
         14.0,

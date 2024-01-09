@@ -1,4 +1,4 @@
-use crate::aux::AbstractSimulator;
+use crate::aux::{AbstractSimulator, Bag};
 
 #[cfg(feature = "std")]
 pub mod std;
@@ -36,16 +36,13 @@ impl<M: AbstractSimulator> Simulator<M> {
         let mut t = t_start;
         let mut t_next_internal = self.model.start(t);
         while t < t_stop {
-            let t_until = if t_next_internal > t_stop {
-                t_stop
-            } else {
-                t_next_internal
-            };
-
+            let t_until = f64::min(t_next_internal, t_stop);
             t = wait_until(t_until, self.model.get_input_mut());
             if t >= t_next_internal {
                 self.model.lambda(t);
                 propagate_output(self.model.get_output());
+            } else if self.model.get_input().is_empty() {
+                continue; // avoid spurious external transitions
             }
             t_next_internal = self.model.delta(t);
         }
