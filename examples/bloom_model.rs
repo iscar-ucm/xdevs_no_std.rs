@@ -416,7 +416,8 @@ mod generator_model{
                     
                     state.write_data(data);
                     if state.last_row{
-                        panic!("Fin del fichero y fin de ejecución!")
+                        std::process::exit(0);
+                        //panic!("Fin del fichero y fin de ejecución!")
                     }
                     
                 }
