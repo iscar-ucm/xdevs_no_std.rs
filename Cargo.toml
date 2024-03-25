@@ -15,6 +15,7 @@ name = "xdevs"
 path = "src/lib.rs"
 
 [dependencies]
+csv = "1.3.0"
 heapless = "0.8"
 xdevs-no-std-macros = { path = "macros", version = "0.1.0" }
 
