@@ -2,12 +2,12 @@
 
 pub use xdevs_no_std_macros::*;
 
-pub mod aux;
+pub mod traits;
 pub mod port;
 pub mod simulator;
 
 /// Interface for DEVS atomic models. All DEVS atomic models must implement this trait.
-pub trait Atomic: aux::PartialAtomic {
+pub trait Atomic: traits::PartialAtomic {
     /// Method for performing any operation before simulating. By default, it does nothing.
     #[allow(unused_variables)]
     #[inline]

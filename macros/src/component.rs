@@ -181,7 +181,7 @@ impl Component {
                     }
                 }
             }
-            unsafe impl xdevs::aux::Component for #ident {
+            unsafe impl xdevs::traits::Component for #ident {
                 type Input = #input_ident;
                 type Output = #output_ident;
                 #[inline]

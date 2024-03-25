@@ -55,7 +55,7 @@ impl<T: Clone, const N: usize> Port<T, N> {
     }
 }
 
-unsafe impl<T: Clone, const N: usize> crate::aux::Bag for Port<T, N> {
+unsafe impl<T: Clone, const N: usize> crate::traits::Bag for Port<T, N> {
     fn is_empty(&self) -> bool {
         self.is_empty()
     }

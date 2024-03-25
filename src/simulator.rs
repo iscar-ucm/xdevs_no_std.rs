@@ -1,4 +1,4 @@
-use crate::aux::{AbstractSimulator, Bag};
+use crate::traits::{AbstractSimulator, Bag};
 
 #[cfg(feature = "std")]
 pub mod std;
