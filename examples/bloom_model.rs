@@ -472,9 +472,9 @@ fn main(){
 
     
 
-    //let ifp = r"C:\Users\Usuario\Desktop\00 UNI\000 UCM\xdevs_no_std.rs\examples\input.csv";
+    
     let ifp = "examples/input.csv";
-    //let ifp = r"C:\Users\Usuario\Desktop\00 UNI\000 UCM\xdevs_no_std.rs\examples\input_different_time_inputs.csv";
+   
     let ofp = "output.csv".to_string();
     let gen = generator_model::GeneratorModel::new(generator_model::GMState::new(ifp, ofp));
     
