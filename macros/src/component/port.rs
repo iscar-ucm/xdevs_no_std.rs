@@ -76,7 +76,7 @@ impl Ports {
                     Self { #(#ports_ident: xdevs::port::Port::new()),* }
                 }
             }
-            unsafe impl xdevs::aux::Bag for #ident {
+            unsafe impl xdevs::traits::Bag for #ident {
                 #[inline]
                 fn is_empty(&self) -> bool {
                     true #( && self.#ports_ident.is_empty() )*
