@@ -24,16 +24,16 @@ impl Coupled {
         };
 
         quote! {
-            unsafe impl xdevs::aux::AbstractSimulator for #coupled_ident {
+            unsafe impl xdevs::traits::AbstractSimulator for #coupled_ident {
                 #[inline]
                 fn start(&mut self, t_start: f64) -> f64 {
                     // set t_last to t_start
-                    xdevs::aux::Component::set_t_last(self, t_start);
+                    xdevs::traits::Component::set_t_last(self, t_start);
                     // get minimum t_next from all components
                     let mut t_next = f64::INFINITY;
-                    #(t_next = f64::min(t_next, xdevs::aux::AbstractSimulator::start(&mut self.#component, t_start));)*
+                    #(t_next = f64::min(t_next, xdevs::traits::AbstractSimulator::start(&mut self.#component, t_start));)*
                     // set t_next to minimum t_next
-                    xdevs::aux::Component::set_t_next(self, t_next);
+                    xdevs::traits::Component::set_t_next(self, t_next);
 
                     t_next
                 }
@@ -41,17 +41,17 @@ impl Coupled {
                 #[inline]
                 fn stop(&mut self, t_stop: f64) {
                     // stop all components
-                    #(xdevs::aux::AbstractSimulator::stop(&mut self.#component, t_stop);)*
+                    #(xdevs::traits::AbstractSimulator::stop(&mut self.#component, t_stop);)*
                     // set t_last to t_stop and t_next to infinity
-                    xdevs::aux::Component::set_t_last(self, t_stop);
-                    xdevs::aux::Component::set_t_next(self, f64::INFINITY);
+                    xdevs::traits::Component::set_t_last(self, t_stop);
+                    xdevs::traits::Component::set_t_next(self, f64::INFINITY);
                 }
 
                 #[inline]
                 fn lambda(&mut self, t: f64) {
-                    if t >= xdevs::aux::Component::get_t_next(self) {
+                    if t >= xdevs::traits::Component::get_t_next(self) {
                         // propagate lambda to all components
-                        #(xdevs::aux::AbstractSimulator::lambda(&mut self.#component, t);)*
+                        #(xdevs::traits::AbstractSimulator::lambda(&mut self.#component, t);)*
                         // propagate EOCs
                         #(#eoc);*
                     }
@@ -63,13 +63,13 @@ impl Coupled {
                      #(#xic);*
                     // get minimum t_next from all components after executing their delta
                     let mut t_next = f64::INFINITY;
-                    #(t_next = f64::min(t_next, xdevs::aux::AbstractSimulator::delta(&mut self.#component, t));)*
+                    #(t_next = f64::min(t_next, xdevs::traits::AbstractSimulator::delta(&mut self.#component, t));)*
                     // clear input and output events
-                    xdevs::aux::Component::clear_output(self);
-                    xdevs::aux::Component::clear_input(self);
+                    xdevs::traits::Component::clear_output(self);
+                    xdevs::traits::Component::clear_input(self);
                     // set t_last to t and t_next to minimum t_next
-                    xdevs::aux::Component::set_t_last(self, t);
-                    xdevs::aux::Component::set_t_next(self, t_next);
+                    xdevs::traits::Component::set_t_last(self, t);
+                    xdevs::traits::Component::set_t_next(self, t_next);
 
                     t_next
                 }
