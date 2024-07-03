@@ -35,3 +35,12 @@ jobs:
 
       - name: Test
         run: cargo test --all ${{ matrix.cargo_flags }}
+  
+  # Job to check that all the tests succeeded
+  test-check:
+    needs:
+    - test
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - run: jq --exit-status 'all(.result == "success")' <<< '${{ toJson(needs) }}'
