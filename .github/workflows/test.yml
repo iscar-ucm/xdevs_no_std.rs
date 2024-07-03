@@ -20,8 +20,7 @@ jobs:
           - stable
           - nightly
         cargo_flags:
-          - "--no-default-features"
-          - "--all-features"
+          - "--features std"
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4

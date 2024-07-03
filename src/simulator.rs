@@ -18,13 +18,13 @@ impl<M: AbstractSimulator> Simulator<M> {
     /// It provides support for real time execution via the following arguments:
     ///
     /// - `wait_until`: a closure that is called between state transitions.
-    /// It receives the time of the next state transition and a mutable reference to the input ports.
-    /// It returns the actual time "waited".
-    /// If the returned time is equal to the input time, an internal/confluent state transition is performed.
-    /// Otherwise, it assumes that an external event happened and executes the external transition function.
+    ///   It receives the time of the next state transition and a mutable reference to the input ports.
+    ///   It returns the actual time "waited".
+    ///   If the returned time is equal to the input time, an internal/confluent state transition is performed.
+    ///   Otherwise, it assumes that an external event happened and executes the external transition function.
     /// - `propagate_output`: a closure that is called after output functions.
-    /// It receives a mutable reference to the output ports so the closure can access to output events.
-    /// Feel free to ignore this argument if you do not need to propagate output messages.
+    ///   It receives a mutable reference to the output ports so the closure can access to output events.
+    ///   Feel free to ignore this argument if you do not need to propagate output messages.
     #[inline]
     pub fn simulate_rt(
         &mut self,

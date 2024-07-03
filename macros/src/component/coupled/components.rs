@@ -9,7 +9,7 @@ use syn::{
 
 pub struct Component {
     pub ident: Ident,
-    pub colon: Token![:],
+    pub _colon: Token![:],
     pub ty: Type,
 }
 
@@ -18,12 +18,16 @@ impl Parse for Component {
         let ident = input.parse()?;
         let colon = input.parse()?;
         let ty = input.parse()?;
-        Ok(Self { ident, colon, ty })
+        Ok(Self {
+            ident,
+            _colon: colon,
+            ty,
+        })
     }
 }
 
 pub struct Components {
-    pub brace: Brace,
+    pub _brace: Brace,
     pub components: Vec<Component>,
 }
 
@@ -71,6 +75,9 @@ impl Parse for Components {
             }
         }
 
-        Ok(Self { brace, components })
+        Ok(Self {
+            _brace: brace,
+            components,
+        })
     }
 }
