@@ -13,7 +13,6 @@ pub fn sleep<T: crate::traits::Bag>(
     })
 }
 
-///
 /// It computes the next wall-clock time corresponding to the next state transition of the model.
 ///
 /// An input handler function waits for external events without exceeding the time for the next internal event.
