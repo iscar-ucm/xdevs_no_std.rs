@@ -1,6 +1,6 @@
 [package]
 name = "xdevs-no-std"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 license = "GPL-3.0"
 description = "no-std implementation of xDEVS for real-time simulation on embedded systems"
@@ -16,7 +16,7 @@ path = "src/lib.rs"
 
 [dependencies]
 heapless = "0.8"
-xdevs-no-std-macros = { path = "macros", version = "0.1.0" }
+xdevs-no-std-macros = { path = "macros", version = "0.2.0" }
 
 [features]
 std = []

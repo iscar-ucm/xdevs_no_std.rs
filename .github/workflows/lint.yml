@@ -50,3 +50,13 @@ jobs:
 
       - name: Run clippy
         run: cargo clippy --all ${{ matrix.cargo_flags }} -- -D warnings
+
+  # Job to check that all the tests succeeded
+  lint-check:
+    needs:
+    - rustfmt
+    - clippy
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - run: jq --exit-status 'all(.result == "success")' <<< '${{ toJson(needs) }}'
