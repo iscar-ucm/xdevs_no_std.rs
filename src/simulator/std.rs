@@ -1,5 +1,6 @@
 extern crate std;
-use std::{cmp, time::{Duration, SystemTime}};
+use std::time::{Duration, SystemTime};
+
 
 /// Closure for RT simulation on targets with `std`.
 /// It sleeps until the next state transition.
@@ -25,31 +26,59 @@ pub fn sleep<T: crate::traits::Bag>(
         }
         last_vt = t_next;
         last_rt = next_rt;
-
         t_next
     }
 }
+///
+/// Default input handler function it only waits for a given time. 
+/// No Input Handler is specify.
+/// 
+fn ihandler_default<T: crate::traits::Bag>(waiting_period: std::time::Duration, _: &mut T) {
+    std::thread::sleep(waiting_period);
+}
 
-/// Closure for waiting for an event in real-time simulation.
-/// It calculates the next real-time and virtual-time based on the given time scale and sleeps until the next state transition.
-/// If the maximum jitter is provided, it checks if the actual time exceeds the future time and panics if it does.
-/// It also calls the input handler function with the duration between the current and next real-time.
 ///
-/// # Arguments
+/// It computes the next wall-clock time corresponding to the next state transition of the model.
+/// An input handler function waits for external events without exceeding the time for the next internal event.
+/// Finally, it checks that the wall-clock drift does not exceed the maximum jitter allowed (if any) and panics if it does.
+/// 
+///  # Arguments
+/// 
+///  * `t_start` - The virtual time at the beginning of the simulation.
+///  * `time_scale` - The time scale factor between virtual and wall-clock time.
+///  * `max_jitter` - The maximum allowed jitter duration. If `None`, no jitter check is performed.
+///  * `input_handler` - An optional function to handle incoming external events. The default value (i.e. not handling incoming events) is `ihandler_default`.
+///     However, If provided, this function expects two arguments:
+///    - `duration: [`Duration`]` - Maximum duration of the time interval to wait for external events.
+///     The input handler function may return earlier if an input event is received.
+///     Note, however, that it must **NOT** return after, as it would result in an incorrect real-time implementation.
+///    - `input_ports: &mut T` - Mutable references to the input ports of the top-most model under simulation.
+///    
+///  # Returns
 ///
-/// * `t_start` - The starting virtual time.
-/// * `time_scale` - The time scale factor.
-/// * `max_jitter` - The maximum allowed jitter duration.
-/// * `input_handler` - The function to handle the input event.
-///
-/// # Returns
-///
-/// A closure that takes the next virtual time and a mutable reference to the bag and returns the next virtual time.
+///  A closure that takes the next virtual time and a mutable reference to the bag and returns the next virtual time.
+/// 
+/// # Example
+/// 
+/// * Default implementation:
+/// ```rust
+/// 
+/// xdevs::simulator::std::wait_event(0.0, 1.0, Some(std::time::Duration::from_millis(100)), None::<fn(std::time::Duration, &mut model_nameInput) -> ()>),
+/// 
+/// ```
+/// 
+/// * Custom implementation:
+/// 
+/// ```rust
+/// 
+/// xdevs::simulator::std::wait_event(0., 1., Some(Duration::from_millis(50)), Some(some_input_handler))),
+/// 
+/// ```
 pub fn wait_event<T: crate::traits::Bag>(
     t_start: f64,
     time_scale: f64,
     max_jitter: Option<std::time::Duration>,
-    mut input_handler: impl FnMut(Duration, &mut T),
+    mut input_handler: Option<impl FnMut(Duration, &mut T)>,
 ) -> impl FnMut(f64, &mut T) -> f64 {
     
     let mut last_vt = t_start;
@@ -57,34 +86,43 @@ pub fn wait_event<T: crate::traits::Bag>(
     let start_rt = last_rt;
 
     move |t_next, binput: &mut T| -> f64 {
-        
-        if t_next < last_vt {
-            panic!("Virtual time higher than t_next");
-        }
+
+        assert!(t_next >= last_vt);        
+
         let next_rt = last_rt + Duration::from_secs_f64((t_next - last_vt) * time_scale);
-        match next_rt.duration_since(SystemTime::now()) {
-            Ok(duration) => input_handler(duration, binput),
-            Err(err) => {
-                if let Some(max_jitter) = max_jitter {
-                    // println!("Hay Jitter: {:?}", err.duration());
-                    if err.duration() > max_jitter {
-                        panic!("Jitter too high");
-                    }
-                }
+
+
+        if let Ok(duration) = next_rt.duration_since(SystemTime::now()) {  
+            if let Some(ref mut handler) = input_handler {
+                // Custom Input Handler
+                handler(duration, binput);
+            } else {
+                // Default Input Handler
+                ihandler_default(duration, binput);
             }
-        }
-        let t = SystemTime::now();
-        
-        // Update time
-        last_rt = cmp::min(next_rt, t);
-        
-        if t < next_rt {
-            let duration_from_str = last_rt.duration_since(start_rt).unwrap();
-            last_vt = duration_from_str.as_secs_f64() / time_scale;
-        }else {
-            last_vt = t_next;
-        }
-        last_vt 
-        
+        }  
+
+        let t = SystemTime::now(); 
+
+        last_vt = match t.duration_since(next_rt) {  
+            Ok(duration) => { // t >= next_rt
+                if let Some(max_jitter) = max_jitter {  
+                    if duration > max_jitter {  
+                        panic!("[WE]>> Jitter too high: {:?}", duration);  
+                    }  
+                }  
+                last_rt = next_rt;  
+                t_next  
+                
+            }, 
+            Err(_) => {  // t < next_rt
+                last_rt = t;  
+                let duration = last_rt.duration_since(start_rt).unwrap();  
+                duration.as_secs_f64() / time_scale  
+            }  
+        };
+
+        last_vt
+
     }
 }
