@@ -138,51 +138,6 @@ impl<T: crate::traits::Bag> MultipleOutputHandler<T> {
     }
 }
 
-/* pub trait Event {
-    type EventInfo;
-    fn default() -> Self;
-} */
-
-/// A trait for handling a generic event.
-///
-/// The trait is used to define the default behaviour that events must implement.
-/// All events must implement this trait since there can be errors in the simulation and a default event must be returned.
-///
-/// # Examples
-///
-/// ```
-/// pub struct AnyEvent {
-///     pub some_type_of_data: (String, String),
-/// }
-///
-/// impl Event for AnyEvent {
-///     fn default() -> Self {
-///         AnyEvent {
-///             some_type_of_data: ("".to_string(), "".to_string()),
-///         }
-///     }
-/// }
-/// ```
-pub trait Event {
-    /// Creates a default instance of the event.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// struct MyEvent;
-    ///
-    /// impl Event for MyEvent {
-    ///
-    ///     fn default() -> Self {
-    ///         MyEvent
-    ///     }
-    /// }
-    ///
-    /// let event = MyEvent::default();
-    /// ```
-    fn default() -> Self;
-}
-
 /// A framework for adding Input Handlers and reducing the complexity of their use.
 ///
 /// This struct manages input handlers by spawning threads for each handler and managing the communication
@@ -192,7 +147,7 @@ pub trait Event {
 /// # Type Parameters
 /// * `T` - It represents the input bag of the model under simulation. Usually it is named `ModelNameInput`.
 /// * `F` - The function type used to inject events into the model. This function is implementaion-specific and it takes a mutable reference to T and event U as input.
-/// * `U` - It is the event type handled by the mpsc channel. It must implement the `Event` trait.
+/// * `U` - It is the event type handled by the mpsc channel. It must implement the `Default` trait.
 ///
 /// # Fields
 /// * `phantom` - A phantom data marker to hold the generic type `T`.
@@ -217,7 +172,7 @@ impl<T, F, U> InputHandlersManager<T, F, U>
 where
     T: crate::traits::Bag,
     F: FnMut(&mut T, U),
-    U: crate::simulator::std::Event + 'static + Send,
+    U: core::default::Default + Send + 'static,
 {
     /// Creates a new `InputHandlersManager`.
     ///
@@ -315,10 +270,7 @@ where
             }
 
             /// Internal function to get the event from the receiver within the specified duration
-            fn _get_event<U: crate::simulator::std::Event>(
-                rx: &mpsc::Receiver<U>,
-                d: Duration,
-            ) -> U {
+            fn _get_event<U: core::default::Default>(rx: &mpsc::Receiver<U>, d: Duration) -> U {
                 // Wait for the event within the specified duration
                 rx.recv_timeout(d).unwrap_or_else(|err| {
                     // Return a default event if no message is received before the timeout
