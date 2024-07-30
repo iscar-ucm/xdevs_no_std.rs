@@ -151,6 +151,8 @@ impl<T: crate::traits::Bag> MultipleOutputHandler<T> {
 /// # Examples
 ///
 /// ```
+/// use xdevs::simulator::std::Event;
+///
 /// pub struct AnyEvent {
 ///     pub some_type_of_data: (String, String),
 /// }
@@ -169,6 +171,8 @@ pub trait Event {
     /// # Examples
     ///
     /// ```
+    /// use xdevs::simulator::std::Event;
+    ///
     /// struct MyEvent;
     ///
     /// impl Event for MyEvent {
