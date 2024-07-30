@@ -1,0 +1,46 @@
+name: Test
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+  merge_group:
+
+jobs:
+  test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macOS-latest
+        toolchain:
+          - stable
+          - nightly
+        cargo_flags:
+          - "--features std"
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      
+      - name: Build
+        run: cargo build --all ${{ matrix.cargo_flags }}
+
+      - name: Test
+        run: cargo test --all ${{ matrix.cargo_flags }}
+  
+  # Job to check that all the tests succeeded
+  test-check:
+    needs:
+    - test
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - run: jq --exit-status 'all(.result == "success")' <<< '${{ toJson(needs) }}'
