@@ -94,7 +94,7 @@ impl Parse for Coupling {
 }
 
 pub struct Couplings {
-    pub brace: Brace,
+    pub _brace: Brace,
     pub couplings: Vec<Coupling>,
 }
 
@@ -133,6 +133,9 @@ impl Parse for Couplings {
                 content.parse::<Token![,]>()?; // comma between meta arguments
             }
         }
-        Ok(Self { brace, couplings })
+        Ok(Self {
+            _brace: brace,
+            couplings,
+        })
     }
 }

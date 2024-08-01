@@ -1,12 +1,14 @@
 [package]
 name = "xdevs-no-std"
-version = "0.1.1"
+version = "0.2.1"
 edition = "2021"
 license = "GPL-3.0"
+authors = ["Román Cárdenas <r.cardenas@upm.es>"]
 description = "no-std implementation of xDEVS for real-time simulation on embedded systems"
 keywords = ["embedded", "simulation", "real-time", "no-std"]
 readme = "README.md"
 repository = "https://github.com/iscar-ucm/xdevs_no_std.rs"
+documentation = "https://docs.rs/xdevs-no-std"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -16,7 +18,10 @@ path = "src/lib.rs"
 
 [dependencies]
 heapless = "0.8"
-xdevs-no-std-macros = { path = "macros", version = "0.1.0" }
+xdevs-no-std-macros = { path = "macros", version = "0.2.0" }
 
 [features]
 std = []
+
+[package.metadata.docs.rs]
+all-features = true

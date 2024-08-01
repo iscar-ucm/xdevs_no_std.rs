@@ -138,6 +138,51 @@ impl<T: crate::traits::Bag> MultipleOutputHandler<T> {
     }
 }
 
+/* pub trait Event {
+    type EventInfo;
+    fn default() -> Self;
+} */
+
+/// A trait for handling a generic event.
+///
+/// The trait is used to define the default behaviour that events must implement.
+/// All events must implement this trait since there can be errors in the simulation and a default event must be returned.
+///
+/// # Examples
+///
+/// ```
+/// pub struct AnyEvent {
+///     pub some_type_of_data: (String, String),
+/// }
+///
+/// impl Event for AnyEvent {
+///     fn default() -> Self {
+///         AnyEvent {
+///             some_type_of_data: ("".to_string(), "".to_string()),
+///         }
+///     }
+/// }
+/// ```
+pub trait Event {
+    /// Creates a default instance of the event.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// struct MyEvent;
+    ///
+    /// impl Event for MyEvent {
+    ///
+    ///     fn default() -> Self {
+    ///         MyEvent
+    ///     }
+    /// }
+    ///
+    /// let event = MyEvent::default();
+    /// ```
+    fn default() -> Self;
+}
+
 /// A framework for adding Input Handlers and reducing the complexity of their use.
 ///
 /// This struct manages input handlers by spawning threads for each handler and managing the communication
