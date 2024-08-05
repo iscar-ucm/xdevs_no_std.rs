@@ -96,18 +96,13 @@ type OutputHandler<T> = Box<dyn FnMut(&T)>;
 /// A struct that represents a multiple output handler.
 ///
 /// It contains a vector of `OutputHandler<T>` instances.
+#[derive(Default)]
 pub struct MultipleOutputHandler<T> {
     ohs: Vec<OutputHandler<T>>,
 }
 
-impl<T> Default for MultipleOutputHandler<T> {
-    fn default() -> Self {
-        Self { ohs: Vec::new() }
-    }
-}
-
 /// A struct representing a multiple output handler for a generic type `T`.
-impl<T: crate::traits::Bag> MultipleOutputHandler<T> {
+impl<T: crate::traits::Bag + core::default::Default> MultipleOutputHandler<T> {
     /// Creates a new instance of `MultipleOutputHandler`.
     ///
     /// # Returns
