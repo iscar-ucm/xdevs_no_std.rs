@@ -1,3 +1,5 @@
+use xdevs::simulator::{std::SleepAsync, Config, Simulator};
+
 mod generator {
     pub struct GeneratorState {
         sigma: f64,
@@ -229,9 +231,10 @@ xdevs::component!(
     }
 );
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let period = 1.;
-    let proc_time = 1.1;
+    let proc_time = 1.;
     let obs_time = 10.;
 
     let generator = generator::Generator::new(generator::GeneratorState::new(period));
@@ -241,7 +244,11 @@ fn main() {
     let ef = EF::new(generator, transducer);
     let efp = EFP::new(ef, processor);
 
-    let mut simulator = xdevs::simulator::Simulator::new(efp);
-    let config = xdevs::simulator::Config::new(0.0, 14.0, 1.0, None);
-    simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
+    let mut simulator = Simulator::new(efp);
+    let config = Config::new(0.0, 14.0, 1.0, None);
+    let input_handler = SleepAsync::new();
+
+    simulator
+        .simulate_rt_async(&config, input_handler, |_| {})
+        .await;
 }
