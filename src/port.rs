@@ -8,7 +8,6 @@ impl<T: Clone, const N: usize> Default for Port<T, N> {
     fn default() -> Self {
         Self::new()
     }
-    
 }
 
 impl<T: Clone, const N: usize> Port<T, N> {
