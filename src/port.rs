@@ -1,8 +1,15 @@
 /// Port is a generic structure that can be used to store values of any type `T`.
 /// It is the main artifact to exchange data between components.
 /// Note that, in `no_std` environments, the capacity of the port `N` must be known at compile time.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Port<T: Clone, const N: usize>(heapless::Vec<T, N>);
+
+impl<T: Clone, const N: usize> Default for Port<T, N> {
+    fn default() -> Self {
+        Self::new()
+    }
+    
+}
 
 impl<T: Clone, const N: usize> Port<T, N> {
     /// Creates a new empty port.
