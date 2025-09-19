@@ -49,8 +49,7 @@ impl<T: Clone, const N: usize> Port<T, N> {
 
     /// Adds multiple values to the port.
     #[inline]
-    #[allow(clippy::result_unit_err)]
-    pub fn add_values(&mut self, items: &[T]) -> Result<(), ()> {
+    pub fn add_values(&mut self, items: &[T]) -> Result<(), heapless::CapacityError> {
         self.0.extend_from_slice(items)
     }
 
