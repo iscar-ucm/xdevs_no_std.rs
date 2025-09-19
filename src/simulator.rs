@@ -12,19 +12,26 @@ pub mod embassy;
 pub struct Config {
     /// The start time of the simulation.
     pub t_start: f64,
+
     /// The stop time of the simulation.
     pub t_stop: f64,
+
     /// The time scale factor for the simulation.
+    ///
     /// If `time_scale` is greater than 1.0, the simulation runs faster than real time.
     /// If `time_scale` is less than 1.0, the simulation runs slower than real time.
     pub time_scale: f64,
-    /// The maximum jitter duration allowed in the simulation. If `None`, jitter is not checked.
-    /// If `Some(duration)`, the simulator will panic if the wall-clock time drift exceeds this duration.
+
+    /// The maximum jitter duration allowed in the simulation.
+    ///
+    /// If `None`, jitter is not checked. If `Some(duration)`, the simulator will panic
+    /// if the wall-clock time drift exceeds this duration.
     pub max_jitter: Option<Duration>,
 }
 
 impl Config {
     /// Creates a new `SimulatorConfig` with the specified parameters.
+    #[inline]
     pub fn new(t_start: f64, t_stop: f64, time_scale: f64, max_jitter: Option<Duration>) -> Self {
         Self {
             t_start,
@@ -36,24 +43,22 @@ impl Config {
 }
 
 impl Default for Config {
-    /// Default configuration runs from time 0.0 to infinity,
-    /// with a time scale of 1.0 (real-time simulation) and no maximum jitter.
+    /// Default configuration runs from time 0.0 to infinity, with a
+    /// time scale of 1.0 (real-time simulation) and no maximum jitter.
+    #[inline]
     fn default() -> Self {
-        Self {
-            t_start: 0.0,
-            t_stop: f64::INFINITY,
-            time_scale: 1.0,
-            max_jitter: None,
-        }
+        Self::new(0.0, f64::INFINITY, 1.0, None)
     }
 }
 
-/// A DEVS simulator that uses a virtual clock (i.e., no real time is used).
+/// A DEVS simulator.
+#[repr(transparent)]
 pub struct Simulator<M: AbstractSimulator> {
     model: M,
 }
 
 impl<M: AbstractSimulator> Simulator<M> {
+    /// Creates a new `Simulator` with the given DEVS model.
     #[inline]
     pub const fn new(model: M) -> Self {
         Self { model }
@@ -63,13 +68,13 @@ impl<M: AbstractSimulator> Simulator<M> {
     /// It provides support for real time execution via the following arguments:
     ///
     /// - `wait_until`: a closure that is called between state transitions.
-    ///   It receives the current time, the time of the next state transition and a mutable reference to the input ports.
-    ///   It returns the actual time "waited".
+    ///   It receives the current time, the time of the next state transition and a
+    ///   mutable reference to the input ports. It returns the actual time "waited".
     ///   If the returned time is equal to the input time, an internal/confluent state transition is performed.
     ///   Otherwise, it assumes that an external event happened and executes the external transition function.
+    ///
     /// - `propagate_output`: a closure that is called after output functions.
     ///   It receives a mutable reference to the output ports so the closure can access to output events.
-    ///   Feel free to ignore this argument if you do not need to propagate output messages.
     #[inline]
     pub fn simulate_rt(
         &mut self,

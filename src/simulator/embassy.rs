@@ -5,13 +5,17 @@ use crate::{
 use core::time::Duration;
 use embassy_time::{Instant, Timer};
 
+/// A simple asynchronous input handler that sleeps until the next state transition of the model.
 #[derive(Default)]
 pub struct SleepAsync<T: Bag> {
+    /// The last recorded real time instant.
     last_rt: Option<Instant>,
+    /// Phantom data to associate with the input bag type.
     input: core::marker::PhantomData<T>,
 }
 
 impl<T: Bag> SleepAsync<T> {
+    /// Creates a new `SleepAsync` instance.
     pub fn new() -> Self {
         Self {
             last_rt: None,
