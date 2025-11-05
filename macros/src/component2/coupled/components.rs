@@ -1,23 +1,21 @@
 use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
+use syn::Generics;
+use syn::TypeGenerics;
 
 use super::Field;
 
 pub struct Components {
     pub components: Vec<Field>,
+    pub generics: Generics,
 }
 
 impl Components {
-    pub fn new(components: Vec<Field>) -> Self {
-        Components { components }
-    }
-
-    pub fn add_component(&mut self, component: Field) {
-        self.components.push(component);
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.components.is_empty()
+    pub fn new(components: Vec<Field>, generics: Generics) -> Self {
+        Components {
+            components,
+            generics,
+        }
     }
 
     pub fn field_idents(&self) -> Vec<&syn::Ident> {
@@ -28,15 +26,21 @@ impl Components {
         self.components.iter().map(|f| &f.ty).collect()
     }
 
+    pub fn get_generics(&self) -> TypeGenerics<'_> {
+        let (_, ty_generics, _) = self.generics.split_for_impl();
+        ty_generics
+    }
+
     pub fn quote(&self, ident: &Ident) -> TokenStream2 {
         let fields_ident = self.field_idents();
         let fields_ty = self.field_tys();
+        let (impl_generics, ty_generics, _) = self.generics.split_for_impl();
 
         quote::quote! {
-            pub struct #ident {
+            pub struct #ident #impl_generics{
                 #(#fields_ident: #fields_ty,)*
             }
-            impl #ident {
+            impl #impl_generics #ident #ty_generics{
                 #[inline]
                 pub fn new(#(#fields_ident: #fields_ty),*) -> Self {
                     Self { #(#fields_ident),* }
