@@ -1,11 +1,14 @@
+use super::filter_generics;
+use super::impl_component;
 use super::port::Ports;
 use super::state::State;
 use super::Field;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Error, Ident, ItemStruct};
+use syn::{Error, Generics, Ident, ItemStruct};
 
 pub struct Component {
     pub ident: Ident,
+    pub generics: Generics,
     pub state: State,
     pub inputs: Ports,
     pub outputs: Ports,
@@ -27,9 +30,9 @@ impl Component {
 
         let ident = component.ident.clone();
         let mut last_attr = None;
-        let mut state = State::new(Vec::new());
-        let mut inputs = Ports::new(Vec::new());
-        let mut outputs = Ports::new(Vec::new());
+        let mut state = Vec::new();
+        let mut inputs = Vec::new();
+        let mut outputs = Vec::new();
 
         // Parse struct fields
         for field in &component.fields {
@@ -49,21 +52,21 @@ impl Component {
                 if attr.path().is_ident("state") {
                     let field_ident = field.ident.clone().unwrap();
                     let field_ty = field.ty.clone();
-                    state.add_field(Field {
+                    state.push(Field {
                         ident: field_ident,
                         ty: field_ty,
                     });
                 } else if attr.path().is_ident("input") {
                     let field_ident = field.ident.clone().unwrap();
                     let field_ty = field.ty.clone();
-                    inputs.add_port(Field {
+                    inputs.push(Field {
                         ident: field_ident,
                         ty: field_ty,
                     });
                 } else if attr.path().is_ident("output") {
                     let field_ident = field.ident.clone().unwrap();
                     let field_ty = field.ty.clone();
-                    outputs.add_port(Field {
+                    outputs.push(Field {
                         ident: field_ident,
                         ty: field_ty,
                     });
@@ -78,8 +81,19 @@ impl Component {
             return Err(Error::new_spanned(&component, "No state definition found"));
         }
 
+        // Get generics and assign them to each struct accordingly
+        let generics = component.generics.clone();
+        let input_generics = filter_generics(&inputs, &generics);
+        let output_generics = filter_generics(&outputs, &generics);
+        let state_generics = filter_generics(&state, &generics);
+
+        let inputs = Ports::new(inputs, input_generics);
+        let outputs = Ports::new(outputs, output_generics);
+        let state = State::new(state, state_generics);
+
         Ok(Component {
             ident,
+            generics,
             state,
             inputs,
             outputs,
@@ -99,19 +113,35 @@ impl Component {
         let output_struct = self.outputs.quote(output_ident);
         let state_struct = self.state.quote(state_ident);
 
+        // Extract generics for impl
+        let (impl_generics, ty_generics, _) = self.generics.split_for_impl();
+        let input_generics = &self.inputs.get_generics();
+        let output_generics = &self.outputs.get_generics();
+        let state_generics = &self.state.get_generics();
+
+        // Component trait implementation
+        let component_impl = impl_component(
+            ident,
+            input_ident,
+            output_ident,
+            &self.generics,
+            input_generics,
+            output_generics,
+        );
+
         // Generate the expanded code
         let expanded = quote::quote! {
             #input_struct
             #output_struct
             #state_struct
-            pub struct #ident {
-                pub input: #input_ident,
-                pub output: #output_ident,
+            pub struct #ident #impl_generics{
+                pub input: #input_ident #input_generics,
+                pub output: #output_ident #output_generics,
                 pub t_last: f64,
                 pub t_next: f64,
-                pub state: #state_ident,
+                pub state: #state_ident #state_generics,
             }
-            impl #ident {
+            impl #impl_generics #ident #ty_generics {
                 #[inline]
                 pub fn new(#(#state_fields: #state_tys),*) -> Self {
                     Self {
@@ -123,47 +153,11 @@ impl Component {
                     }
                 }
             }
-            unsafe impl xdevs::traits::Component for #ident {
-                type Input = #input_ident;
-                type Output = #output_ident;
-                #[inline]
-                fn get_t_last(&self) -> f64 {
-                    self.t_last
-                }
-                #[inline]
-                fn set_t_last(&mut self, t_last: f64) {
-                    self.t_last = t_last;
-                }
-                #[inline]
-                fn get_t_next(&self) -> f64 {
-                    self.t_next
-                }
-                #[inline]
-                fn set_t_next(&mut self, t_next: f64) {
-                    self.t_next = t_next;
-                }
-                #[inline]
-                fn get_input(&self) -> &Self::Input {
-                    &self.input
-                }
-                #[inline]
-                fn get_input_mut(&mut self) -> &mut Self::Input {
-                    &mut self.input
-                }
-                #[inline]
-                fn get_output(&self) -> &Self::Output {
-                    &self.output
-                }
-                #[inline]
-                fn get_output_mut(&mut self) -> &mut Self::Output {
-                    &mut self.output
-                }
+            #component_impl
+            unsafe impl #impl_generics xdevs::traits::PartialAtomic for #ident #ty_generics{
+                type State = #state_ident #state_generics;
             }
-
-            unsafe impl xdevs::traits::PartialAtomic for #ident {
-                type State = #state_ident;
-            }
-            unsafe impl xdevs::traits::AbstractSimulator for #ident {
+            unsafe impl #impl_generics xdevs::traits::AbstractSimulator for #ident #ty_generics{
                 #[inline]
                 fn start(&mut self, t_start: f64) -> f64 {
                     // set t_last to t_start

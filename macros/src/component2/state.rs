@@ -1,23 +1,18 @@
 use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
+use syn::Generics;
+use syn::TypeGenerics;
 
 use super::Field;
 
 pub struct State {
     pub fields: Vec<Field>,
+    pub generics: Generics,
 }
 
 impl State {
-    pub fn new(fields: Vec<Field>) -> Self {
-        State { fields }
-    }
-
-    pub fn add_field(&mut self, field: Field) {
-        self.fields.push(field);
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.fields.is_empty()
+    pub fn new(fields: Vec<Field>, generics: Generics) -> Self {
+        State { fields, generics }
     }
 
     pub fn field_idents(&self) -> Vec<&syn::Ident> {
@@ -28,16 +23,22 @@ impl State {
         self.fields.iter().map(|f| &f.ty).collect()
     }
 
+    pub fn get_generics(&self) -> TypeGenerics<'_> {
+        let (_, ty_generics, _) = self.generics.split_for_impl();
+        ty_generics
+    }
+
     pub fn quote(&self, ident: &Ident) -> TokenStream2 {
         let fields_ident = self.field_idents();
         let fields_ty = self.field_tys();
+        let (impl_generics, ty_generics, _) = self.generics.split_for_impl();
 
         quote::quote! {
             #[derive(Debug, Default)]
-            pub struct #ident {
+            pub struct #ident #impl_generics {
                 #(#fields_ident: #fields_ty,)*
             }
-            impl #ident {
+            impl #impl_generics #ident #ty_generics{
                 #[inline]
                 pub fn new(#(#fields_ident: #fields_ty),*) -> Self {
                     Self { #(#fields_ident),* }

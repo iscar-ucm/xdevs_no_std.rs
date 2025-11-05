@@ -1,14 +1,19 @@
 mod components;
 mod coupling;
 
+use super::filter_generics;
+use super::impl_component;
 use super::port::Ports;
 use super::Field;
 use components::Components;
 use coupling::Couplings;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{parse::{ParseStream, Parse},Error, Ident, ItemStruct, Token};
+use syn::{
+    parse::{Parse, ParseStream},
+    Error, Generics, Ident, ItemStruct, Token,
+};
 
-struct CoupledArgs{
+struct CoupledArgs {
     couplings: Option<Couplings>,
 }
 
@@ -20,7 +25,7 @@ impl Parse for CoupledArgs {
             let token: Ident = input.parse()?;
             input.parse::<Token![=]>()?; // consume the '='
             if token == "couplings" {
-                    couplings = Some(syn::parse2(input.parse()?)?);
+                couplings = Some(syn::parse2(input.parse()?)?);
             } else {
                 return Err(Error::new(
                     token.span(),
@@ -34,6 +39,7 @@ impl Parse for CoupledArgs {
 
 pub struct Component {
     pub ident: Ident,
+    pub generics: Generics,
     pub components: Components,
     pub couplings: Option<Couplings>,
     pub inputs: Ports,
@@ -56,9 +62,9 @@ impl Component {
 
         let ident = component.ident.clone();
         let mut last_attr = None;
-        let mut components = Components::new(Vec::new());
-        let mut inputs = Ports::new(Vec::new());
-        let mut outputs = Ports::new(Vec::new());
+        let mut components = Vec::new();
+        let mut inputs = Vec::new();
+        let mut outputs = Vec::new();
 
         // Parse struct fields
         for field in &component.fields {
@@ -78,21 +84,21 @@ impl Component {
                 if attr.path().is_ident("components") {
                     let field_ident = field.ident.clone().unwrap();
                     let field_ty = field.ty.clone();
-                    components.add_component(Field {
+                    components.push(Field {
                         ident: field_ident,
                         ty: field_ty,
                     });
                 } else if attr.path().is_ident("input") {
                     let field_ident = field.ident.clone().unwrap();
                     let field_ty = field.ty.clone();
-                    inputs.add_port(Field {
+                    inputs.push(Field {
                         ident: field_ident,
                         ty: field_ty,
                     });
                 } else if attr.path().is_ident("output") {
                     let field_ident = field.ident.clone().unwrap();
                     let field_ty = field.ty.clone();
-                    outputs.add_port(Field {
+                    outputs.push(Field {
                         ident: field_ident,
                         ty: field_ty,
                     });
@@ -111,8 +117,19 @@ impl Component {
         let args = syn::parse2::<CoupledArgs>(args)?;
         let couplings = args.couplings;
 
+        // Get generics and assign them to each struct accordingly
+        let generics = component.generics.clone();
+        let input_generics = filter_generics(&inputs, &generics);
+        let output_generics = filter_generics(&outputs, &generics);
+        let components_generics = filter_generics(&components, &generics);
+
+        let inputs = Ports::new(inputs, input_generics);
+        let outputs = Ports::new(outputs, output_generics);
+        let components = Components::new(components, components_generics);
+
         Ok(Component {
             ident,
+            generics,
             components,
             couplings,
             inputs,
@@ -139,19 +156,35 @@ impl Component {
             (vec![], vec![])
         };
 
+        // Extract generics for impl
+        let (impl_generics, ty_generics, _) = self.generics.split_for_impl();
+        let input_generics = &self.inputs.get_generics();
+        let output_generics = &self.outputs.get_generics();
+        let components_generics = &self.components.get_generics();
+
+        // Component trait implementation
+        let component_impl = impl_component(
+            ident,
+            input_ident,
+            output_ident,
+            &self.generics,
+            input_generics,
+            output_generics,
+        );
+
         // Generate the expanded code
         let expanded = quote::quote! {
             #input_struct
             #output_struct
             #components_struct
-            pub struct #ident {
-                pub input: #input_ident,
-                pub output: #output_ident,
+            pub struct #ident #impl_generics {
+                pub input: #input_ident #input_generics,
+                pub output: #output_ident #output_generics,
                 pub t_last: f64,
                 pub t_next: f64,
-                pub components: #components_ident,
+                pub components: #components_ident #components_generics,
             }
-            impl #ident {
+            impl #impl_generics #ident #ty_generics {
                 #[inline]
                 pub fn new(#(#components_fields: #components_tys),*) -> Self {
                     Self {
@@ -163,43 +196,8 @@ impl Component {
                     }
                 }
             }
-            unsafe impl xdevs::traits::Component for #ident {
-                type Input = #input_ident;
-                type Output = #output_ident;
-                #[inline]
-                fn get_t_last(&self) -> f64 {
-                    self.t_last
-                }
-                #[inline]
-                fn set_t_last(&mut self, t_last: f64) {
-                    self.t_last = t_last;
-                }
-                #[inline]
-                fn get_t_next(&self) -> f64 {
-                    self.t_next
-                }
-                #[inline]
-                fn set_t_next(&mut self, t_next: f64) {
-                    self.t_next = t_next;
-                }
-                #[inline]
-                fn get_input(&self) -> &Self::Input {
-                    &self.input
-                }
-                #[inline]
-                fn get_input_mut(&mut self) -> &mut Self::Input {
-                    &mut self.input
-                }
-                #[inline]
-                fn get_output(&self) -> &Self::Output {
-                    &self.output
-                }
-                #[inline]
-                fn get_output_mut(&mut self) -> &mut Self::Output {
-                    &mut self.output
-                }
-            }
-            unsafe impl xdevs::traits::AbstractSimulator for #ident {
+            #component_impl
+            unsafe impl #impl_generics xdevs::traits::AbstractSimulator for #ident #ty_generics{
                 #[inline]
                 fn start(&mut self, t_start: f64) -> f64 {
                     // set t_last to t_start
