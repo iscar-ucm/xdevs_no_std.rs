@@ -23,8 +23,8 @@ mod generator {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, _x: &Self::Input) {
-            state.sigma -= e;
+        fn delta_ext(state: &mut Self::State, elapsed: f64, _x: &Self::Input) {
+            state.sigma -= elapsed;
         }
     }
 
@@ -66,9 +66,9 @@ mod processor {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
-            state.sigma -= e;
-            if let Some(&job) = x.in_job.get_values().last() {
+        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+            state.sigma -= elapsed;
+            if let Some(&job) = input.in_job.get_values().last() {
                 if state.job.is_none() {
                     state.job = Some(job);
                     state.sigma = state.time;
@@ -128,9 +128,9 @@ mod buffer {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
-            state.sigma -= e;
-            for item in x.in_item.get_values() {
+        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+            state.sigma -= elapsed;
+            for item in input.in_item.get_values() {
                 if state.queue.len() < state.capacity {
                     println!("[B] received item {:?}", item);
                     state.queue.push(item.clone()).unwrap();
