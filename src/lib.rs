@@ -2,6 +2,7 @@
 
 pub use xdevs_no_std_macros::*;
 
+mod impls;
 pub mod port;
 pub mod simulator;
 pub mod traits;
