@@ -1,5 +1,6 @@
 #![no_std]
 
+use embassy_time::Duration;
 pub use xdevs_no_std_macros::*;
 
 mod impls;
@@ -23,8 +24,8 @@ pub trait Atomic: traits::PartialAtomic {
     fn delta_int(state: &mut Self::State);
 
     /// External transition function. It modifies the state of the model when an external event happens.
-    /// The time elapsed since the last state transition is `elapsed`.
-    fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input);
+    /// The time elapsed since the last state transition is `e`.
+    fn delta_ext(state: &mut Self::State, e: Duration, x: &Self::Input);
 
     /// Confluent transition function. It modifies the state of the model when an external and an internal event occur simultaneously.
     /// By default, it calls [`Atomic::delta_int`] and [`Atomic::delta_ext`] with `elapsed = 0`, in that order.
@@ -38,23 +39,5 @@ pub trait Atomic: traits::PartialAtomic {
     fn lambda(state: &Self::State, output: &mut Self::Output);
 
     /// Time advance function. It returns the time until the next internal event happens.
-    fn ta(state: &Self::State) -> f64;
-}
-
-/// Interface for DEVS coupled models. All DEVS coupled models must implement this trait.
-pub trait Coupled: traits::PartialCoupled {
-    /// External Input Coupling. Propagates input events from the coupled model to its inner components.
-    #[allow(unused_variables)]
-    #[inline]
-    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {}
-
-    /// Internal Coupling. Propagates output events from inner components to input events of other inner components.
-    #[allow(unused_variables)]
-    #[inline]
-    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {}
-
-    /// External Output Coupling. Propagates output events from inner components to the coupled model's output.
-    #[allow(unused_variables)]
-    #[inline]
-    fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {}
+    fn ta(state: &Self::State) -> Duration;
 }
