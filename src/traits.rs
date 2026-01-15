@@ -1,5 +1,6 @@
 use crate::simulator::Config;
 use core::future::Future;
+use embassy_time::{Duration, Instant};
 
 /// Trait that defines the methods that a DEVS event bag set must implement.
 ///
@@ -27,16 +28,16 @@ pub unsafe trait Component {
     type Output: Bag;
 
     /// Returns the last time the component was updated.
-    fn get_t_last(&self) -> f64;
+    fn get_t_last(&self) -> Instant;
 
     /// Sets the last time the component was updated.
-    fn set_t_last(&mut self, t_last: f64);
+    fn set_t_last(&mut self, t_last: Instant);
 
     /// Returns the next time the component will be updated.
-    fn get_t_next(&self) -> f64;
+    fn get_t_next(&self) -> Instant;
 
     /// Sets the next time the component will be updated.
-    fn set_t_next(&mut self, t_next: f64);
+    fn set_t_next(&mut self, t_next: Instant);
 
     /// Returns a reference to the model's input event bag.
     fn get_input(&self) -> &Self::Input;
@@ -82,20 +83,20 @@ pub unsafe trait PartialAtomic: Component {
 pub unsafe trait AbstractSimulator: Component {
     /// It starts the simulation, setting the initial time to t_start.
     /// It returns the time for the next state transition of the inner DEVS model.
-    fn start(&mut self, t_start: f64) -> f64;
+    fn start(&mut self, t_start: Instant) -> Duration;
 
     /// It stops the simulation, setting the last time to t_stop.
-    fn stop(&mut self, t_stop: f64);
+    fn stop(&mut self, t_stop: Instant);
 
     /// Executes output functions and propagates messages according to EOCs.
     /// Internally, it checks that the model is imminent before executing.
-    fn lambda(&mut self, t: f64);
+    fn lambda(&mut self, t: Instant);
 
     /// Propagates messages according to ICs and EICs and executes model transition functions.
     /// It also clears all the input and output ports.
     /// Internally, it checks that the model is imminent before executing.
     /// Finally, it returns the time for the next state transition of the inner DEVS model.
-    fn delta(&mut self, t: f64) -> f64;
+    fn delta(&mut self, t: Instant) -> Duration;
 }
 
 /// Interface for handling input events in an asynchronous DEVS simulation.

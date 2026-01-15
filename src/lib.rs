@@ -1,5 +1,6 @@
 #![no_std]
 
+use embassy_time::Duration;
 pub use xdevs_no_std_macros::*;
 
 pub mod port;
@@ -23,7 +24,7 @@ pub trait Atomic: traits::PartialAtomic {
 
     /// External transition function. It modifies the state of the model when an external event happens.
     /// The time elapsed since the last state transition is `e`.
-    fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input);
+    fn delta_ext(state: &mut Self::State, e: Duration, x: &Self::Input);
 
     /// Confluent transition function. It modifies the state of the model when an external and an internal event occur simultaneously.
     /// By default, it calls [`Atomic::delta_int`] and [`Atomic::delta_ext`] with `e = 0`, in that order.
@@ -37,5 +38,5 @@ pub trait Atomic: traits::PartialAtomic {
     fn lambda(state: &Self::State, output: &mut Self::Output);
 
     /// Time advance function. It returns the time until the next internal event happens.
-    fn ta(state: &Self::State) -> f64;
+    fn ta(state: &Self::State) -> Duration;
 }
