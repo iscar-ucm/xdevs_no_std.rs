@@ -101,12 +101,12 @@ impl<T: Bag> AsyncInput for SleepAsync<T> {
     async fn handle(
         &mut self,
         config: &Config,
-        t_from: f64,
-        t_until: f64,
+        t_from: Instant,
+        t_until: Instant,
         _input: &mut Self::Input,
-    ) -> f64 {
+    ) -> Instant {
         let last_rt = self.last_rt.unwrap_or_else(Instant::now);
-        let next_rt = last_rt + Duration::from_secs_f64((t_until - t_from) * config.time_scale);
+        let next_rt = last_rt + (t_until - t_from) * (config.time_scale as u32);
         tokio::time::sleep_until(next_rt.into()).await;
         self.last_rt = Some(next_rt);
         t_until
