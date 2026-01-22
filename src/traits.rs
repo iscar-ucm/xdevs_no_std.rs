@@ -1,5 +1,6 @@
 use crate::simulator::Config;
 use core::future::Future;
+//use std::time::{Duration, Instant, SystemTime};
 use embassy_time::{Duration, Instant};
 
 /// Trait that defines the methods that a DEVS event bag set must implement.
@@ -115,8 +116,8 @@ pub trait AsyncInput {
     fn handle(
         &mut self,
         config: &Config,
-        t_from: f64,
-        t_until: f64,
+        t_from: Instant,
+        t_until: Instant,
         input: &mut Self::Input,
-    ) -> impl Future<Output = f64>;
+    ) -> impl Future<Output = Instant>;
 }

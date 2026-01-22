@@ -1,5 +1,6 @@
 use crate::traits::{AbstractSimulator, AsyncInput, Bag};
-use core::time::Duration;
+//use core::time::Duration;
+use embassy_time::{Duration, Instant};
 
 #[cfg(feature = "std")]
 pub mod std;
@@ -11,10 +12,10 @@ pub mod embassy;
 #[derive(Debug, Clone, Copy)]
 pub struct Config {
     /// The start time of the simulation.
-    pub t_start: f64,
+    pub t_start: Instant,
 
     /// The stop time of the simulation.
-    pub t_stop: f64,
+    pub t_stop: Instant,
 
     /// The time scale factor for the simulation.
     ///
@@ -32,7 +33,12 @@ pub struct Config {
 impl Config {
     /// Creates a new `SimulatorConfig` with the specified parameters.
     #[inline]
-    pub fn new(t_start: f64, t_stop: f64, time_scale: f64, max_jitter: Option<Duration>) -> Self {
+    pub fn new(
+        t_start: Instant,
+        t_stop: Instant,
+        time_scale: f64,
+        max_jitter: Option<Duration>,
+    ) -> Self {
         Self {
             t_start,
             t_stop,
@@ -47,7 +53,12 @@ impl Default for Config {
     /// time scale of 1.0 (real-time simulation) and no maximum jitter.
     #[inline]
     fn default() -> Self {
-        Self::new(0.0, f64::INFINITY, 1.0, None)
+        Self::new(
+            Instant::from_secs(0),
+            Instant::from_secs(u64::MAX),
+            1.0,
+            None,
+        )
     }
 }
 
@@ -79,7 +90,7 @@ impl<M: AbstractSimulator> Simulator<M> {
     pub fn simulate_rt(
         &mut self,
         config: &Config,
-        mut wait_until: impl FnMut(f64, f64, &mut M::Input) -> f64,
+        mut wait_until: impl FnMut(Instant, Instant, &mut M::Input) -> Duration,
         mut propagate_output: impl FnMut(&M::Output),
     ) {
         let t_start = config.t_start;
@@ -87,9 +98,10 @@ impl<M: AbstractSimulator> Simulator<M> {
         let mut t = t_start;
         let mut t_next_internal = self.model.start(t);
         while t < t_stop {
-            let t_until = f64::min(t_next_internal, t_stop);
-            t = wait_until(t, t_until, self.model.get_input_mut());
-            if t >= t_next_internal {
+            let t_until = Instant::min(t + t_next_internal, t_stop);
+            let elapsed = wait_until(t, t_until, self.model.get_input_mut());
+            //t = t + elapsed;
+            if elapsed >= t_next_internal {
                 self.model.lambda(t);
                 propagate_output(self.model.get_output());
             } else if self.model.get_input().is_empty() {
@@ -104,7 +116,7 @@ impl<M: AbstractSimulator> Simulator<M> {
     /// It uses a virtual clock (i.e., no real time is used).
     #[inline]
     pub fn simulate_vt(&mut self, config: &Config) {
-        self.simulate_rt(config, |_, t_until, _| t_until, |_| {});
+        self.simulate_rt(config, |t: Instant, t_until, _| t_until - t, |_| {});
     }
 
     /// Asynchronous version of the `simulate_rt` method.
@@ -120,11 +132,11 @@ impl<M: AbstractSimulator> Simulator<M> {
         let mut t = config.t_start;
         let mut t_next_internal = self.model.start(t);
         while t < config.t_stop {
-            let t_until = f64::min(t_next_internal, config.t_stop);
+            let t_until = Instant::min(t + t_next_internal, config.t_stop);
             t = input_handler
                 .handle(config, t, t_until, self.model.get_input_mut())
                 .await;
-            if t >= t_next_internal {
+            if t >= t + t_next_internal {
                 self.model.lambda(t);
                 propagate_output(self.model.get_output());
             } else if self.model.get_input().is_empty() {

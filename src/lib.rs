@@ -31,7 +31,7 @@ pub trait Atomic: traits::PartialAtomic {
     #[inline]
     fn delta_conf(state: &mut Self::State, x: &Self::Input) {
         Self::delta_int(state);
-        Self::delta_ext(state, 0., x);
+        Self::delta_ext(state, Duration::from_secs(0), x); //cambiado
     }
 
     /// Output function. It triggers output events when an internal event is about to happen.
