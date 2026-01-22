@@ -1,6 +1,6 @@
 #![no_std]
 
-use embassy_time::Duration;
+pub use embassy_time::{Duration, Instant};
 pub use xdevs_no_std_macros::*;
 
 pub mod port;

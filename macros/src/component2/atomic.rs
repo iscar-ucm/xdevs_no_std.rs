@@ -137,8 +137,8 @@ impl Component {
             pub struct #ident #impl_generics{
                 pub input: #input_ident #input_generics,
                 pub output: #output_ident #output_generics,
-                pub t_last: f64,
-                pub t_next: f64,
+                pub t_last: ::xdevs::Instant,
+                pub t_next: ::xdevs::Instant,
                 pub state: #state_ident #state_generics,
             }
             impl #impl_generics #ident #ty_generics {

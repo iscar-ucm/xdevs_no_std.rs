@@ -3,11 +3,9 @@ extern crate std;
 use crate::{
     simulator::Config,
     traits::{AsyncInput, Bag},
+    Duration, Instant,
 };
-use std::{
-    thread,
-    time::{Duration, Instant, SystemTime},
-};
+use std::{thread, time::SystemTime};
 
 /// Closure for RT simulation on targets with `std`.
 /// It sleeps until the next state transition.

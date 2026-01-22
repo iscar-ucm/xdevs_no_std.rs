@@ -2,8 +2,8 @@ use crate::{
     simulator::Config,
     traits::{AsyncInput, Bag},
 };
-use core::time::Duration;
-use embassy_time::{Instant, Timer};
+use crate::{Duration, Instant};
+use embassy_time::Timer;
 
 /// A simple asynchronous input handler that sleeps until the next state transition of the model.
 #[derive(Default)]
