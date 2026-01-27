@@ -81,6 +81,33 @@ impl Component {
             return Err(Error::new_spanned(&component, "No state definition found"));
         }
 
+        // Check for duplicate field names across input, output, and state
+        let output_names: Vec<_> = outputs.iter().map(|f| &f.ident).collect();
+        let state_names: Vec<_> = state.iter().map(|f| &f.ident).collect();
+
+        for input in &inputs {
+            if let Some(dup) = output_names.iter().find(|n| ***n == input.ident) {
+                return Err(Error::new_spanned(
+                    dup,
+                    format!("Duplicate field name '{}': already defined as input", dup),
+                ));
+            }
+            if let Some(dup) = state_names.iter().find(|n| ***n == input.ident) {
+                return Err(Error::new_spanned(
+                    dup,
+                    format!("Duplicate field name '{}': already defined as input", dup),
+                ));
+            }
+        }
+        for output in &outputs {
+            if let Some(dup) = state_names.iter().find(|n| ***n == output.ident) {
+                return Err(Error::new_spanned(
+                    dup,
+                    format!("Duplicate field name '{}': already defined as output", dup),
+                ));
+            }
+        }
+
         // Get generics and assign them to each struct accordingly
         let generics = component.generics.clone();
         let input_generics = filter_generics(&inputs, &generics);
