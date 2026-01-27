@@ -113,6 +113,33 @@ impl Component {
             return Err(Error::new_spanned(&component, "No components found"));
         }
 
+        // Check for duplicate field names across input, output, and components
+        let output_names: Vec<_> = outputs.iter().map(|f| &f.ident).collect();
+        let component_names: Vec<_> = components.iter().map(|f| &f.ident).collect();
+
+        for input in &inputs {
+            if let Some(dup) = output_names.iter().find(|n| ***n == input.ident) {
+                return Err(Error::new_spanned(
+                    dup,
+                    format!("Duplicate field name '{}': already defined as input", dup),
+                ));
+            }
+            if let Some(dup) = component_names.iter().find(|n| ***n == input.ident) {
+                return Err(Error::new_spanned(
+                    dup,
+                    format!("Duplicate field name '{}': already defined as input", dup),
+                ));
+            }
+        }
+        for output in &outputs {
+            if let Some(dup) = component_names.iter().find(|n| ***n == output.ident) {
+                return Err(Error::new_spanned(
+                    dup,
+                    format!("Duplicate field name '{}': already defined as output", dup),
+                ));
+            }
+        }
+
         // Parse arguments
         let args = syn::parse2::<CoupledArgs>(args)?;
         let couplings = args.couplings;

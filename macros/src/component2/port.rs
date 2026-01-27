@@ -16,6 +16,14 @@ impl Ports {
         Ports { ports, generics }
     }
 
+    pub fn field_idents(&self) -> Vec<&syn::Ident> {
+        self.ports.iter().map(|f| &f.ident).collect()
+    }
+
+    pub fn field_tys(&self) -> Vec<&syn::Type> {
+        self.ports.iter().map(|f| &f.ty).collect()
+    }
+
     pub fn get_generics(&self) -> TypeGenerics<'_> {
         let (_, ty_generics, _) = self.generics.split_for_impl();
         ty_generics
@@ -35,8 +43,8 @@ impl Ports {
     }
 
     pub fn quote(&self, ident: &Ident) -> TokenStream2 {
-        let ports_ident: Vec<_> = self.ports.iter().map(|f| &f.ident).collect();
-        let ports_ty: Vec<_> = self.ports.iter().map(|f| &f.ty).collect();
+        let ports_ident = self.field_idents();
+        let ports_ty = self.field_tys();
         let (impl_generics, ty_generics, _) = self.generics.split_for_impl();
         let new_fn = self.generate_news(&self.ports);
 
