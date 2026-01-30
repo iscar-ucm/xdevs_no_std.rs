@@ -178,7 +178,11 @@ impl Component {
         let components_struct = self.components.quote(components_ident);
 
         let (eoc, xic) = if let Some(couplings) = &self.couplings {
-            couplings.quote()
+            couplings.quote(
+                &self.inputs.ports,
+                &self.outputs.ports,
+                &self.components.components,
+            )
         } else {
             (vec![], vec![])
         };

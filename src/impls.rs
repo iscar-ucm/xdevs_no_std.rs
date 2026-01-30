@@ -8,7 +8,7 @@ use crate::traits::Component;
 
 //////////////////////////////////////////////// Iterables //////////////////////////////////////////////
 
-macro_rules! seq_impl_body {
+macro_rules! seq_bag_impl_body {
     () => {
         fn is_empty(&self) -> bool {
             self.iter().all(|bag| bag.is_empty())
@@ -22,16 +22,144 @@ macro_rules! seq_impl_body {
     };
 }
 
+macro_rules! seq_component_impl_body {
+    () => {
+        fn get_t_last(&self) -> f64 {
+            self.iter()
+                .map(|c| c.get_t_last())
+                .fold(f64::INFINITY, f64::min)
+        }
+
+        fn set_t_last(&mut self, t_last: f64) {
+            for c in self.iter_mut() {
+                c.set_t_last(t_last);
+            }
+        }
+
+        fn get_t_next(&self) -> f64 {
+            self.iter()
+                .map(|c| c.get_t_next())
+                .fold(f64::INFINITY, f64::min)
+        }
+
+        fn set_t_next(&mut self, t_next: f64) {
+            for c in self.iter_mut() {
+                c.set_t_next(t_next);
+            }
+        }
+
+        fn get_input(&self) -> &Self::Input {
+            unimplemented!("get_input is not supported for collections; access elements directly")
+        }
+
+        fn get_input_mut(&mut self) -> &mut Self::Input {
+            unimplemented!("get_input_mut is not supported for collections; access elements directly")
+        }
+
+        fn get_output(&self) -> &Self::Output {
+            unimplemented!("get_output is not supported for collections; access elements directly")
+        }
+
+        fn get_output_mut(&mut self) -> &mut Self::Output {
+            unimplemented!("get_output_mut is not supported for collections; access elements directly")
+        }
+
+        fn clear_input(&mut self) {
+            for c in self.iter_mut() {
+                c.clear_input();
+            }
+        }
+
+        fn clear_output(&mut self) {
+            for c in self.iter_mut() {
+                c.clear_output();
+            }
+        }
+    };
+}
+
+macro_rules! seq_simulator_impl_body {
+    () => {
+        #[inline]
+        fn start(&mut self, t_start: f64) -> f64 {
+            let mut t_next = f64::INFINITY;
+            for c in self.iter_mut() {
+                t_next = f64::min(t_next, c.start(t_start));
+            }
+            t_next
+        }
+
+        #[inline]
+        fn stop(&mut self, t_stop: f64) {
+            for c in self.iter_mut() {
+                c.stop(t_stop);
+            }
+        }
+
+        #[inline]
+        fn lambda(&mut self, t: f64) {
+            for c in self.iter_mut() {
+                c.lambda(t);
+            }
+        }
+
+        #[inline]
+        fn delta(&mut self, t: f64) -> f64 {
+            let mut t_next = f64::INFINITY;
+            for c in self.iter_mut() {
+                t_next = f64::min(t_next, c.delta(t));
+            }
+            t_next
+        }
+    };
+}
+
 #[cfg(any(feature = "std", feature = "alloc"))]
 unsafe impl<T: Bag> Bag for alloc::vec::Vec<T> {
-    seq_impl_body!();
+    seq_bag_impl_body!();
+}
+
+#[cfg(any(feature = "std", feature = "alloc"))]
+unsafe impl<T: Component> Component for alloc::vec::Vec<T> {
+    type Input = alloc::vec::Vec<T::Input>;
+    type Output = alloc::vec::Vec<T::Output>;
+
+    seq_component_impl_body!();
+}
+
+#[cfg(any(feature = "std", feature = "alloc"))]
+unsafe impl<T: AbstractSimulator> AbstractSimulator for alloc::vec::Vec<T> {
+    seq_simulator_impl_body!();
 }
 
 unsafe impl<T: Bag, const N: usize> Bag for heapless::Vec<T, N> {
-    seq_impl_body!();
+    seq_bag_impl_body!();
 }
+
+unsafe impl<T: Component, const N: usize> Component for heapless::Vec<T, N> {
+    type Input = heapless::Vec<T::Input, N>;
+    type Output = heapless::Vec<T::Output, N>;
+
+    seq_component_impl_body!();
+}
+
+unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for heapless::Vec<T, N> {
+    seq_simulator_impl_body!();
+}
+
 unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
-    seq_impl_body!();
+    seq_bag_impl_body!();
+}
+
+unsafe impl<T: Component, const N: usize> Component for [T; N] {
+    type Input = [T::Input; N];
+    type Output = [T::Output; N];
+
+    seq_component_impl_body!();
+}
+
+unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for [T; N] {
+    seq_simulator_impl_body!();
 }
 
 //////////////////////////////////////////////// Tuples //////////////////////////////////////////////
@@ -65,7 +193,7 @@ macro_rules! impl_bag_for_tuples {
     };
 }
 
-// Generate impls for tuples of size 2 up to, say, 12
+// Generate impls for tuples of size 2 up to 16
 impl_bag_for_tuples!(T1, T2);
 impl_bag_for_tuples!(T1, T2, T3);
 impl_bag_for_tuples!(T1, T2, T3, T4);

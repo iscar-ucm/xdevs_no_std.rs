@@ -30,11 +30,11 @@ impl Ports {
     }
 
     fn generate_news(&self, ports: &Vec<Field>) -> Vec<TokenStream2> {
-        let mut news:Vec<TokenStream2> = Vec::new();
+        let mut news: Vec<TokenStream2> = Vec::new();
         for port in ports {
             let port_ident = &port.ident;
             let token = extract_new(&port.ty);
-            let new = quote::quote!{
+            let new = quote::quote! {
                 #port_ident: #token
             };
             news.push(new);
@@ -78,9 +78,13 @@ fn extract_new(ty: &Type) -> TokenStream2 {
         Type::Array(array) => {
             let token = extract_new(&*array.elem);
             let length = &array.len;
-            
+
             // Try to parse length as a literal integer
-            if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(lit_int), .. }) = length {
+            if let syn::Expr::Lit(syn::ExprLit {
+                lit: syn::Lit::Int(lit_int),
+                ..
+            }) = length
+            {
                 let n: usize = lit_int.base10_parse().unwrap();
                 let repeated: Vec<_> = (0..n).map(|_| quote::quote! { #token }).collect();
                 quote::quote! {
@@ -97,11 +101,11 @@ fn extract_new(ty: &Type) -> TokenStream2 {
             for segment in &mut path.segments {
                 segment.arguments = syn::PathArguments::None;
             }
-            quote::quote!{
+            quote::quote! {
                 #path::new()
             }
         }
-        &_ => unimplemented!()
+        &_ => unimplemented!(),
     };
     token
 }
