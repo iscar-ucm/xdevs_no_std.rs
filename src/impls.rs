@@ -1,4 +1,4 @@
-///! Blanket implementations of the traits in `traits` module.
+//! Blanket implementations of the traits in `traits` module.
 #[cfg(any(feature = "std", feature = "alloc"))]
 extern crate alloc;
 
@@ -53,7 +53,9 @@ macro_rules! seq_component_impl_body {
         }
 
         fn get_input_mut(&mut self) -> &mut Self::Input {
-            unimplemented!("get_input_mut is not supported for collections; access elements directly")
+            unimplemented!(
+                "get_input_mut is not supported for collections; access elements directly"
+            )
         }
 
         fn get_output(&self) -> &Self::Output {
@@ -61,7 +63,9 @@ macro_rules! seq_component_impl_body {
         }
 
         fn get_output_mut(&mut self) -> &mut Self::Output {
-            unimplemented!("get_output_mut is not supported for collections; access elements directly")
+            unimplemented!(
+                "get_output_mut is not supported for collections; access elements directly"
+            )
         }
 
         fn clear_input(&mut self) {
