@@ -28,12 +28,14 @@ impl PartialEq for Coupling {
         self.first_source_ident == other.first_source_ident
             && self.source_1.to_string() == other.source_1.to_string()
             && self.source_2.to_string() == other.source_2.to_string()
-            && self.source_iter_chain.as_ref().map(|t| t.to_string()) == other.source_iter_chain.as_ref().map(|t| t.to_string())
+            && self.source_iter_chain.as_ref().map(|t| t.to_string())
+                == other.source_iter_chain.as_ref().map(|t| t.to_string())
             && self.source_is_zipped == other.source_is_zipped
             && self.first_dest_ident == other.first_dest_ident
             && self.destination_1.to_string() == other.destination_1.to_string()
             && self.destination_2.to_string() == other.destination_2.to_string()
-            && self.dest_iter_chain.as_ref().map(|t| t.to_string()) == other.dest_iter_chain.as_ref().map(|t| t.to_string())
+            && self.dest_iter_chain.as_ref().map(|t| t.to_string())
+                == other.dest_iter_chain.as_ref().map(|t| t.to_string())
     }
 }
 
@@ -44,12 +46,18 @@ impl Hash for Coupling {
         self.first_source_ident.hash(state);
         self.source_1.to_string().hash(state);
         self.source_2.to_string().hash(state);
-        self.source_iter_chain.as_ref().map(|t| t.to_string()).hash(state);
+        self.source_iter_chain
+            .as_ref()
+            .map(|t| t.to_string())
+            .hash(state);
         self.source_is_zipped.hash(state);
         self.first_dest_ident.hash(state);
         self.destination_1.to_string().hash(state);
         self.destination_2.to_string().hash(state);
-        self.dest_iter_chain.as_ref().map(|t| t.to_string()).hash(state);
+        self.dest_iter_chain
+            .as_ref()
+            .map(|t| t.to_string())
+            .hash(state);
     }
 }
 
@@ -66,7 +74,8 @@ impl Coupling {
 
         let is_source_input = inputs.iter().any(|f| f.ident == *first_source);
         let is_source_component = components.iter().any(|f| f.ident == *first_source);
-        let source_is_component_array = is_source_component && source_1.is_empty() && source_2.is_empty();
+        let source_is_component_array =
+            is_source_component && source_1.is_empty() && source_2.is_empty();
 
         if is_source_input {
             quote!(self.input.#first_source #source_1 #source_2)
@@ -89,7 +98,8 @@ impl Coupling {
 
         let is_dest_output = outputs.iter().any(|f| f.ident == *first_dest);
         let is_dest_component = components.iter().any(|f| f.ident == *first_dest);
-        let dest_is_component_array = is_dest_component && destination_1.is_empty() && destination_2.is_empty();
+        let dest_is_component_array =
+            is_dest_component && destination_1.is_empty() && destination_2.is_empty();
 
         if is_dest_output {
             quote!(self.output.#first_dest #destination_1 #destination_2)
@@ -280,11 +290,7 @@ impl Parse for Coupling {
                 }
             }
 
-            let final_iter_chain = if found_iter {
-                Some(iter_chain)
-            } else {
-                None
-            };
+            let final_iter_chain = if found_iter { Some(iter_chain) } else { None };
 
             if !found_split {
                 Ok((initial_ident, part_1, TokenStream2::new(), final_iter_chain))
@@ -297,8 +303,13 @@ impl Parse for Coupling {
         }
 
         // Check if source is wrapped in zip(...)
-        let source_is_zipped = input.peek(syn::Ident) && input.fork().parse::<Ident>().map(|i| i == "zip").unwrap_or(false);
-        
+        let source_is_zipped = input.peek(syn::Ident)
+            && input
+                .fork()
+                .parse::<Ident>()
+                .map(|i| i == "zip")
+                .unwrap_or(false);
+
         let (first_source_ident, source_1, source_2, source_iter_chain) = if source_is_zipped {
             // Consume "zip"
             input.parse::<Ident>()?;
@@ -309,7 +320,7 @@ impl Parse for Coupling {
         } else {
             parse_part(input, |inp| inp.peek(Token![->]))?
         };
-        
+
         input.parse::<Token![->]>()?; // consume the '->'
 
         // Parse destination

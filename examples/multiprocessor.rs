@@ -223,7 +223,12 @@ fn main() {
     let processor2 = processor::Processor::new2(2, 2.5);
     let collector = collector::Collector::new2();
 
-    let model = MultiProcessor::new(generator, load_balancer, [processor0, processor1, processor2], collector);
+    let model = MultiProcessor::new(
+        generator,
+        load_balancer,
+        [processor0, processor1, processor2],
+        collector,
+    );
 
     let mut simulator = xdevs::simulator::Simulator::new(model);
     let config = xdevs::simulator::Config::new(0.0, 15.0, 1.0, None);
