@@ -71,10 +71,10 @@ impl Coupling {
         if is_source_input {
             quote!(self.input.#first_source #source_1 #source_2)
         } else if source_is_component_array {
-            // Iterator directly on component array - no injection, user specifies in map
+            // Iterator directly on component array, user specifies in map
             quote!(self.components.#first_source)
         } else if is_source_component {
-            // Port array on component - inject .output before port access
+            // Iterator on port, inject .output before port access
             quote!(self.components.#first_source #source_1 .output #source_2)
         } else {
             quote!(self.input.#first_source #source_1 #source_2)
@@ -94,10 +94,10 @@ impl Coupling {
         if is_dest_output {
             quote!(self.output.#first_dest #destination_1 #destination_2)
         } else if dest_is_component_array {
-            // Iterator directly on component array - no injection, user specifies in map
+            // Iterator directly on component array, user specifies in map
             quote!(self.components.#first_dest)
         } else if is_dest_component {
-            // Port array on component - inject .input before port access
+            // Iterator on port, inject .output before port access
             quote!(self.components.#first_dest #destination_1 .input #destination_2)
         } else {
             quote!(self.output.#first_dest #destination_1 #destination_2)
@@ -155,7 +155,7 @@ impl Coupling {
                     }
                 }
             }
-            // source_port -> dest_iter: broadcast (one to many)
+            // source_port -> dest_iter: one to many
             (false, true, _) => {
                 let dest_iter = self.dest_iter_chain.as_ref().unwrap();
                 let origin = self.build_source_base(inputs, components);
@@ -170,7 +170,7 @@ impl Coupling {
                     }
                 }
             }
-            // source_iter -> dest_port: collect (many to one)
+            // source_iter -> dest_port: many to one
             (true, false, _) => {
                 let source_iter = self.source_iter_chain.as_ref().unwrap();
                 let origin_base = self.build_source_base(inputs, components);
@@ -184,7 +184,7 @@ impl Coupling {
                     }
                 }
             }
-            // source_port -> dest_port: simple 1-to-1 coupling
+            // source_port -> dest_port: simple single port-to-port coupling
             (false, false, _) => {
                 let origin = self.build_source_base(inputs, components);
                 let destination = self.build_dest_base(outputs, components);
@@ -214,9 +214,9 @@ impl Parse for Coupling {
 
         // Helper function to parse source/destination with the following logic:
         // - First token is the initial identifier
-        // - Accumulate tokens into "part_1" until we find a `.identifier` NOT followed by `()`, a port
+        // - Accumulate tokens into "part_1" until it finds a `.identifier` not followed by `()`, a port
         // - That identifier becomes the first element of "part_2", and the rest follows
-        // - If we encounter `.iter()` or `.iter_mut()`, capture from there as iter_chain
+        // - If it encounters `.iter()` or `.iter_mut()`, capture from there as iter_chain
         fn parse_part(
             input: ParseStream,
             end_condition: impl Fn(&ParseStream) -> bool,
@@ -239,10 +239,10 @@ impl Parse for Coupling {
                     if input.peek(syn::Ident) {
                         let ident: Ident = input.parse()?;
 
-                        // Check if this identifier is followed by parentheses
+                        // Check if this identifier is followed by `()`
                         let has_parens = input.peek(syn::token::Paren);
 
-                        // Check if this is an iter method - if so, start capturing iter_chain
+                        // Check if this is an iter method, if so, start capturing iter_chain
                         if is_iter_method(&ident) && has_parens && !found_iter {
                             found_iter = true;
                             iter_chain.extend(quote!(. #ident));
