@@ -35,9 +35,9 @@ mod processor {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
-            state.sigma -= e;
-            if let Some(&job) = x.in_job.get_values().last() {
+        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+            state.sigma -= elapsed;
+            if let Some(&job) = input.in_job.get_values().last() {
                 if state.job.is_none() {
                     println!("[P{}] received job {} (idle)", state.id, job);
                     state.job = Some(job);
@@ -50,8 +50,8 @@ mod processor {
     }
 
     impl Processor {
-        pub fn new2(id: usize, time: f64) -> Self {
-            Self::new(f64::INFINITY, time, id, None)
+        pub fn new(id: usize, time: f64) -> Self {
+            Self::build(f64::INFINITY, time, id, None)
         }
     }
 }
@@ -90,9 +90,9 @@ mod load_balancer {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
-            state.sigma -= e;
-            if let Some(&job) = x.in_job.get_values().last() {
+        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+            state.sigma -= elapsed;
+            if let Some(&job) = input.in_job.get_values().last() {
                 println!("[LB] received job {}", job);
                 state.pending_job = Some(job);
                 state.next_processor = (state.next_processor + 1) % 3;
@@ -102,8 +102,8 @@ mod load_balancer {
     }
 
     impl LoadBalancer {
-        pub fn new2() -> Self {
-            Self::new(f64::INFINITY, 0, None)
+        pub fn new() -> Self {
+            Self::build(f64::INFINITY, 0, None)
         }
     }
 }
@@ -141,14 +141,14 @@ mod generator {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, _x: &Self::Input) {
-            state.sigma -= e;
+        fn delta_ext(state: &mut Self::State, elapsed: f64, _input: &Self::Input) {
+            state.sigma -= elapsed;
         }
     }
 
     impl Generator {
-        pub fn new2(period: f64, max_jobs: usize) -> Self {
-            Self::new(0.0, period, 0, max_jobs)
+        pub fn new(period: f64, max_jobs: usize) -> Self {
+            Self::build(0.0, period, 0, max_jobs)
         }
     }
 }
@@ -177,9 +177,9 @@ mod collector {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
-            state.sigma -= e;
-            for &job in x.in_jobs.get_values() {
+        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+            state.sigma -= elapsed;
+            for &job in input.in_jobs.get_values() {
                 state.total_collected += 1;
                 println!(
                     "[C] collected job {} (total: {})",
@@ -190,8 +190,8 @@ mod collector {
     }
 
     impl Collector {
-        pub fn new2() -> Self {
-            Self::new(f64::INFINITY, 0)
+        pub fn new() -> Self {
+            Self::build(f64::INFINITY, 0)
         }
     }
 }
@@ -216,14 +216,14 @@ struct MultiProcessor {
 }
 
 fn main() {
-    let generator = generator::Generator::new2(1.0, 10);
-    let load_balancer = load_balancer::LoadBalancer::new2();
-    let processor0 = processor::Processor::new2(0, 2.5);
-    let processor1 = processor::Processor::new2(1, 2.5);
-    let processor2 = processor::Processor::new2(2, 2.5);
-    let collector = collector::Collector::new2();
+    let generator = generator::Generator::new(1.0, 10);
+    let load_balancer = load_balancer::LoadBalancer::new();
+    let processor0 = processor::Processor::new(0, 2.5);
+    let processor1 = processor::Processor::new(1, 2.5);
+    let processor2 = processor::Processor::new(2, 2.5);
+    let collector = collector::Collector::new();
 
-    let model = MultiProcessor::new(
+    let model = MultiProcessor::build(
         generator,
         load_balancer,
         [processor0, processor1, processor2],

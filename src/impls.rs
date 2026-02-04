@@ -15,9 +15,7 @@ macro_rules! seq_bag_impl_body {
         }
 
         fn clear(&mut self) {
-            for bag in self.iter_mut() {
-                bag.clear();
-            }
+            self.iter_mut().for_each(|bag| bag.clear());
         }
     };
 }
@@ -31,9 +29,7 @@ macro_rules! seq_component_impl_body {
         }
 
         fn set_t_last(&mut self, t_last: f64) {
-            for c in self.iter_mut() {
-                c.set_t_last(t_last);
-            }
+            self.iter_mut().for_each(|c| c.set_t_last(t_last));
         }
 
         fn get_t_next(&self) -> f64 {
@@ -43,9 +39,7 @@ macro_rules! seq_component_impl_body {
         }
 
         fn set_t_next(&mut self, t_next: f64) {
-            for c in self.iter_mut() {
-                c.set_t_next(t_next);
-            }
+            self.iter_mut().for_each(|c| c.set_t_next(t_next));
         }
 
         fn get_input(&self) -> &Self::Input {
@@ -69,15 +63,11 @@ macro_rules! seq_component_impl_body {
         }
 
         fn clear_input(&mut self) {
-            for c in self.iter_mut() {
-                c.clear_input();
-            }
+            self.iter_mut().for_each(|c| c.clear_input());
         }
 
         fn clear_output(&mut self) {
-            for c in self.iter_mut() {
-                c.clear_output();
-            }
+            self.iter_mut().for_each(|c| c.clear_output());
         }
     };
 }
@@ -86,34 +76,25 @@ macro_rules! seq_simulator_impl_body {
     () => {
         #[inline]
         fn start(&mut self, t_start: f64) -> f64 {
-            let mut t_next = f64::INFINITY;
-            for c in self.iter_mut() {
-                t_next = f64::min(t_next, c.start(t_start));
-            }
-            t_next
+            self.iter_mut().fold(f64::INFINITY, |t_next, c| {
+                f64::min(t_next, c.start(t_start))
+            })
         }
 
         #[inline]
         fn stop(&mut self, t_stop: f64) {
-            for c in self.iter_mut() {
-                c.stop(t_stop);
-            }
+            self.iter_mut().for_each(|c| c.stop(t_stop));
         }
 
         #[inline]
         fn lambda(&mut self, t: f64) {
-            for c in self.iter_mut() {
-                c.lambda(t);
-            }
+            self.iter_mut().for_each(|c| c.lambda(t));
         }
 
         #[inline]
         fn delta(&mut self, t: f64) -> f64 {
-            let mut t_next = f64::INFINITY;
-            for c in self.iter_mut() {
-                t_next = f64::min(t_next, c.delta(t));
-            }
-            t_next
+            self.iter_mut()
+                .fold(f64::INFINITY, |t_next, c| f64::min(t_next, c.delta(t)))
         }
     };
 }
@@ -125,8 +106,8 @@ unsafe impl<T: Bag> Bag for alloc::vec::Vec<T> {
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 unsafe impl<T: Component> Component for alloc::vec::Vec<T> {
-    type Input = alloc::vec::Vec<T::Input>;
-    type Output = alloc::vec::Vec<T::Output>;
+    type Input = T::Input;
+    type Output = T::Output;
 
     seq_component_impl_body!();
 }
@@ -141,8 +122,8 @@ unsafe impl<T: Bag, const N: usize> Bag for heapless::Vec<T, N> {
 }
 
 unsafe impl<T: Component, const N: usize> Component for heapless::Vec<T, N> {
-    type Input = heapless::Vec<T::Input, N>;
-    type Output = heapless::Vec<T::Output, N>;
+    type Input = T::Input;
+    type Output = T::Output;
 
     seq_component_impl_body!();
 }
@@ -156,8 +137,8 @@ unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
 }
 
 unsafe impl<T: Component, const N: usize> Component for [T; N] {
-    type Input = [T::Input; N];
-    type Output = [T::Output; N];
+    type Input = T::Input;
+    type Output = T::Output;
 
     seq_component_impl_body!();
 }

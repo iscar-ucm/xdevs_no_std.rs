@@ -23,14 +23,14 @@ mod generator {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, elapsed: f64, _x: &Self::Input) {
+        fn delta_ext(state: &mut Self::State, elapsed: f64, _input: &Self::Input) {
             state.sigma -= elapsed;
         }
     }
 
     impl Generator {
-        pub fn new2(period: f64) -> Self {
-            Self::new(0.0, period, 0)
+        pub fn new(period: f64) -> Self {
+            Self::build(0.0, period, 0)
         }
     }
 }
@@ -78,8 +78,8 @@ mod processor {
     }
 
     impl Processor {
-        pub fn new2(time: f64) -> Self {
-            Self::new(0.0, time, None)
+        pub fn new(time: f64) -> Self {
+            Self::build(0.0, time, None)
         }
     }
 }
@@ -145,8 +145,8 @@ mod buffer {
     }
 
     impl<'a, T: Clone + Debug> Buffer<'a, T> {
-        pub fn new2(capacity: usize, config: Option<&'a str>) -> Self {
-            Self::new(f64::INFINITY, capacity, heapless::Vec::new(), config)
+        pub fn new(capacity: usize, config: Option<&'a str>) -> Self {
+            Self::build(f64::INFINITY, capacity, heapless::Vec::new(), config)
         }
     }
 }
@@ -165,11 +165,11 @@ struct GPB<'a> {
 }
 
 fn main() {
-    let generator = generator::Generator::new2(1.0);
-    let buffer = buffer::Buffer::new2(8, Some("FIFO buffer"));
-    let processor = processor::Processor::new2(1.5);
+    let generator = generator::Generator::new(1.0);
+    let buffer = buffer::Buffer::new(8, Some("FIFO buffer"));
+    let processor = processor::Processor::new(1.5);
 
-    let gpb = GPB::new(generator, buffer, processor);
+    let gpb = GPB::build(generator, buffer, processor);
 
     let mut simulator = xdevs::simulator::Simulator::new(gpb);
     let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);

@@ -1,6 +1,7 @@
 mod components;
 mod coupling;
 
+use super::check_duplicate_fields;
 use super::filter_generics;
 use super::impl_component;
 use super::port::Ports;
@@ -114,31 +115,7 @@ impl Component {
         }
 
         // Check for duplicate field names across input, output, and components
-        let output_names: Vec<_> = outputs.iter().map(|f| &f.ident).collect();
-        let component_names: Vec<_> = components.iter().map(|f| &f.ident).collect();
-
-        for input in &inputs {
-            if let Some(dup) = output_names.iter().find(|n| ***n == input.ident) {
-                return Err(Error::new_spanned(
-                    dup,
-                    format!("Duplicate field name '{}': already defined as input", dup),
-                ));
-            }
-            if let Some(dup) = component_names.iter().find(|n| ***n == input.ident) {
-                return Err(Error::new_spanned(
-                    dup,
-                    format!("Duplicate field name '{}': already defined as input", dup),
-                ));
-            }
-        }
-        for output in &outputs {
-            if let Some(dup) = component_names.iter().find(|n| ***n == output.ident) {
-                return Err(Error::new_spanned(
-                    dup,
-                    format!("Duplicate field name '{}': already defined as output", dup),
-                ));
-            }
-        }
+        check_duplicate_fields(&inputs, &outputs, &components)?;
 
         // Parse arguments
         let args = syn::parse2::<CoupledArgs>(args)?;
@@ -217,7 +194,7 @@ impl Component {
             }
             impl #impl_generics #ident #ty_generics {
                 #[inline]
-                pub fn new(#(#components_fields: #components_tys),*) -> Self {
+                pub fn build(#(#components_fields: #components_tys),*) -> Self {
                     Self {
                         input: #input_ident::new(),
                         output: #output_ident::new(),

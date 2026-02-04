@@ -6,12 +6,49 @@ mod state;
 use proc_macro2::TokenStream as TokenStream2;
 use std::collections::HashSet;
 use syn::visit::{self, Visit};
-use syn::{GenericParam, Generics, Ident, Lifetime, TypeGenerics};
+use syn::{Error, GenericParam, Generics, Ident, Lifetime, TypeGenerics};
 
 pub struct Field {
     ident: syn::Ident,
     ty: syn::Type,
 }
+
+/// Check for duplicate field names across inputs, outputs, and a third field list (state or components).
+pub fn check_duplicate_fields(
+    inputs: &[Field],
+    outputs: &[Field],
+    third: &[Field],
+) -> syn::Result<()> {
+    let output_names: HashSet<String> = outputs.iter().map(|f| f.ident.to_string()).collect();
+    let third_names: HashSet<String> = third.iter().map(|f| f.ident.to_string()).collect();
+
+    for input in inputs {
+        let name = input.ident.to_string();
+        if output_names.contains(&name) {
+            return Err(Error::new_spanned(
+                &input.ident,
+                format!("Duplicate field name '{}': already defined as input", name),
+            ));
+        }
+        if third_names.contains(&name) {
+            return Err(Error::new_spanned(
+                &input.ident,
+                format!("Duplicate field name '{}': already defined as input", name),
+            ));
+        }
+    }
+    for output in outputs {
+        let name = output.ident.to_string();
+        if third_names.contains(&name) {
+            return Err(Error::new_spanned(
+                &output.ident,
+                format!("Duplicate field name '{}': already defined as output", name),
+            ));
+        }
+    }
+    Ok(())
+}
+
 struct GenericsCollector<'a> {
     type_idents: HashSet<&'a Ident>,
     lifetimes: HashSet<&'a Lifetime>,
