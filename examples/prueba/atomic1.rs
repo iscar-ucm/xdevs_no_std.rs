@@ -1,6 +1,6 @@
-#[xdevs::atomic]
+use crate as xdevs;
+#[crate::atomic]
 #[derive(Debug, Clone, PartialEq, Copy, Eq)]
-
 pub struct Atomic1{
     #[input]
     in_port: xdevs::port::Port<bool, 1>,
