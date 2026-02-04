@@ -106,8 +106,8 @@ unsafe impl<T: Bag> Bag for alloc::vec::Vec<T> {
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 unsafe impl<T: Component> Component for alloc::vec::Vec<T> {
-    type Input = T::Input;
-    type Output = T::Output;
+    type Input = alloc::vec::Vec<T::Input>;
+    type Output = alloc::vec::Vec<T::Output>;
 
     seq_component_impl_body!();
 }
@@ -122,8 +122,8 @@ unsafe impl<T: Bag, const N: usize> Bag for heapless::Vec<T, N> {
 }
 
 unsafe impl<T: Component, const N: usize> Component for heapless::Vec<T, N> {
-    type Input = T::Input;
-    type Output = T::Output;
+    type Input = heapless::Vec<T::Input, N>;
+    type Output = heapless::Vec<T::Output, N>;
 
     seq_component_impl_body!();
 }
@@ -137,8 +137,8 @@ unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
 }
 
 unsafe impl<T: Component, const N: usize> Component for [T; N] {
-    type Input = T::Input;
-    type Output = T::Output;
+    type Input = [T::Input; N];
+    type Output = [T::Output; N];
 
     seq_component_impl_body!();
 }
