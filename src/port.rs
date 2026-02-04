@@ -58,6 +58,15 @@ impl<T: Clone, const N: usize> Port<T, N> {
     pub fn get_values(&self) -> &[T] {
         self.0.as_slice()
     }
+
+    /// Easy port mapping method
+    #[inline]
+    pub fn connect<const M: usize>(
+        &mut self,
+        from: &Port<T, M>,
+    ) -> Result<(), heapless::CapacityError> {
+        self.add_values(from.get_values())
+    }
 }
 
 unsafe impl<T: Clone, const N: usize> crate::traits::Bag for Port<T, N> {

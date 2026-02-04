@@ -74,6 +74,24 @@ pub unsafe trait PartialAtomic: Component {
     type State;
 }
 
+/// Partial interface for DEVS coupled models.
+/// It is used as a helper trait to implement coupling logic.
+///
+/// # Safety
+///
+/// This trait must be implemented via macros. Do not implement it manually.
+pub unsafe trait PartialCoupled: Component {
+    /// Wrapper type holding references to all inner components' inputs.
+    type ComponentsInput<'a>
+    where
+        Self: 'a;
+
+    /// Wrapper type holding references to all inner components' outputs.
+    type ComponentsOutput<'a>
+    where
+        Self: 'a;
+}
+
 /// Interface for simulating DEVS models. All DEVS models must implement this trait.
 ///
 /// # Safety

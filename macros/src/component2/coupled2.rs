@@ -1,5 +1,4 @@
 mod components;
-mod coupling;
 
 use super::check_duplicate_fields;
 use super::filter_generics;
@@ -7,42 +6,13 @@ use super::impl_component;
 use super::port::Ports;
 use super::Field;
 use components::Components;
-use coupling::Couplings;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{
-    parse::{Parse, ParseStream},
-    Error, Generics, Ident, ItemStruct, Token,
-};
-
-struct CoupledArgs {
-    couplings: Option<Couplings>,
-}
-
-impl Parse for CoupledArgs {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let mut couplings = None;
-
-        while !input.is_empty() {
-            let token: Ident = input.parse()?;
-            input.parse::<Token![=]>()?; // consume the '='
-            if token == "couplings" {
-                couplings = Some(syn::parse2(input.parse()?)?);
-            } else {
-                return Err(Error::new(
-                    token.span(),
-                    "unknown coupled component argument",
-                ));
-            }
-        }
-        Ok(CoupledArgs { couplings })
-    }
-}
+use syn::{Error, Generics, Ident, ItemStruct};
 
 pub struct Component {
     pub ident: Ident,
     pub generics: Generics,
     pub components: Components,
-    pub couplings: Option<Couplings>,
     pub inputs: Ports,
     pub outputs: Ports,
 }
@@ -58,7 +28,7 @@ impl Component {
         syn::Ident::new(&format!("{}Components", self.ident), self.ident.span())
     }
 
-    pub fn parse(args: TokenStream2, item: TokenStream2) -> syn::Result<Self> {
+    pub fn parse(_args: TokenStream2, item: TokenStream2) -> syn::Result<Self> {
         let component: ItemStruct = syn::parse2(item).unwrap();
 
         let ident = component.ident.clone();
@@ -117,10 +87,6 @@ impl Component {
         // Check for duplicate field names across input, output, and components
         check_duplicate_fields(&inputs, &outputs, &components)?;
 
-        // Parse arguments
-        let args = syn::parse2::<CoupledArgs>(args)?;
-        let couplings = args.couplings;
-
         // Get generics and assign them to each struct accordingly
         let generics = component.generics.clone();
         let input_generics = filter_generics(&inputs, &generics);
@@ -135,7 +101,6 @@ impl Component {
             ident,
             generics,
             components,
-            couplings,
             inputs,
             outputs,
         })
@@ -153,16 +118,6 @@ impl Component {
         let input_struct = self.inputs.quote(input_ident);
         let output_struct = self.outputs.quote(output_ident);
         let components_struct = self.components.quote(components_ident);
-
-        let (eoc, xic) = if let Some(couplings) = &self.couplings {
-            couplings.quote(
-                &self.inputs.ports,
-                &self.outputs.ports,
-                &self.components.components,
-            )
-        } else {
-            (vec![], vec![])
-        };
 
         // Extract generics for impl
         let (impl_generics, ty_generics, _) = self.generics.split_for_impl();
@@ -184,14 +139,10 @@ impl Component {
         // These structs hold references to all inner components' inputs/outputs,
         // allowing them to be passed as a single argument to trait methods without
         // exposing the component's state or internal structure.
-        let component_inputs_ident = syn::Ident::new(
-            &format!("{}ComponentsInput", ident),
-            ident.span(),
-        );
-        let component_outputs_ident = syn::Ident::new(
-            &format!("{}ComponentsOutput", ident),
-            ident.span(),
-        );
+        let component_inputs_ident =
+            syn::Ident::new(&format!("{}ComponentsInput", ident), ident.span());
+        let component_outputs_ident =
+            syn::Ident::new(&format!("{}ComponentsOutput", ident), ident.span());
 
         let component_input_fields: Vec<TokenStream2> = self
             .components
@@ -225,8 +176,14 @@ impl Component {
             .iter()
             .map(|field| {
                 let field_ident = &field.ident;
-                quote::quote! {
-                    #field_ident: xdevs::traits::Component::get_input_mut(&mut self.components.#field_ident)
+                let field_ty = &field.ty;
+                match field_ty {
+                    syn::Type::Array(_) => quote::quote! {
+                        #field_ident: &mut self.components.#field_ident.each_ref().map(|c| c.input)
+                    },
+                    _ => quote::quote! {
+                        #field_ident: &mut self.components.#field_ident.input
+                    },
                 }
             })
             .collect();
@@ -237,8 +194,14 @@ impl Component {
             .iter()
             .map(|field| {
                 let field_ident = &field.ident;
-                quote::quote! {
-                    #field_ident: xdevs::traits::Component::get_output(&self.components.#field_ident)
+                let field_ty = &field.ty;
+                match field_ty {
+                    syn::Type::Array(_) => quote::quote! {
+                        #field_ident: &self.components.#field_ident.each_ref().map(|c| c.output)
+                    },
+                    _ => quote::quote! {
+                        #field_ident: &self.components.#field_ident.output
+                    },
                 }
             })
             .collect();
@@ -295,6 +258,10 @@ impl Component {
                 }
             }
             #component_impl
+            unsafe impl #impl_generics xdevs::traits::PartialCoupled for #ident #ty_generics{
+                type ComponentsInput<'a> = #component_inputs_ident<'a> where Self: 'a;
+                type ComponentsOutput<'a> = #component_outputs_ident<'a> where Self: 'a;
+            }
             unsafe impl #impl_generics xdevs::traits::AbstractSimulator for #ident #ty_generics{
                 #[inline]
                 fn start(&mut self, t_start: f64) -> f64 {
@@ -323,15 +290,27 @@ impl Component {
                     if t >= xdevs::traits::Component::get_t_next(self) {
                         // propagate lambda to all components
                         #(xdevs::traits::AbstractSimulator::lambda(&mut self.components.#components_fields, t);)*
-                        // propagate EOCs
-                        #(#eoc);*
+                        // propagate EOCs via Coupled trait
+                        let component_outputs = #component_outputs_ident {
+                            #(#component_output_inits),*
+                        };
+                        <Self as xdevs::Coupled>::eoc(&component_outputs, &mut self.output);
                     }
                 }
 
                 #[inline]
                 fn delta(&mut self, t: f64) -> f64 {
-                    // propagate EICs and ICs
-                     #(#xic);*
+                    // propagate EICs and ICs via Coupled trait
+                    {
+                        let component_outputs = #component_outputs_ident {
+                            #(#component_output_inits),*
+                        };
+                        let mut component_inputs = #component_inputs_ident {
+                            #(#component_input_inits),*
+                        };
+                        <Self as xdevs::Coupled>::eic(&self.input, &mut component_inputs);
+                        <Self as xdevs::Coupled>::ic(&component_outputs, &mut component_inputs);
+                    }
                     // get minimum t_next from all components after executing their delta
                     let mut t_next = f64::INFINITY;
                     #(t_next = f64::min(t_next, xdevs::traits::AbstractSimulator::delta(&mut self.components.#components_fields, t));)*
