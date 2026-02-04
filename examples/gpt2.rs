@@ -26,9 +26,9 @@ mod generator {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
-            state.sigma -= e;
-            if let Some(&stop) = x.in_stop.get_values().last() {
+        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+            state.sigma -= elapsed;
+            if let Some(&stop) = input.in_stop.get_values().last() {
                 println!("[G] received stop: {}", stop);
                 if stop {
                     state.sigma = f64::INFINITY;
@@ -38,8 +38,8 @@ mod generator {
     }
 
     impl Generator {
-        pub fn new2(period: f64) -> Self {
-            Self::new(0.0, period, 0)
+        pub fn new(period: f64) -> Self {
+            Self::build(0.0, period, 0)
         }
     }
 }
@@ -76,9 +76,9 @@ mod processor {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
-            state.sigma -= e;
-            if let Some(&job) = x.in_job.get_values().last() {
+        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+            state.sigma -= elapsed;
+            if let Some(&job) = input.in_job.get_values().last() {
                 print!("[P] received job {}", job);
                 if state.job.is_none() {
                     println!(" (idle)");
@@ -92,8 +92,8 @@ mod processor {
     }
 
     impl Processor {
-        pub fn new2(time: f64) -> Self {
-            Self::new(0.0, time, None)
+        pub fn new(time: f64) -> Self {
+            Self::build(0.0, time, None)
         }
     }
 }
@@ -139,17 +139,17 @@ mod transducer {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
-            state.sigma -= e;
-            state.clock += e;
-            state.n_generated += x.in_generator.get_values().len();
-            state.n_processed += x.in_processor.get_values().len();
+        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+            state.sigma -= elapsed;
+            state.clock += elapsed;
+            state.n_generated += input.in_generator.get_values().len();
+            state.n_processed += input.in_processor.get_values().len();
         }
     }
 
     impl Transducer {
-        pub fn new2(obs_time: f64) -> Self {
-            Self::new(obs_time, 0.0, 0, 0)
+        pub fn new(obs_time: f64) -> Self {
+            Self::build(obs_time, 0.0, 0, 0)
         }
     }
 }
@@ -204,12 +204,12 @@ fn main() {
     let proc_time = 1.1;
     let obs_time = 10.;
 
-    let generator = generator::Generator::new2(period);
-    let processor = processor::Processor::new2(proc_time);
-    let transducer = transducer::Transducer::new2(obs_time);
+    let generator = generator::Generator::new(period);
+    let processor = processor::Processor::new(proc_time);
+    let transducer = transducer::Transducer::new(obs_time);
 
-    let ef = EF::new(generator, transducer);
-    let efp = EFP::new(ef, processor);
+    let ef = EF::build(generator, transducer);
+    let efp = EFP::build(ef, processor);
 
     let mut simulator = xdevs::simulator::Simulator::new(efp);
     let config = xdevs::simulator::Config::new(0.0, 14.0, 1.0, None);

@@ -41,9 +41,9 @@ mod generator {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
-            state.sigma -= e;
-            if let Some(&stop) = x.in_stop.get_values().last() {
+        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+            state.sigma -= elapsed;
+            if let Some(&stop) = input.in_stop.get_values().last() {
                 println!("[G] received stop: {}", stop);
                 if stop {
                     state.sigma = f64::INFINITY;
@@ -100,9 +100,9 @@ mod processor {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
-            state.sigma -= e;
-            if let Some(&job) = x.in_job.get_values().last() {
+        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+            state.sigma -= elapsed;
+            if let Some(&job) = input.in_job.get_values().last() {
                 print!("[P] received job {}", job);
                 if state.job.is_none() {
                     println!(" (idle)");
@@ -173,11 +173,11 @@ mod transducer {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
-            state.sigma -= e;
-            state.clock += e;
-            state.n_generated += x.in_generator.get_values().len();
-            state.n_processed += x.in_processor.get_values().len();
+        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+            state.sigma -= elapsed;
+            state.clock += elapsed;
+            state.n_generated += input.in_generator.get_values().len();
+            state.n_processed += input.in_processor.get_values().len();
         }
     }
 }

@@ -2,6 +2,7 @@
 
 pub use xdevs_no_std_macros::*;
 
+mod impls;
 pub mod port;
 pub mod simulator;
 pub mod traits;
@@ -22,15 +23,15 @@ pub trait Atomic: traits::PartialAtomic {
     fn delta_int(state: &mut Self::State);
 
     /// External transition function. It modifies the state of the model when an external event happens.
-    /// The time elapsed since the last state transition is `e`.
-    fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input);
+    /// The time elapsed since the last state transition is `elapsed`.
+    fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input);
 
     /// Confluent transition function. It modifies the state of the model when an external and an internal event occur simultaneously.
-    /// By default, it calls [`Atomic::delta_int`] and [`Atomic::delta_ext`] with `e = 0`, in that order.
+    /// By default, it calls [`Atomic::delta_int`] and [`Atomic::delta_ext`] with `elapsed = 0`, in that order.
     #[inline]
-    fn delta_conf(state: &mut Self::State, x: &Self::Input) {
+    fn delta_conf(state: &mut Self::State, input: &Self::Input) {
         Self::delta_int(state);
-        Self::delta_ext(state, 0., x);
+        Self::delta_ext(state, 0., input);
     }
 
     /// Output function. It triggers output events when an internal event is about to happen.

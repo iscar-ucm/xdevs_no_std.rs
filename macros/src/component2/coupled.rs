@@ -1,6 +1,7 @@
 mod components;
 mod coupling;
 
+use super::check_duplicate_fields;
 use super::filter_generics;
 use super::impl_component;
 use super::port::Ports;
@@ -113,6 +114,9 @@ impl Component {
             return Err(Error::new_spanned(&component, "No components found"));
         }
 
+        // Check for duplicate field names across input, output, and components
+        check_duplicate_fields(&inputs, &outputs, &components)?;
+
         // Parse arguments
         let args = syn::parse2::<CoupledArgs>(args)?;
         let couplings = args.couplings;
@@ -151,7 +155,11 @@ impl Component {
         let components_struct = self.components.quote(components_ident);
 
         let (eoc, xic) = if let Some(couplings) = &self.couplings {
-            couplings.quote()
+            couplings.quote(
+                &self.inputs.ports,
+                &self.outputs.ports,
+                &self.components.components,
+            )
         } else {
             (vec![], vec![])
         };
@@ -186,7 +194,7 @@ impl Component {
             }
             impl #impl_generics #ident #ty_generics {
                 #[inline]
-                pub fn new(#(#components_fields: #components_tys),*) -> Self {
+                pub fn build(#(#components_fields: #components_tys),*) -> Self {
                     Self {
                         input: #input_ident::new(),
                         output: #output_ident::new(),

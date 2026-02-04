@@ -1,3 +1,4 @@
+use super::check_duplicate_fields;
 use super::filter_generics;
 use super::impl_component;
 use super::port::Ports;
@@ -81,6 +82,9 @@ impl Component {
             return Err(Error::new_spanned(&component, "No state definition found"));
         }
 
+        // Check for duplicate field names across input, output, and state
+        check_duplicate_fields(&inputs, &outputs, &state)?;
+
         // Get generics and assign them to each struct accordingly
         let generics = component.generics.clone();
         let input_generics = filter_generics(&inputs, &generics);
@@ -143,7 +147,7 @@ impl Component {
             }
             impl #impl_generics #ident #ty_generics {
                 #[inline]
-                pub fn new(#(#state_fields: #state_tys),*) -> Self {
+                pub fn build(#(#state_fields: #state_tys),*) -> Self {
                     Self {
                         input: #input_ident::new(),
                         output: #output_ident::new(),
