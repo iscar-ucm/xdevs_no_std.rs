@@ -1,5 +1,6 @@
 pub mod atomic;
 pub mod coupled;
+pub mod coupled2;
 mod port;
 mod state;
 
