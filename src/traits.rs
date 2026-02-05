@@ -26,6 +26,16 @@ pub unsafe trait Component {
     /// Output event bag of the model.
     type Output: Bag;
 
+    /// Reference returned by the `get_ports` method.
+    type InputRef<'a>
+    where
+        Self: 'a;
+
+    /// Reference returned by the `get_ports` method.
+    type OutputRef<'a>
+    where
+        Self: 'a;
+
     /// Returns the last time the component was updated.
     fn get_t_last(&self) -> f64;
 
@@ -49,6 +59,9 @@ pub unsafe trait Component {
 
     /// Returns a mutable reference to the model's output event bag.
     fn get_output_mut(&mut self) -> &mut Self::Output;
+
+    /// Returns both the input and output event bags as a tuple of references.
+    fn get_ports(&self) -> (Self::InputRef<'_>, Self::OutputRef<'_>);
 
     /// Clears the input bag, removing all values.
     #[inline]
