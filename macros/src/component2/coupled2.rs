@@ -152,7 +152,7 @@ impl Component {
                 let field_ident = &field.ident;
                 let field_ty = &field.ty;
                 quote::quote! {
-                    pub #field_ident: &'a mut <#field_ty as xdevs::traits::Component>::Input
+                    pub #field_ident: &'__xdevs_inner mut <#field_ty as xdevs::traits::Component>::Input
                 }
             })
             .collect();
@@ -165,7 +165,7 @@ impl Component {
                 let field_ident = &field.ident;
                 let field_ty = &field.ty;
                 quote::quote! {
-                    pub #field_ident: &'a <#field_ty as xdevs::traits::Component>::Output
+                    pub #field_ident: &'__xdevs_inner <#field_ty as xdevs::traits::Component>::Output
                 }
             })
             .collect();
@@ -179,7 +179,7 @@ impl Component {
                 let field_ty = &field.ty;
                 match field_ty {
                     syn::Type::Array(_) => quote::quote! {
-                        #field_ident: &mut self.components.#field_ident.each_ref().map(|c| c.input)
+                        #field_ident: self.components.#field_ident.each_ref().map(|c| &mut c.input)
                     },
                     _ => quote::quote! {
                         #field_ident: &mut self.components.#field_ident.input
@@ -197,7 +197,7 @@ impl Component {
                 let field_ty = &field.ty;
                 match field_ty {
                     syn::Type::Array(_) => quote::quote! {
-                        #field_ident: &self.components.#field_ident.each_ref().map(|c| c.output)
+                        #field_ident: self.components.#field_ident.each_ref().map(|c| &c.output)
                     },
                     _ => quote::quote! {
                         #field_ident: &self.components.#field_ident.output
@@ -206,6 +206,43 @@ impl Component {
             })
             .collect();
 
+        // Generate struct definition generics and usage generics for ComponentsInput/ComponentsOutput
+        // We need to include ALL generic parameters from components (lifetimes, types, consts)
+        // so that the field types can reference them.
+        let components_params: Vec<_> = self.components.generics.params.iter().collect();
+        let has_components_params = !components_params.is_empty();
+        
+        // Extract lifetime parameters to generate bounds (lifetime: '__xdevs_inner)
+        let lifetime_params: Vec<_> = self.components.generics.params.iter().filter_map(|p| {
+            if let syn::GenericParam::Lifetime(lp) = p {
+                Some(&lp.lifetime)
+            } else {
+                None
+            }
+        }).collect();
+        let has_lifetime_params = !lifetime_params.is_empty();
+        
+        // Generate where clause for wrapper structs to bound component lifetimes
+        let wrapper_where_clause = if has_lifetime_params {
+            quote::quote! { where #(#lifetime_params: '__xdevs_inner),* }
+        } else {
+            quote::quote! {}
+        };
+        
+        let (wrapper_def_generics, wrapper_use_generics, wrapper_trait_generics) = if has_components_params {
+            (
+                quote::quote! { <'__xdevs_inner, #(#components_params),*> },
+                quote::quote! { <'_, #(#components_params),*> },
+                quote::quote! { <'__xdevs_inner, #(#components_params),*> },
+            )
+        } else {
+            (
+                quote::quote! { <'__xdevs_inner> },
+                quote::quote! { <'_> },
+                quote::quote! { <'__xdevs_inner> },
+            )
+        };
+
         // Generate the expanded code
         let expanded = quote::quote! {
             #input_struct
@@ -213,12 +250,12 @@ impl Component {
             #components_struct
 
             /// Wrapper struct holding mutable references to all inner components' inputs.
-            pub struct #component_inputs_ident<'a> {
+            pub struct #component_inputs_ident #wrapper_def_generics #wrapper_where_clause {
                 #(#component_input_fields),*
             }
 
             /// Wrapper struct holding references to all inner components' outputs.
-            pub struct #component_outputs_ident<'a> {
+            pub struct #component_outputs_ident #wrapper_def_generics #wrapper_where_clause {
                 #(#component_output_fields),*
             }
 
@@ -240,27 +277,11 @@ impl Component {
                         components: #components_ident::new(#(#components_fields),*),
                     }
                 }
-
-                /// Returns a struct holding mutable references to all inner components' inputs.
-                #[inline]
-                pub fn component_inputs_mut(&mut self) -> #component_inputs_ident<'_> {
-                    #component_inputs_ident {
-                        #(#component_input_inits),*
-                    }
-                }
-
-                /// Returns a struct holding references to all inner components' outputs.
-                #[inline]
-                pub fn component_outputs(&self) -> #component_outputs_ident<'_> {
-                    #component_outputs_ident {
-                        #(#component_output_inits),*
-                    }
-                }
             }
             #component_impl
             unsafe impl #impl_generics xdevs::traits::PartialCoupled for #ident #ty_generics{
-                type ComponentsInput<'a> = #component_inputs_ident<'a> where Self: 'a;
-                type ComponentsOutput<'a> = #component_outputs_ident<'a> where Self: 'a;
+                type ComponentsInput<'__xdevs_inner> = #component_inputs_ident #wrapper_trait_generics where Self: '__xdevs_inner;
+                type ComponentsOutput<'__xdevs_inner> = #component_outputs_ident #wrapper_trait_generics where Self: '__xdevs_inner;
             }
             unsafe impl #impl_generics xdevs::traits::AbstractSimulator for #ident #ty_generics{
                 #[inline]
@@ -291,7 +312,7 @@ impl Component {
                         // propagate lambda to all components
                         #(xdevs::traits::AbstractSimulator::lambda(&mut self.components.#components_fields, t);)*
                         // propagate EOCs via Coupled trait
-                        let component_outputs = #component_outputs_ident {
+                        let component_outputs: #component_outputs_ident #wrapper_use_generics = #component_outputs_ident {
                             #(#component_output_inits),*
                         };
                         <Self as xdevs::Coupled>::eoc(&component_outputs, &mut self.output);
@@ -302,10 +323,10 @@ impl Component {
                 fn delta(&mut self, t: f64) -> f64 {
                     // propagate EICs and ICs via Coupled trait
                     {
-                        let component_outputs = #component_outputs_ident {
+                        let component_outputs: #component_outputs_ident #wrapper_use_generics = #component_outputs_ident {
                             #(#component_output_inits),*
                         };
-                        let mut component_inputs = #component_inputs_ident {
+                        let mut component_inputs: #component_inputs_ident #wrapper_use_generics = #component_inputs_ident {
                             #(#component_input_inits),*
                         };
                         <Self as xdevs::Coupled>::eic(&self.input, &mut component_inputs);
