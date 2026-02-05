@@ -62,6 +62,10 @@ macro_rules! seq_component_impl_body {
             )
         }
 
+        fn get_ports(&self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
+            unimplemented!("get_ports is not supported for collections; access elements directly")
+        }
+
         fn clear_input(&mut self) {
             self.iter_mut().for_each(|c| c.clear_input());
         }
@@ -106,8 +110,10 @@ unsafe impl<T: Bag> Bag for alloc::vec::Vec<T> {
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 unsafe impl<T: Component> Component for alloc::vec::Vec<T> {
-    type Input = alloc::vec::Vec<T::Input>;
-    type Output = alloc::vec::Vec<T::Output>;
+    type Input = ();
+    type Output = ();
+    type InputRef<'a> = alloc::vec::Vec<&'a mut T::Input> where Self: 'a;
+    type OutputRef<'a> = alloc::vec::Vec<&'a T::Output> where Self: 'a;
 
     seq_component_impl_body!();
 }
@@ -122,8 +128,10 @@ unsafe impl<T: Bag, const N: usize> Bag for heapless::Vec<T, N> {
 }
 
 unsafe impl<T: Component, const N: usize> Component for heapless::Vec<T, N> {
-    type Input = heapless::Vec<T::Input, N>;
-    type Output = heapless::Vec<T::Output, N>;
+    type Input = ();
+    type Output = ();
+    type InputRef<'a> = heapless::Vec<&'a mut T::Input, N> where Self: 'a;
+    type OutputRef<'a> = heapless::Vec<&'a T::Output, N> where Self: 'a;
 
     seq_component_impl_body!();
 }
@@ -137,8 +145,10 @@ unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
 }
 
 unsafe impl<T: Component, const N: usize> Component for [T; N] {
-    type Input = [T::Input; N];
-    type Output = [T::Output; N];
+    type Input = ();
+    type Output = ();
+    type InputRef<'a> = [&'a mut T::Input; N] where Self: 'a;
+    type OutputRef<'a> = [&'a T::Output; N] where Self: 'a;
 
     seq_component_impl_body!();
 }
@@ -212,6 +222,8 @@ macro_rules! impl_ref {
         unsafe impl<T: Component> Component for $ty {
             type Input = T::Input;
             type Output = T::Output;
+            type InputRef<'a> = T::InputRef<'a> where Self: 'a;
+            type OutputRef<'a> = T::OutputRef<'a> where Self: 'a;
 
             fn get_t_last(&self) -> f64 {
                 (**self).get_t_last()
@@ -243,6 +255,10 @@ macro_rules! impl_ref {
 
             fn get_output_mut(&mut self) -> &mut Self::Output {
                 (**self).get_output_mut()
+            }
+
+            fn get_ports(&self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
+                (**self).get_ports()
             }
         }
 
