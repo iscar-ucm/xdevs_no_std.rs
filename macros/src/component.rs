@@ -184,6 +184,8 @@ impl Component {
             unsafe impl xdevs::traits::Component for #ident {
                 type Input = #input_ident;
                 type Output = #output_ident;
+                type InputRef<'__xdevs_ports> = &'__xdevs_ports mut #input_ident where Self: '__xdevs_ports;
+                type OutputRef<'__xdevs_ports> = &'__xdevs_ports #output_ident where Self: '__xdevs_ports;
                 #[inline]
                 fn get_t_last(&self) -> f64 {
                     self.t_last
@@ -215,6 +217,14 @@ impl Component {
                 #[inline]
                 fn get_output_mut(&mut self) -> &mut Self::Output {
                     &mut self.output
+                }
+                #[inline]
+                fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
+                    (&mut self.input, &self.output)
+                }
+                #[inline]
+                fn get_out_ports(&self) -> Self::OutputRef<'_> {
+                    &self.output
                 }
             }
             #other_quote

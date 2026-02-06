@@ -61,7 +61,10 @@ pub unsafe trait Component {
     fn get_output_mut(&mut self) -> &mut Self::Output;
 
     /// Returns both the input and output event bags as a tuple of references.
-    fn get_ports(&self) -> (Self::InputRef<'_>, Self::OutputRef<'_>);
+    fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>);
+
+    /// Returns only the output event bag reference. Useful for output-only operations like lambda.
+    fn get_out_ports(&self) -> Self::OutputRef<'_>;
 
     /// Clears the input bag, removing all values.
     #[inline]

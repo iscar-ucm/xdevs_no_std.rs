@@ -61,11 +61,11 @@ impl<T: Clone, const N: usize> Port<T, N> {
 
     /// Easy port mapping method
     #[inline]
-    pub fn connect<const M: usize>(
-        &mut self,
-        from: &Port<T, M>,
+    pub fn couple<const M: usize>(
+        &self,
+        to: &mut Port<T, M>,
     ) -> Result<(), heapless::CapacityError> {
-        self.add_values(from.get_values())
+        to.add_values(self.get_values())
     }
 }
 

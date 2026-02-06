@@ -112,6 +112,8 @@ fn impl_component(
         unsafe impl #impl_generics xdevs::traits::Component for #ident #ty_generics{
             type Input = #input_ident #input_generics;
             type Output = #output_ident #output_generics;
+            type InputRef<'__xdevs_ports> = &'__xdevs_ports mut #input_ident #input_generics where Self: '__xdevs_ports;
+            type OutputRef<'__xdevs_ports> = &'__xdevs_ports #output_ident #output_generics where Self: '__xdevs_ports;
             #[inline]
             fn get_t_last(&self) -> f64 {
                 self.t_last
@@ -143,6 +145,14 @@ fn impl_component(
             #[inline]
             fn get_output_mut(&mut self) -> &mut Self::Output {
                 &mut self.output
+            }
+            #[inline]
+            fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
+                (&mut self.input, &self.output)
+            }
+            #[inline]
+            fn get_out_ports(&self) -> Self::OutputRef<'_> {
+                &self.output
             }
         }
     }
