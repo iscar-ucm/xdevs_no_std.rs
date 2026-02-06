@@ -20,62 +20,6 @@ macro_rules! seq_bag_impl_body {
     };
 }
 
-macro_rules! seq_component_impl_body {
-    () => {
-        fn get_t_last(&self) -> f64 {
-            self.iter()
-                .map(|c| c.get_t_last())
-                .fold(f64::INFINITY, f64::min)
-        }
-
-        fn set_t_last(&mut self, t_last: f64) {
-            self.iter_mut().for_each(|c| c.set_t_last(t_last));
-        }
-
-        fn get_t_next(&self) -> f64 {
-            self.iter()
-                .map(|c| c.get_t_next())
-                .fold(f64::INFINITY, f64::min)
-        }
-
-        fn set_t_next(&mut self, t_next: f64) {
-            self.iter_mut().for_each(|c| c.set_t_next(t_next));
-        }
-
-        fn get_input(&self) -> &Self::Input {
-            unimplemented!("get_input is not supported for collections; access elements directly")
-        }
-
-        fn get_input_mut(&mut self) -> &mut Self::Input {
-            unimplemented!(
-                "get_input_mut is not supported for collections; access elements directly"
-            )
-        }
-
-        fn get_output(&self) -> &Self::Output {
-            unimplemented!("get_output is not supported for collections; access elements directly")
-        }
-
-        fn get_output_mut(&mut self) -> &mut Self::Output {
-            unimplemented!(
-                "get_output_mut is not supported for collections; access elements directly"
-            )
-        }
-
-        fn get_ports(&self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
-            unimplemented!("get_ports is not supported for collections; access elements directly")
-        }
-
-        fn clear_input(&mut self) {
-            self.iter_mut().for_each(|c| c.clear_input());
-        }
-
-        fn clear_output(&mut self) {
-            self.iter_mut().for_each(|c| c.clear_output());
-        }
-    };
-}
-
 macro_rules! seq_simulator_impl_body {
     () => {
         #[inline]
@@ -112,10 +56,68 @@ unsafe impl<T: Bag> Bag for alloc::vec::Vec<T> {
 unsafe impl<T: Component> Component for alloc::vec::Vec<T> {
     type Input = ();
     type Output = ();
-    type InputRef<'a> = alloc::vec::Vec<&'a mut T::Input> where Self: 'a;
-    type OutputRef<'a> = alloc::vec::Vec<&'a T::Output> where Self: 'a;
+    type InputRef<'a>
+        = alloc::vec::Vec<T::InputRef<'a>>
+    where
+        Self: 'a;
+    type OutputRef<'a>
+        = alloc::vec::Vec<T::OutputRef<'a>>
+    where
+        Self: 'a;
 
-    seq_component_impl_body!();
+    fn get_t_last(&self) -> f64 {
+        self.iter()
+            .map(|c| c.get_t_last())
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    fn set_t_last(&mut self, t_last: f64) {
+        self.iter_mut().for_each(|c| c.set_t_last(t_last));
+    }
+
+    fn get_t_next(&self) -> f64 {
+        self.iter()
+            .map(|c| c.get_t_next())
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    fn set_t_next(&mut self, t_next: f64) {
+        self.iter_mut().for_each(|c| c.set_t_next(t_next));
+    }
+
+    fn get_input(&self) -> &Self::Input {
+        unimplemented!("get_input is not supported for collections; access elements directly")
+    }
+
+    fn get_input_mut(&mut self) -> &mut Self::Input {
+        unimplemented!("get_input_mut is not supported for collections; access elements directly")
+    }
+
+    fn get_output(&self) -> &Self::Output {
+        unimplemented!("get_output is not supported for collections; access elements directly")
+    }
+
+    fn get_output_mut(&mut self) -> &mut Self::Output {
+        unimplemented!("get_output_mut is not supported for collections; access elements directly")
+    }
+
+    fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
+        let (inputs, outputs): (alloc::vec::Vec<_>, alloc::vec::Vec<_>) =
+            self.iter_mut().map(|c| c.get_ports()).unzip();
+        (inputs, outputs)
+    }
+
+    fn get_out_ports(&self) -> Self::OutputRef<'_> {
+        self.iter().map(|c| c.get_out_ports()).collect()
+    }
+
+    fn clear_input(&mut self) {
+        self.iter_mut().for_each(|c| c.clear_input());
+    }
+
+    fn clear_output(&mut self) {
+        self.iter_mut().for_each(|c| c.clear_output());
+    }
 }
 
 #[cfg(any(feature = "std", feature = "alloc"))]
@@ -130,10 +132,77 @@ unsafe impl<T: Bag, const N: usize> Bag for heapless::Vec<T, N> {
 unsafe impl<T: Component, const N: usize> Component for heapless::Vec<T, N> {
     type Input = ();
     type Output = ();
-    type InputRef<'a> = heapless::Vec<&'a mut T::Input, N> where Self: 'a;
-    type OutputRef<'a> = heapless::Vec<&'a T::Output, N> where Self: 'a;
+    type InputRef<'a>
+        = heapless::Vec<T::InputRef<'a>, N>
+    where
+        Self: 'a;
+    type OutputRef<'a>
+        = heapless::Vec<T::OutputRef<'a>, N>
+    where
+        Self: 'a;
 
-    seq_component_impl_body!();
+    fn get_t_last(&self) -> f64 {
+        self.iter()
+            .map(|c| c.get_t_last())
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    fn set_t_last(&mut self, t_last: f64) {
+        self.iter_mut().for_each(|c| c.set_t_last(t_last));
+    }
+
+    fn get_t_next(&self) -> f64 {
+        self.iter()
+            .map(|c| c.get_t_next())
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    fn set_t_next(&mut self, t_next: f64) {
+        self.iter_mut().for_each(|c| c.set_t_next(t_next));
+    }
+
+    fn get_input(&self) -> &Self::Input {
+        unimplemented!("get_input is not supported for collections; access elements directly")
+    }
+
+    fn get_input_mut(&mut self) -> &mut Self::Input {
+        unimplemented!("get_input_mut is not supported for collections; access elements directly")
+    }
+
+    fn get_output(&self) -> &Self::Output {
+        unimplemented!("get_output is not supported for collections; access elements directly")
+    }
+
+    fn get_output_mut(&mut self) -> &mut Self::Output {
+        unimplemented!("get_output_mut is not supported for collections; access elements directly")
+    }
+
+    fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
+        let mut inputs = heapless::Vec::new();
+        let mut outputs = heapless::Vec::new();
+        for component in self.iter_mut() {
+            let (input, output) = component.get_ports();
+            inputs.push(input).ok();
+            outputs.push(output).ok();
+        }
+        (inputs, outputs)
+    }
+
+    fn get_out_ports(&self) -> Self::OutputRef<'_> {
+        let mut outputs = heapless::Vec::new();
+        for component in self.iter() {
+            outputs.push(component.get_out_ports()).ok();
+        }
+        outputs
+    }
+
+    fn clear_input(&mut self) {
+        self.iter_mut().for_each(|c| c.clear_input());
+    }
+
+    fn clear_output(&mut self) {
+        self.iter_mut().for_each(|c| c.clear_output());
+    }
 }
 
 unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for heapless::Vec<T, N> {
@@ -147,10 +216,78 @@ unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
 unsafe impl<T: Component, const N: usize> Component for [T; N] {
     type Input = ();
     type Output = ();
-    type InputRef<'a> = [&'a mut T::Input; N] where Self: 'a;
-    type OutputRef<'a> = [&'a T::Output; N] where Self: 'a;
+    type InputRef<'a>
+        = [T::InputRef<'a>; N]
+    where
+        Self: 'a;
+    type OutputRef<'a>
+        = [T::OutputRef<'a>; N]
+    where
+        Self: 'a;
 
-    seq_component_impl_body!();
+    fn get_t_last(&self) -> f64 {
+        self.iter()
+            .map(|c| c.get_t_last())
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    fn set_t_last(&mut self, t_last: f64) {
+        self.iter_mut().for_each(|c| c.set_t_last(t_last));
+    }
+
+    fn get_t_next(&self) -> f64 {
+        self.iter()
+            .map(|c| c.get_t_next())
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    fn set_t_next(&mut self, t_next: f64) {
+        self.iter_mut().for_each(|c| c.set_t_next(t_next));
+    }
+
+    fn get_input(&self) -> &Self::Input {
+        unimplemented!("get_input is not supported for collections; access elements directly")
+    }
+
+    fn get_input_mut(&mut self) -> &mut Self::Input {
+        unimplemented!("get_input_mut is not supported for collections; access elements directly")
+    }
+
+    fn get_output(&self) -> &Self::Output {
+        unimplemented!("get_output is not supported for collections; access elements directly")
+    }
+
+    fn get_output_mut(&mut self) -> &mut Self::Output {
+        unimplemented!("get_output_mut is not supported for collections; access elements directly")
+    }
+
+    fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
+        let mut input_opts: [Option<T::InputRef<'_>>; N] = core::array::from_fn(|_| None);
+        let mut output_opts: [Option<T::OutputRef<'_>>; N] = core::array::from_fn(|_| None);
+
+        for (i, component) in self.iter_mut().enumerate() {
+            let (input, output) = component.get_ports();
+            input_opts[i] = Some(input);
+            output_opts[i] = Some(output);
+        }
+
+        // All elements have been initialized in the loop above
+        let inputs = input_opts.map(|opt| opt.unwrap());
+        let outputs = output_opts.map(|opt| opt.unwrap());
+        (inputs, outputs)
+    }
+
+    fn get_out_ports(&self) -> Self::OutputRef<'_> {
+        self.each_ref().map(|c| c.get_out_ports())
+    }
+
+    fn clear_input(&mut self) {
+        self.iter_mut().for_each(|c| c.clear_input());
+    }
+
+    fn clear_output(&mut self) {
+        self.iter_mut().for_each(|c| c.clear_output());
+    }
 }
 
 unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for [T; N] {
@@ -222,8 +359,14 @@ macro_rules! impl_ref {
         unsafe impl<T: Component> Component for $ty {
             type Input = T::Input;
             type Output = T::Output;
-            type InputRef<'a> = T::InputRef<'a> where Self: 'a;
-            type OutputRef<'a> = T::OutputRef<'a> where Self: 'a;
+            type InputRef<'a>
+                = T::InputRef<'a>
+            where
+                Self: 'a;
+            type OutputRef<'a>
+                = T::OutputRef<'a>
+            where
+                Self: 'a;
 
             fn get_t_last(&self) -> f64 {
                 (**self).get_t_last()
@@ -257,8 +400,12 @@ macro_rules! impl_ref {
                 (**self).get_output_mut()
             }
 
-            fn get_ports(&self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
+            fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
                 (**self).get_ports()
+            }
+
+            fn get_out_ports(&self) -> Self::OutputRef<'_> {
+                (**self).get_out_ports()
             }
         }
 
