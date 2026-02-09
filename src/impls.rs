@@ -182,8 +182,11 @@ unsafe impl<T: Component, const N: usize> Component for heapless::Vec<T, N> {
         let mut outputs = heapless::Vec::new();
         for component in self.iter_mut() {
             let (input, output) = component.get_ports();
-            inputs.push(input).ok();
-            outputs.push(output).ok();
+            // SAFETY: Vectors are not full
+            unsafe {
+                inputs.push_unchecked(input);
+                outputs.push_unchecked(output);
+            }
         }
         (inputs, outputs)
     }
@@ -191,7 +194,8 @@ unsafe impl<T: Component, const N: usize> Component for heapless::Vec<T, N> {
     fn get_out_ports(&self) -> Self::OutputRef<'_> {
         let mut outputs = heapless::Vec::new();
         for component in self.iter() {
-            outputs.push(component.get_out_ports()).ok();
+            // SAFETY: Vector is not full
+            unsafe { outputs.push_unchecked(component.get_out_ports()) };
         }
         outputs
     }
@@ -262,23 +266,38 @@ unsafe impl<T: Component, const N: usize> Component for [T; N] {
     }
 
     fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
-        let mut input_opts: [Option<T::InputRef<'_>>; N] = core::array::from_fn(|_| None);
-        let mut output_opts: [Option<T::OutputRef<'_>>; N] = core::array::from_fn(|_| None);
+        // SAFETY: An uninitialized `[MaybeUninit<_>; N]` is valid.
+        let mut inputs: [core::mem::MaybeUninit<T::InputRef<'_>>; N] =
+            unsafe { core::mem::MaybeUninit::uninit().assume_init() };
+        let mut outputs: [core::mem::MaybeUninit<T::OutputRef<'_>>; N] =
+            unsafe { core::mem::MaybeUninit::uninit().assume_init() };
 
         for (i, component) in self.iter_mut().enumerate() {
             let (input, output) = component.get_ports();
-            input_opts[i] = Some(input);
-            output_opts[i] = Some(output);
+            inputs[i].write(input);
+            outputs[i].write(output);
         }
 
-        // All elements have been initialized in the loop above
-        let inputs = input_opts.map(|opt| opt.unwrap());
-        let outputs = output_opts.map(|opt| opt.unwrap());
-        (inputs, outputs)
+        // SAFETY: All elements have been initialized in the loop above.
+        unsafe {
+            (
+                inputs.map(|m| m.assume_init()),
+                outputs.map(|m| m.assume_init()),
+            )
+        }
     }
 
     fn get_out_ports(&self) -> Self::OutputRef<'_> {
-        self.each_ref().map(|c| c.get_out_ports())
+        // SAFETY: An uninitialized `[MaybeUninit<_>; N]` is valid.
+        let mut outputs: [core::mem::MaybeUninit<T::OutputRef<'_>>; N] =
+            unsafe { core::mem::MaybeUninit::uninit().assume_init() };
+
+        for (i, component) in self.iter().enumerate() {
+            outputs[i].write(component.get_out_ports());
+        }
+
+        // SAFETY: All elements have been initialized in the loop above.
+        unsafe { outputs.map(|m| m.assume_init()) }
     }
 
     fn clear_input(&mut self) {
