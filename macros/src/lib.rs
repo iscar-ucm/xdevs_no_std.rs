@@ -38,3 +38,12 @@ pub fn coupled(args: TokenStream, item: TokenStream) -> TokenStream {
         Err(err) => err.to_compile_error().into(),
     }
 }
+
+#[proc_macro_attribute]
+pub fn coupled2(args: TokenStream, item: TokenStream) -> TokenStream {
+    let coupled_component = component2::coupled2::Component::parse(args.into(), item.into());
+    match coupled_component {
+        Ok(component) => component.quote().into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
