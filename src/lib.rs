@@ -41,7 +41,7 @@ pub trait Atomic: traits::PartialAtomic {
     fn ta(state: &Self::State) -> f64;
 }
 
-/// Interface for DEVS coupled models couplings. All DEVS coupled models must implement this trait.
+/// Interface for DEVS coupled models. All DEVS coupled models must implement this trait.
 pub trait Coupled: traits::PartialCoupled {
     /// External Input Coupling. Propagates input events from the coupled model to its inner components.
     #[allow(unused_variables)]
