@@ -84,7 +84,7 @@ pub unsafe trait PartialAtomic: Component {
 pub unsafe trait AbstractSimulator: Component {
     /// It starts the simulation, setting the initial time to t_start.
     /// It returns the time for the next state transition of the inner DEVS model.
-    fn start(&mut self, t_start: Instant) -> Duration;
+    fn start(&mut self, t_start: Instant) -> Instant; //cambio Duration por Instant
 
     /// It stops the simulation, setting the last time to t_stop.
     fn stop(&mut self, t_stop: Instant);
@@ -97,7 +97,7 @@ pub unsafe trait AbstractSimulator: Component {
     /// It also clears all the input and output ports.
     /// Internally, it checks that the model is imminent before executing.
     /// Finally, it returns the time for the next state transition of the inner DEVS model.
-    fn delta(&mut self, t: Instant) -> Duration;
+    fn delta(&mut self, t: Instant) -> Instant; //Cambio de Duration a Instant
 }
 
 /// Interface for handling input events in an asynchronous DEVS simulation.
@@ -116,8 +116,7 @@ pub trait AsyncInput {
     fn handle(
         &mut self,
         config: &Config,
-        t_from: Instant,
         t_until: Instant,
         input: &mut Self::Input,
-    ) -> impl Future<Output = Instant>;
+    ) -> impl Future<Output = ()>;
 }

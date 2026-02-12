@@ -35,7 +35,7 @@ impl<T: Bag> AsyncInput for SleepAsync<T> {
         _input: &mut Self::Input,
     ) -> Instant {
         let last_rt = self.last_rt.unwrap_or_else(Instant::now);
-        let duration = (t_until - t_from) * (config.time_scale as u32);
+        let duration = (t_until - t_from) * (config.mult as u32);
         let next_rt = last_rt + duration.try_into().unwrap();
         Timer::at(next_rt).await;
         self.last_rt = Some(next_rt);

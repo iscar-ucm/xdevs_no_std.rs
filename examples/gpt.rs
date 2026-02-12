@@ -242,6 +242,6 @@ fn main() {
     let efp = EFP::new(ef, processor);
 
     let mut simulator = xdevs::simulator::Simulator::new(efp);
-    let config = xdevs::simulator::Config::new(0.0, 14.0, 1.0, None);
+    let config = xdevs::simulator::Config::build(0.0, 14.0, 1.0, None); //cambio new por build
     simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
 }

@@ -245,8 +245,8 @@ async fn main() {
     let efp = EFP::new(ef, processor);
 
     let mut simulator = Simulator::new(efp);
-    let config = Config::new(0.0, 14.0, 1.0, None);
-    let input_handler = SleepAsync::new();
+    let config = Config::build(0.0, 14.0, 1.0, None); //cambio new por build
+    let input_handler = SleepAsync::build(); //cambio new por build
 
     simulator
         .simulate_rt_async(&config, input_handler, |_| {})

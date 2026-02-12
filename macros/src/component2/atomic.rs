@@ -143,7 +143,7 @@ impl Component {
             }
             impl #impl_generics #ident #ty_generics {
                 #[inline]
-                pub fn new(#(#state_fields: #state_tys),*) -> Self {
+                pub fn build(#(#state_fields: #state_tys),*) -> Self {
                     Self {
                         input: #input_ident::new(),
                         output: #output_ident::new(),
