@@ -39,7 +39,8 @@ mod generator {
 
     impl Generator {
         pub fn new(period: f64) -> Self {
-            Self::build(0.0, period, 0)
+            //cambio new2 por new
+            Self::build(0.0, period, 0) //cambio new por build
         }
     }
 }
@@ -93,7 +94,8 @@ mod processor {
 
     impl Processor {
         pub fn new(time: f64) -> Self {
-            Self::build(0.0, time, None)
+            //cambio new2 por new
+            Self::build(0.0, time, None) //cambio new por build
         }
     }
 }
@@ -149,7 +151,8 @@ mod transducer {
 
     impl Transducer {
         pub fn new(obs_time: f64) -> Self {
-            Self::build(obs_time, 0.0, 0, 0)
+            //cambio new2 por new
+            Self::build(obs_time, 0.0, 0, 0) //cambio new por build
         }
     }
 }
@@ -204,14 +207,14 @@ fn main() {
     let proc_time = 1.1;
     let obs_time = 10.;
 
-    let generator = generator::Generator::new(period);
-    let processor = processor::Processor::new(proc_time);
-    let transducer = transducer::Transducer::new(obs_time);
+    let generator = generator::Generator::new(period); //cambio new2 por new
+    let processor = processor::Processor::new(proc_time); //cambio new2 por new
+    let transducer = transducer::Transducer::new(obs_time); //cambio new2 por new
 
     let ef = EF::build(generator, transducer);
     let efp = EFP::build(ef, processor);
 
-    let mut simulator = xdevs::simulator::Simulator::new(efp);
-    let config = xdevs::simulator::Config::new(0.0, 14.0, 1.0, None);
+    let mut simulator = xdevs::simulator::Simulator::build(efp); //cambio new por build
+    let config = xdevs::simulator::Config::build(0.0, 14.0, 1.0, None); //cambio new por build
     simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
 }

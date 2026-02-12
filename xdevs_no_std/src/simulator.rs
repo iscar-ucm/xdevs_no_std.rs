@@ -1,6 +1,6 @@
 use crate::traits::{AbstractSimulator, AsyncInput, Bag};
 //use core::time::Duration;
-use embassy_time::{Duration, Instant};
+use embassy_time::{Duration, Instant, Timer};
 
 #[cfg(feature = "std")]
 pub mod std;
@@ -21,7 +21,7 @@ pub struct Config {
     ///
     /// If `time_scale` is greater than 1.0, the simulation runs faster than real time.
     /// If `time_scale` is less than 1.0, the simulation runs slower than real time.
-    pub time_scale: f64,
+    pub mult: u64, //cambio time_scale por mult
 
     /// The maximum jitter duration allowed in the simulation.
     ///
@@ -36,13 +36,13 @@ impl Config {
     pub fn new(
         t_start: Instant,
         t_stop: Instant,
-        time_scale: f64,
+        mult: u64, //cambio time_scale por mult
         max_jitter: Option<Duration>,
     ) -> Self {
         Self {
             t_start,
             t_stop,
-            time_scale,
+            mult, //cambio time_scale por mult
             max_jitter,
         }
     }
@@ -53,12 +53,7 @@ impl Default for Config {
     /// time scale of 1.0 (real-time simulation) and no maximum jitter.
     #[inline]
     fn default() -> Self {
-        Self::new(
-            Instant::from_secs(0),
-            Instant::from_secs(u64::MAX),
-            1.0,
-            None,
-        )
+        Self::new(Instant::from_secs(0), Instant::from_secs(u64::MAX), 1, None)
     }
 }
 
@@ -84,7 +79,7 @@ impl<M: AbstractSimulator> Simulator<M> {
     /// It provides support for real time execution via the following arguments:
     ///
     /// - `wait_until`: a closure that is called between state transitions.
-    ///   It receives the current time, the time of the next state transition and a
+    ///   It receives the current time (NO), the time of the next state transition and a
     ///   mutable reference to the input ports. It returns the actual time "waited".
     ///   If the returned time is equal to the input time, an internal/confluent state transition is performed.
     ///   Otherwise, it assumes that an external event happened and executes the external transition function.
@@ -95,18 +90,19 @@ impl<M: AbstractSimulator> Simulator<M> {
     pub fn simulate_rt(
         &mut self,
         config: &Config,
-        mut wait_until: impl FnMut(Instant, Instant, &mut M::Input) -> Duration,
+        mut wait_until: impl FnMut(Instant, &mut M::Input) -> Instant,
         mut propagate_output: impl FnMut(&M::Output),
     ) {
         let t_start = config.t_start;
         let t_stop = config.t_stop;
         let mut t = t_start;
+        //let mut t = Instant::now(); //cambio de t_start a Instant::now()
         let mut t_next_internal = self.model.start(t);
         while t < t_stop {
-            let t_until = Instant::min(t + t_next_internal, t_stop);
-            let elapsed = wait_until(t, t_until, self.model.get_input_mut());
+            let t_until = Instant::min(t_next_internal, t_stop);
+            t = wait_until(t_until, self.model.get_input_mut());
             //t = t + elapsed;
-            if elapsed >= t_next_internal {
+            if t >= t_next_internal {
                 self.model.lambda(t);
                 propagate_output(self.model.get_output());
             } else if self.model.get_input().is_empty() {
@@ -121,7 +117,7 @@ impl<M: AbstractSimulator> Simulator<M> {
     /// It uses a virtual clock (i.e., no real time is used).
     #[inline]
     pub fn simulate_vt(&mut self, config: &Config) {
-        self.simulate_rt(config, |t: Instant, t_until, _| t_until - t, |_| {});
+        self.simulate_rt(config, |t_until, _| t_until, |_| {}); //t_until a secas porque no hay eventos externos en el virtual
     }
 
     /// Asynchronous version of the `simulate_rt` method.
@@ -137,11 +133,12 @@ impl<M: AbstractSimulator> Simulator<M> {
         let mut t = config.t_start;
         let mut t_next_internal = self.model.start(t);
         while t < config.t_stop {
-            let t_until = Instant::min(t + t_next_internal, config.t_stop);
-            t = input_handler
-                .handle(config, t, t_until, self.model.get_input_mut())
-                .await;
-            if t >= t + t_next_internal {
+            let t_until = Instant::min(t_next_internal, config.t_stop);
+            input_handler
+                .handle(config, t_until, self.model.get_input_mut())
+                .await; //como ahora input_handler no devuelve nada no modifica t
+            t = Instant::now(); //ahora comprobamos que se ha hecho en el tiempo que debería, no nos fiamos del valor que da. En simulate_vt hay que comprobar los tiempos en los que se realizan
+            if t >= t_next_internal {
                 self.model.lambda(t);
                 propagate_output(self.model.get_output());
             } else if self.model.get_input().is_empty() {

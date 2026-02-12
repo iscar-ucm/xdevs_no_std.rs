@@ -3,14 +3,19 @@ extern crate std;
 use crate::{
     simulator::Config,
     traits::{AsyncInput, Bag},
-    Duration, Instant,
+    Duration as eDuration, Instant as eInstant,
 };
-use std::{thread, time::SystemTime};
+
+use embassy_time::Timer;
+
+//use std::time::Duration as StdDuration;
+use std::{thread, time::Duration as stdDuration, time::Instant as stdInstant, time::SystemTime};
 
 /// Closure for RT simulation on targets with `std`.
 /// It sleeps until the next state transition.
-pub fn sleep<T: Bag>(config: &Config) -> impl FnMut(f64, f64, &mut T) -> f64 {
+pub fn sleep<T: Bag>(config: &Config) -> impl FnMut(eInstant, &mut T) -> eInstant {
     wait_event(config, |waiting_period, _| thread::sleep(waiting_period))
+    //embassy_time::Duration::from_nanos(waiting_period.as_nanos() as u64)
 }
 
 /// It computes the next wall-clock time corresponding to the next state transition of the model.
@@ -38,14 +43,23 @@ pub fn sleep<T: Bag>(config: &Config) -> impl FnMut(f64, f64, &mut T) -> f64 {
 /// ```
 pub fn wait_event<T: Bag>(
     config: &Config,
-    mut input_handler: impl FnMut(Duration, &mut T),
-) -> impl FnMut(f64, f64, &mut T) -> f64 {
-    let (time_scale, max_jitter) = (config.time_scale, config.max_jitter);
+    mut input_handler: impl FnMut(eInstant, &mut T),
+) -> impl FnMut(eInstant, &mut T) -> eInstant {
+    let (mult, max_jitter) = (config.mult, config.max_jitter);
     let mut last_rt = SystemTime::now();
     let start_rt = last_rt;
 
-    move |t_from, t_until, binput: &mut T| -> f64 {
-        let next_rt = last_rt + Duration::from_secs_f64((t_until - t_from) * time_scale);
+    move |t_until, binput: &mut T| -> eInstant {
+        // TODO casteo
+
+        // Timer::at(t_until);
+        // Timer::now()
+
+        //let next_rt = last_rt + Duration::from_secs((t_until - t_from) * mult);
+        let duration_embassy = t_until - eInstant::now();
+        let duration_std = std::time::Duration::from_millis(duration_embassy.as_millis() as u64);
+        let next_rt = last_rt + duration_std * (mult as u32);
+        //let next_rt_std = std::time::Duration::from_millis(next_rt.as_millis() as u64);
 
         if let Ok(duration) = next_rt.duration_since(SystemTime::now()) {
             input_handler(duration, binput);
@@ -57,7 +71,7 @@ pub fn wait_event<T: Bag>(
             Ok(duration) => {
                 // t >= next_rt, check for the jitter
                 if let Some(max_jitter) = max_jitter {
-                    if duration > max_jitter {
+                    if duration_embassy > max_jitter {
                         panic!("[WE]>> Jitter too high: {:?}", duration);
                     }
                 }
@@ -68,7 +82,9 @@ pub fn wait_event<T: Bag>(
                 // t < next_rt
                 last_rt = t;
                 let duration = last_rt.duration_since(start_rt).unwrap();
-                duration.as_secs_f64() / time_scale
+                let dur_std =
+                    std::time::Duration::from_millis(duration.as_millis() as u64) / (mult as u32);
+                eInstant::now() + eDuration::from_millis(dur_std.as_millis() as u64)
             }
         }
     }
@@ -78,7 +94,7 @@ pub fn wait_event<T: Bag>(
 #[derive(Default)]
 pub struct SleepAsync<T: Bag> {
     /// The last recorded real time instant.
-    last_rt: Option<Instant>,
+    last_rt: Option<eInstant>,
     /// Phantom data to associate with the input bag type.
     input: core::marker::PhantomData<T>,
 }
@@ -99,14 +115,17 @@ impl<T: Bag> AsyncInput for SleepAsync<T> {
     async fn handle(
         &mut self,
         config: &Config,
-        t_from: Instant,
-        t_until: Instant,
+        //t_from: eInstant,
+        t_until: eInstant,
         _input: &mut Self::Input,
-    ) -> Instant {
-        let last_rt = self.last_rt.unwrap_or_else(Instant::now);
-        let next_rt = last_rt + (t_until - t_from) * (config.time_scale as u32);
-        tokio::time::sleep_until(next_rt.into()).await;
-        self.last_rt = Some(next_rt);
-        t_until
+    ) {
+        //no devuelve nada. en el propio simulador se comprueba que se realice en el tiempo correcto
+        //let last_rt = self.last_rt.unwrap_or_else(eInstant::now);
+        //let next_rt = last_rt + (t_until - Timer::now()) * (config.mult as u32);
+        Timer::at(t_until).await;
+        // Timer::at(next_rt).await;
+        // self.last_rt = Some(next_rt);
+        //t_until
+        //Timer::now() //más preciso que t_until por si ha habido alguna variación
     }
 }

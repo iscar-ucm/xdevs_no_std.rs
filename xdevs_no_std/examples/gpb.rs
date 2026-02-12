@@ -30,7 +30,8 @@ mod generator {
 
     impl Generator {
         pub fn new(period: f64) -> Self {
-            Self::build(0.0, period, 0)
+            //cambio new2 por new
+            Self::build(0.0, period, 0) //cambio new por build
         }
     }
 }
@@ -146,7 +147,9 @@ mod buffer {
 
     impl<'a, T: Clone + Debug> Buffer<'a, T> {
         pub fn new(capacity: usize, config: Option<&'a str>) -> Self {
-            Self::build(f64::INFINITY, capacity, heapless::Vec::new(), config)
+            //cambiio new2 por new
+            Self::build(f64::INFINITY, capacity, heapless::Vec::build(), config)
+            //cambio new por build
         }
     }
 }
@@ -165,13 +168,13 @@ struct GPB<'a> {
 }
 
 fn main() {
-    let generator = generator::Generator::new(1.0);
-    let buffer = buffer::Buffer::new(8, Some("FIFO buffer"));
-    let processor = processor::Processor::new(1.5);
+    let generator = generator::Generator::new(1.0); //cambio new2 por new
+    let buffer = buffer::Buffer::new(8, Some("FIFO buffer")); //cambio new2 por new
+    let processor = processor::Processor::new(1.5); //cambio new2 por new
 
-    let gpb = GPB::build(generator, buffer, processor);
+    let gpb = GPB::build(generator, buffer, processor); //cambio new por build
 
-    let mut simulator = xdevs::simulator::Simulator::new(gpb);
-    let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);
+    let mut simulator = xdevs::simulator::Simulator::build(gpb); //cambio new por build
+    let config = xdevs::simulator::Config::build(0.0, 10.0, 1.0, None); //cambio new por build
     simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
 }
