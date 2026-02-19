@@ -1,11 +1,14 @@
+use embassy_time::{Duration as eDuration, Instant as eInstant};
+
 mod generator {
+    use crate::eDuration;
     #[xdevs::atomic]
     pub struct Generator {
         #[output]
         pub out_job: xdevs::port::Port<usize, 1>,
         #[state]
-        sigma: f64,
-        period: f64,
+        sigma: eDuration,
+        period: eDuration,
         count: usize,
     }
 
@@ -19,24 +22,25 @@ mod generator {
             output.out_job.add_value(state.count).unwrap();
         }
 
-        fn ta(state: &Self::State) -> f64 {
+        fn ta(state: &Self::State) -> eDuration {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, _x: &Self::Input) {
+        fn delta_ext(state: &mut Self::State, e: eDuration, _x: &Self::Input) {
             state.sigma -= e;
         }
     }
 
     impl Generator {
-        pub fn new(period: f64) -> Self {
+        pub fn new(period: eDuration) -> Self {
             //cambio new2 por new
-            Self::build(0.0, period, 0) //cambio new por build
+            Self::build(eDuration::from_millis(0), period, 0) //cambio new por build
         }
     }
 }
 
 mod processor {
+    use crate::eDuration;
     #[xdevs::atomic]
     pub struct Processor {
         #[input]
@@ -44,14 +48,14 @@ mod processor {
         #[output]
         pub out_job: xdevs::port::Port<usize, 1>,
         #[state]
-        sigma: f64,
-        time: f64,
+        sigma: eDuration,
+        time: eDuration,
         job: Option<usize>,
     }
 
     impl xdevs::Atomic for Processor {
         fn delta_int(state: &mut Self::State) {
-            state.sigma = f64::INFINITY;
+            state.sigma = eDuration::MAX;
             if let Some(job) = state.job.take() {
                 println!("[P] processed job {}", job);
             }
@@ -63,11 +67,11 @@ mod processor {
             }
         }
 
-        fn ta(state: &Self::State) -> f64 {
+        fn ta(state: &Self::State) -> eDuration {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
+        fn delta_ext(state: &mut Self::State, e: eDuration, x: &Self::Input) {
             state.sigma -= e;
             if let Some(&job) = x.in_job.get_values().last() {
                 if state.job.is_none() {
@@ -79,13 +83,14 @@ mod processor {
     }
 
     impl Processor {
-        pub fn new(time: f64) -> Self {
-            Self::build(0.0, time, None)
+        pub fn new(time: eDuration) -> Self {
+            Self::build(eDuration::from_millis(0), time, None)
         }
     }
 }
 
 mod buffer {
+    use crate::eDuration;
     use core::fmt::Debug;
     use xdevs::port::Port;
 
@@ -96,7 +101,7 @@ mod buffer {
         #[output]
         pub out_item: Port<T, 1>,
         #[state]
-        sigma: f64,
+        sigma: eDuration,
         capacity: usize,
         queue: heapless::Vec<T, 16>,
         config: Option<&'a str>,
@@ -108,9 +113,9 @@ mod buffer {
                 state.queue.remove(0);
             }
             state.sigma = if state.queue.is_empty() {
-                f64::INFINITY
+                eDuration::MAX
             } else {
-                1.0
+                eDuration::from_millis(1)
             };
         }
 
@@ -125,11 +130,11 @@ mod buffer {
             }
         }
 
-        fn ta(state: &Self::State) -> f64 {
+        fn ta(state: &Self::State) -> eDuration {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
+        fn delta_ext(state: &mut Self::State, e: eDuration, x: &Self::Input) {
             state.sigma -= e;
             for item in x.in_item.get_values() {
                 if state.queue.len() < state.capacity {
@@ -140,7 +145,7 @@ mod buffer {
                 }
             }
             if !state.queue.is_empty() {
-                state.sigma = 1.0;
+                state.sigma = eDuration::from_millis(1);
             }
         }
     }
@@ -148,7 +153,7 @@ mod buffer {
     impl<'a, T: Clone + Debug> Buffer<'a, T> {
         pub fn new(capacity: usize, config: Option<&'a str>) -> Self {
             //cambiio new2 por new
-            Self::build(f64::INFINITY, capacity, heapless::Vec::build(), config)
+            Self::build(eDuration::MAX, capacity, heapless::Vec::new(), config)
             //cambio new por build
         }
     }
@@ -168,13 +173,20 @@ struct GPB<'a> {
 }
 
 fn main() {
-    let generator = generator::Generator::new(1.0); //cambio new2 por new
+    let generator = generator::Generator::new(eDuration::from_millis(1000)); //cambio new2 por new
     let buffer = buffer::Buffer::new(8, Some("FIFO buffer")); //cambio new2 por new
-    let processor = processor::Processor::new(1.5); //cambio new2 por new
+    let processor = processor::Processor::new(eDuration::from_millis(1500)); //previamente 1.5 //cambio new2 por new
 
-    let gpb = GPB::build(generator, buffer, processor); //cambio new por build
+    let gpb = GPB::new(generator, buffer, processor);
 
-    let mut simulator = xdevs::simulator::Simulator::build(gpb); //cambio new por build
-    let config = xdevs::simulator::Config::build(0.0, 10.0, 1.0, None); //cambio new por build
-    simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
+    let mut simulator = xdevs::simulator::Simulator::new(gpb);
+    let config = xdevs::simulator::Config::new(
+        eInstant::from_millis(0),
+        eInstant::from_millis(10000),
+        1,
+        None,
+    );
+    //simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
+
+    simulator.simulate_vt(&config);
 }

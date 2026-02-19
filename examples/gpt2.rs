@@ -1,4 +1,7 @@
+use embassy_time::{Duration as eDuration, Instant as eInstant};
+
 mod generator {
+    use crate::eDuration;
     #[xdevs::atomic]
     struct Generator {
         #[input]
@@ -6,8 +9,8 @@ mod generator {
         #[output]
         out_job: xdevs::port::Port<usize, 1>,
         #[state]
-        sigma: f64,
-        period: f64,
+        sigma: eDuration,
+        period: eDuration,
         count: usize,
     }
 
@@ -22,30 +25,31 @@ mod generator {
             output.out_job.add_value(state.count).unwrap();
         }
 
-        fn ta(state: &Self::State) -> f64 {
+        fn ta(state: &Self::State) -> eDuration {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
+        fn delta_ext(state: &mut Self::State, e: eDuration, x: &Self::Input) {
             state.sigma -= e;
             if let Some(&stop) = x.in_stop.get_values().last() {
                 println!("[G] received stop: {}", stop);
                 if stop {
-                    state.sigma = f64::INFINITY;
+                    state.sigma = eDuration::MAX;
                 }
             }
         }
     }
 
     impl Generator {
-        pub fn new(period: f64) -> Self {
+        pub fn new(period: eDuration) -> Self {
             //cambio new2 por new
-            Self::build(0.0, period, 0) //cambio new por build
+            Self::build(eDuration::from_millis(0), period, 0) //cambio new por build
         }
     }
 }
 
 mod processor {
+    use crate::eDuration;
     #[xdevs::atomic]
     struct Processor {
         #[input]
@@ -53,14 +57,14 @@ mod processor {
         #[output]
         out_job: xdevs::port::Port<usize, 1>,
         #[state]
-        sigma: f64,
-        time: f64,
+        sigma: eDuration,
+        time: eDuration,
         job: Option<usize>,
     }
 
     impl xdevs::Atomic for Processor {
         fn delta_int(state: &mut Self::State) {
-            state.sigma = f64::INFINITY;
+            state.sigma = eDuration::MAX;
             if let Some(job) = state.job {
                 println!("[P] processed job {}", job);
                 state.job = None;
@@ -73,11 +77,11 @@ mod processor {
             }
         }
 
-        fn ta(state: &Self::State) -> f64 {
+        fn ta(state: &Self::State) -> eDuration {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
+        fn delta_ext(state: &mut Self::State, e: eDuration, x: &Self::Input) {
             state.sigma -= e;
             if let Some(&job) = x.in_job.get_values().last() {
                 print!("[P] received job {}", job);
@@ -93,14 +97,15 @@ mod processor {
     }
 
     impl Processor {
-        pub fn new(time: f64) -> Self {
+        pub fn new(time: eDuration) -> Self {
             //cambio new2 por new
-            Self::build(0.0, time, None) //cambio new por build
+            Self::build(eDuration::from_millis(0), time, None) //cambio new por build
         }
     }
 }
 
 mod transducer {
+    use crate::eDuration;
     #[xdevs::atomic]
     struct Transducer {
         #[input]
@@ -109,8 +114,8 @@ mod transducer {
         #[output]
         out_stop: xdevs::port::Port<bool, 1>,
         #[state]
-        sigma: f64,
-        clock: f64,
+        sigma: eDuration,
+        clock: eDuration,
         n_generated: usize,
         n_processed: usize,
     }
@@ -121,7 +126,7 @@ mod transducer {
             let (acceptance, throughput) = if state.n_processed > 0 {
                 (
                     state.n_processed as f64 / state.n_generated as f64,
-                    state.n_processed as f64 / state.clock,
+                    state.n_processed as f64 / state.clock.as_millis() as f64,
                 )
             } else {
                 (0.0, 0.0)
@@ -130,18 +135,18 @@ mod transducer {
                 "[T] acceptance: {:.2}, throughput: {:.2}",
                 acceptance, throughput
             );
-            state.sigma = f64::INFINITY;
+            state.sigma = eDuration::MAX;
         }
 
         fn lambda(_state: &Self::State, output: &mut Self::Output) {
             output.out_stop.add_value(true).unwrap();
         }
 
-        fn ta(state: &Self::State) -> f64 {
+        fn ta(state: &Self::State) -> eDuration {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
+        fn delta_ext(state: &mut Self::State, e: eDuration, x: &Self::Input) {
             state.sigma -= e;
             state.clock += e;
             state.n_generated += x.in_generator.get_values().len();
@@ -150,9 +155,9 @@ mod transducer {
     }
 
     impl Transducer {
-        pub fn new(obs_time: f64) -> Self {
+        pub fn new(obs_time: eDuration) -> Self {
             //cambio new2 por new
-            Self::build(obs_time, 0.0, 0, 0) //cambio new por build
+            Self::build(obs_time, eDuration::from_millis(0), 0, 0) //cambio new por build
         }
     }
 }
@@ -203,9 +208,9 @@ struct EFP {
 }
 
 fn main() {
-    let period = 1.;
-    let proc_time = 1.1;
-    let obs_time = 10.;
+    let period = eDuration::from_millis(1000); //1.0
+    let proc_time = eDuration::from_millis(1100); //1.1
+    let obs_time = eDuration::from_millis(10000); //10.0
 
     let generator = generator::Generator::new(period); //cambio new2 por new
     let processor = processor::Processor::new(proc_time); //cambio new2 por new
@@ -214,7 +219,10 @@ fn main() {
     let ef = EF::new(generator, transducer);
     let efp = EFP::new(ef, processor);
 
-    let mut simulator = xdevs::simulator::Simulator::build(efp); //cambio new por build
-    let config = xdevs::simulator::Config::build(0.0, 14.0, 1.0, None); //cambio new por build
+    let mut simulator = xdevs::simulator::Simulator::new(efp);
+    let config =
+        xdevs::simulator::Config::new(eInstant::from_millis(0), eInstant::from_millis(14), 1, None);
     simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
+
+    //simulator.simulate_vt(&config);
 }

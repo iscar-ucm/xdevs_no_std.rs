@@ -165,8 +165,8 @@ impl Component {
             pub struct #ident {
                 pub input: #input_ident,
                 pub output: #output_ident,
-                pub t_last: f64,
-                pub t_next: f64,
+                pub t_last: ::embassy_time::Instant,
+                pub t_next: ::embassy_time::Instant,
                 #(#other_ty),*
             }
             impl #ident {
@@ -175,8 +175,8 @@ impl Component {
                     Self {
                         input: #input_ident::new(),
                         output: #output_ident::new(),
-                        t_last: 0.0,
-                        t_next: f64::INFINITY,
+                        t_last: ::embassy_time::Instant::from_millis(0),
+                        t_next: ::embassy_time::Instant::MAX,
                         #(#other_ident),*
                     }
                 }
@@ -185,19 +185,19 @@ impl Component {
                 type Input = #input_ident;
                 type Output = #output_ident;
                 #[inline]
-                fn get_t_last(&self) -> f64 {
+                fn get_t_last(&self) -> ::embassy_time::Instant {
                     self.t_last
                 }
                 #[inline]
-                fn set_t_last(&mut self, t_last: f64) {
+                fn set_t_last(&mut self, t_last: ::embassy_time::Instant) {
                     self.t_last = t_last;
                 }
                 #[inline]
-                fn get_t_next(&self) -> f64 {
+                fn get_t_next(&self) -> ::embassy_time::Instant {
                     self.t_next
                 }
                 #[inline]
-                fn set_t_next(&mut self, t_next: f64) {
+                fn set_t_next(&mut self, t_next: ::embassy_time::Instant) {
                     self.t_next = t_next;
                 }
                 #[inline]

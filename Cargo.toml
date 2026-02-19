@@ -20,9 +20,11 @@ path = "src/lib.rs"
 heapless = "0.9"
 xdevs-no-std-macros = { path = "macros", version = "0.2.0" }
 tokio = { version = "1.0", optional = true }
-embassy-time = { version = "0.5.0" }
+embassy-time = "0.5.0"
 
 [dev-dependencies]
+embassy-time = {version = "0.5.0", features = ["std", "generic-queue-128"]}
+#critical-section = {version = "1.1", features = ["std"]}
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [features]
