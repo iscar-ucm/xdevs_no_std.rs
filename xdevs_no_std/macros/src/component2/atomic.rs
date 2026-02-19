@@ -151,8 +151,8 @@ impl Component {
                     Self {
                         input: #input_ident::new(),
                         output: #output_ident::new(),
-                        t_last: 0.0,
-                        t_next: f64::INFINITY,
+                        t_last: ::xdevs::Instant::from_millis(0),
+                        t_next: ::xdevs::Instant::MAX,
                         state: #state_ident::new(#(#state_fields),*),
                     }
                 }
@@ -163,7 +163,7 @@ impl Component {
             }
             unsafe impl #impl_generics xdevs::traits::AbstractSimulator for #ident #ty_generics{
                 #[inline]
-                fn start(&mut self, t_start: f64) -> f64 {
+                fn start(&mut self, t_start: ::xdevs::Instant) -> ::xdevs::Instant {
                     // set t_last to t_start
                     xdevs::traits::Component::set_t_last(self, t_start);
                     // start state and get t_next from ta
@@ -174,22 +174,22 @@ impl Component {
                     t_next
                 }
                 #[inline]
-                fn stop(&mut self, t_stop: f64) {
+                fn stop(&mut self, t_stop: ::xdevs::Instant) {
                     // stop state
                     <Self as xdevs::Atomic>::stop(&mut self.state);
                     // set t_last to t_stop and t_next to infinity
                     xdevs::traits::Component::set_t_last(self, t_stop);
-                    xdevs::traits::Component::set_t_next(self, f64::INFINITY);
+                    xdevs::traits::Component::set_t_next(self, ::xdevs::Instant::MAX);
                 }
                 #[inline]
-                fn lambda(&mut self, t: f64) {
+                fn lambda(&mut self, t: ::xdevs::Instant) {
                     if t >= xdevs::traits::Component::get_t_next(self) {
                         // execute atomic model's lambda if applies
                         <Self as xdevs::Atomic>::lambda(&self.state, &mut self.output);
                     }
                 }
                 #[inline]
-                fn delta(&mut self, t: f64) -> f64 {
+                fn delta(&mut self, t: ::xdevs::Instant) -> ::xdevs::Instant {
                     let mut t_next = xdevs::traits::Component::get_t_next(self);
                     if !xdevs::traits::Bag::is_empty(&self.input) {
                         if t >= t_next {
@@ -211,7 +211,7 @@ impl Component {
                     // clear output events
                     xdevs::traits::Component::clear_output(self);
                     // get t_next from ta and set new t_last and t_next
-                    t_next = t + <Self as xdevs::Atomic>::ta(&self.state);
+                    t_next = t.saturating_add(<Self as xdevs::Atomic>::ta(&self.state));
                     xdevs::traits::Component::set_t_last(self, t);
                     xdevs::traits::Component::set_t_next(self, t_next);
 

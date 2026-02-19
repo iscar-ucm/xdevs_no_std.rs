@@ -117,7 +117,7 @@ pub unsafe trait PartialCoupled: Component {
 /// This trait must be implemented via macros. Do not implement it manually.
 pub unsafe trait AbstractSimulator: Component {
     /// It starts the simulation, setting the initial time to t_start.
-    /// It returns the time for the next state transition of the inner DEVS model.
+    /// It returns the time of the next state transition of the inner DEVS model.
     fn start(&mut self, t_start: Instant) -> Instant; //cambio Duration por Instant
 
     /// It stops the simulation, setting the last time to t_stop.
@@ -130,7 +130,7 @@ pub unsafe trait AbstractSimulator: Component {
     /// Propagates messages according to ICs and EICs and executes model transition functions.
     /// It also clears all the input and output ports.
     /// Internally, it checks that the model is imminent before executing.
-    /// Finally, it returns the time for the next state transition of the inner DEVS model.
+    /// Finally, it returns the time of the next state transition of the inner DEVS model.
     fn delta(&mut self, t: Instant) -> Instant; //Cambio de Duration a Instant
 }
 
@@ -144,7 +144,7 @@ pub trait AsyncInput {
 
     /// Handles input events asynchronously.
     ///
-    /// It receives the time interval `[t_from, t_until]` and a mutable reference to the input event bag.
+    /// It receives the time a mutable reference ends `[t_until]` and the mutable reference to the input event bag.
     /// It returns the time of the next event, which is usually the time of the next state transition.
     /// If an external event occurs, it should inject the event to the input and return the time at which the event happened.
     fn handle(

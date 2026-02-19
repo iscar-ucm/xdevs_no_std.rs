@@ -27,18 +27,12 @@ impl<T: Bag> SleepAsync<T> {
 impl<T: Bag> AsyncInput for SleepAsync<T> {
     type Input = T;
 
-    async fn handle(
-        &mut self,
-        config: &Config,
-        t_from: Instant,
-        t_until: Instant,
-        _input: &mut Self::Input,
-    ) -> Instant {
-        let last_rt = self.last_rt.unwrap_or_else(Instant::now);
-        let duration = (t_until - t_from) * (config.mult as u32);
-        let next_rt = last_rt + duration.try_into().unwrap();
-        Timer::at(next_rt).await;
-        self.last_rt = Some(next_rt);
-        t_until
+    async fn handle(&mut self, config: &Config, t_until: Instant, _input: &mut Self::Input) {
+        // let last_rt = self.last_rt.unwrap_or_else(Instant::now);
+        // let duration = (t_until - Instant::now()) * (config.mult as u32);
+        // let next_rt = last_rt + duration.try_into().unwrap();
+        //Timer::at(next_rt).await;
+        //self.last_rt = Some(next_rt);
+        Timer::at(t_until).await;
     }
 }

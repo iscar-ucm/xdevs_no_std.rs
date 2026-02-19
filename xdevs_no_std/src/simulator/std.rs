@@ -14,7 +14,11 @@ use std::{thread, time::Duration as stdDuration, time::Instant as stdInstant, ti
 /// Closure for RT simulation on targets with `std`.
 /// It sleeps until the next state transition.
 pub fn sleep<T: Bag>(config: &Config) -> impl FnMut(eInstant, &mut T) -> eInstant {
-    wait_event(config, |waiting_period, _| thread::sleep(waiting_period))
+    wait_event(config, |waiting_period, _| {
+        thread::sleep(std::time::Duration::from_millis(
+            waiting_period.as_millis() as u64
+        ))
+    })
     //embassy_time::Duration::from_nanos(waiting_period.as_nanos() as u64)
 }
 
@@ -27,7 +31,7 @@ pub fn sleep<T: Bag>(config: &Config) -> impl FnMut(eInstant, &mut T) -> eInstan
 ///
 ///  * `config` - The desired simulator configuration.
 ///  * `input_handler` - The function to handle incoming external events. This function expects two arguments:
-///    - `duration: [Duration]` - Maximum duration of the time interval to wait for external events.
+///    - `instant: [eInstant]` - Instant for external events.
 ///      The input handler function may return earlier if an input event is received.
 ///      Note, however, that it must **NOT** return after, as it would result in an incorrect real-time implementation.
 ///    - `input_ports: &mut T` - Mutable reference to the input ports of the top-most model under simulation.
@@ -56,13 +60,17 @@ pub fn wait_event<T: Bag>(
         // Timer::now()
 
         //let next_rt = last_rt + Duration::from_secs((t_until - t_from) * mult);
-        let duration_embassy = t_until - eInstant::now();
-        let duration_std = std::time::Duration::from_millis(duration_embassy.as_millis() as u64);
+        //let duration_embassy = t_until - eInstant::now();
+        let duration_embassy = t_until.saturating_duration_since(eInstant::now());
+        let duration_std = std::time::Duration::from_millis(duration_embassy.as_millis());
         let next_rt = last_rt + duration_std * (mult as u32);
         //let next_rt_std = std::time::Duration::from_millis(next_rt.as_millis() as u64);
 
         if let Ok(duration) = next_rt.duration_since(SystemTime::now()) {
-            input_handler(duration, binput);
+            input_handler(
+                eInstant::now() + eDuration::from_millis(duration.as_millis() as u64),
+                binput,
+            );
         }
 
         let t = SystemTime::now();

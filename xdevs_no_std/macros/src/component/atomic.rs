@@ -42,7 +42,7 @@ impl State {
             }
             unsafe impl xdevs::traits::AbstractSimulator for #atomic_ident {
                 #[inline]
-                fn start(&mut self, t_start: f64) -> f64 {
+                fn start(&mut self, t_start: ::embassy_time::Instant) -> ::embassy_time::Instant {
                     // set t_last to t_start
                     xdevs::traits::Component::set_t_last(self, t_start);
                     // start state and get t_next from ta
@@ -53,22 +53,22 @@ impl State {
                     t_next
                 }
                 #[inline]
-                fn stop(&mut self, t_stop: f64) {
+                fn stop(&mut self, t_stop: ::embassy_time::Instant) {
                     // stop state
                     <Self as xdevs::Atomic>::stop(&mut self.state);
                     // set t_last to t_stop and t_next to infinity
                     xdevs::traits::Component::set_t_last(self, t_stop);
-                    xdevs::traits::Component::set_t_next(self, f64::INFINITY);
+                    xdevs::traits::Component::set_t_next(self, ::embassy_time::Instant::MAX);
                 }
                 #[inline]
-                fn lambda(&mut self, t: f64) {
+                fn lambda(&mut self, t: ::embassy_time::Instant) {
                     if t >= xdevs::traits::Component::get_t_next(self) {
                         // execute atomic model's lambda if applies
                         <Self as xdevs::Atomic>::lambda(&self.state, &mut self.output);
                     }
                 }
                 #[inline]
-                fn delta(&mut self, t: f64) -> f64 {
+                fn delta(&mut self, t: ::embassy_time::Instant) -> ::embassy_time::Instant {
                     let mut t_next = xdevs::traits::Component::get_t_next(self);
                     if !xdevs::traits::Bag::is_empty(&self.input) {
                         if t >= t_next {
