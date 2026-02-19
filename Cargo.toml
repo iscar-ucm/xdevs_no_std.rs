@@ -28,6 +28,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 [features]
 embassy = ["embassy-time"]
 std = ["tokio/time"]
+alloc = []
 
 [package.metadata.docs.rs]
 all-features = true
