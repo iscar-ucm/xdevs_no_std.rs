@@ -50,9 +50,9 @@ pub fn coupled2(args: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn rt_engine(args: TokenStream, item: TokenStream) -> TokenStream {
-    let result = component2::rt_engine::parse_and_generate(args.into(), item.into());
-    match result {
-        Ok(tokens) => tokens.into(),
+    let component = component2::rt_engine::Component::parse(args.into(), item.into());
+    match component {
+        Ok(component) => component.quote().into(),
         Err(err) => err.to_compile_error().into(),
     }
 }

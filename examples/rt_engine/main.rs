@@ -46,12 +46,14 @@ impl Transparent {
     }
 }
 
-async fn sender(sender: xdevs::Sender<'static, TransparentInputEnum, 3>) {
+async fn sender(sender: xdevs::rt_engine::Sender<Transparent>) {
     let mut input = 0;
     let mut index = 0;
     loop {
         sender
-            .send(TransparentInputEnum::InJob((index, input)))
+            .send(xdevs::rt_engine::InputEnum::<Transparent>::InJob((
+                index, input,
+            )))
             .await;
         input += 1;
         index = (index + 1) % 3;
@@ -60,13 +62,13 @@ async fn sender(sender: xdevs::Sender<'static, TransparentInputEnum, 3>) {
     }
 }
 
-async fn receiver(mut receiver: xdevs::Subscriber<'static, TransparentOutputEnum, 1, 1>) {
+async fn receiver(mut receiver: xdevs::rt_engine::Subscriber<Transparent>) {
     loop {
         match receiver.recv().await {
-            Ok(TransparentOutputEnum::OutJob(value)) => {
+            Ok(xdevs::rt_engine::OutputEnum::<Transparent>::OutJob(value)) => {
                 println!("[Receiver] got value {}", value);
             }
-            Err(xdevs::PubSubError::Lagged(u64)) => {
+            Err(xdevs::RecvError::Lagged(u64)) => {
                 println!("[Receiver] lagged by {} messages", u64);
             }
         }
@@ -76,7 +78,7 @@ async fn receiver(mut receiver: xdevs::Subscriber<'static, TransparentOutputEnum
 #[tokio::main]
 async fn main() {
     let transparent = Transparent::new();
-    let engine = transparent.into_rt_engine();
+    let mut engine = transparent.into_rt_engine();
     let config = xdevs::simulator::Config::new(0.0, 15.0, 1.0, None);
 
     let send = engine.sender();

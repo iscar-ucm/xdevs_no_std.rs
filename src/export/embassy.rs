@@ -1,10 +1,12 @@
-pub use {
-    embassy_sync::channel::{Channel, Sender as eSender},
-    embassy_sync::pubsub::{
-        Error as SubscribeError, PubSubChannel, Subscriber as eSubscriber, WaitResult,
+use crate::traits::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel};
+pub use embassy_sync::{
+    channel::{Channel, Sender as eSender},
+    pubsub::{
+        Error as SubscribeError, PubSubChannel, Publisher as ePublisher, Subscriber as eSubscriber,
+        WaitResult,
     },
-    embassy_time::with_deadline,
 };
+pub use embassy_time::with_deadline;
 
 #[cfg(feature = "embassy-noop")]
 pub use embassy_sync::blocking_mutex::raw::NoopRawMutex as Mutex;
@@ -12,17 +14,18 @@ pub use embassy_sync::blocking_mutex::raw::NoopRawMutex as Mutex;
 #[cfg(feature = "embassy-cs")]
 pub use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex as Mutex;
 
-pub enum PubSubError {
+pub enum RecvError {
     Lagged(u64),
 }
 
+// Simplified Senders/Subscribers with 'static hardcoded
 pub struct Sender<'a, I, const N: usize> {
-    channel: eSender<'a, Mutex, I, N>,
+    sender: eSender<'a, Mutex, I, N>,
 }
 
 impl<'a, I, const N: usize> Sender<'a, I, N> {
     pub async fn send(&self, msg: I) {
-        self.channel.send(msg).await;
+        self.sender.send(msg).await;
     }
 }
 
@@ -31,76 +34,69 @@ pub struct Subscriber<'a, O: Clone, const CAP: usize, const SUBS: usize> {
 }
 
 impl<'a, O: Clone, const CAP: usize, const SUBS: usize> Subscriber<'a, O, CAP, SUBS> {
-    pub async fn recv(&mut self) -> Result<O, PubSubError> {
+    pub async fn recv(&mut self) -> Result<O, RecvError> {
         match self.subscriber.next_message().await {
             WaitResult::Message(msg) => Ok(msg),
-            WaitResult::Lagged(e) => Err(PubSubError::Lagged(e)),
+            WaitResult::Lagged(e) => Err(RecvError::Lagged(e)),
         }
     }
 }
 
-pub struct RtEngine<
-    'a,
-    M: crate::traits::AbstractSimulator,
-    I,
-    O: Clone,
-    IH: crate::traits::AsyncInput,
-    PO: FnMut(&M::Output),
-    const N: usize,
-    const CAP: usize,
-    const SUBS: usize,
-> {
-    simulator: crate::Simulator<M>,
-    input_channel: &'a Channel<Mutex, I, N>,
-    input_handler: IH,
-    output_channel: &'a PubSubChannel<Mutex, O, CAP, SUBS, 1>,
-    propagate_output: PO,
+pub struct InputChannel<'a, I, const N: usize> {
+    channel: &'a Channel<Mutex, I, N>,
 }
 
-impl<
-        'a,
-        M: crate::traits::AbstractSimulator,
-        I,
-        O: Clone,
-        IH: crate::traits::AsyncInput<Input = M::Input>,
-        PO: FnMut(&M::Output),
-        const N: usize,
-        const CAP: usize,
-        const SUBS: usize,
-    > RtEngine<'a, M, I, O, IH, PO, N, CAP, SUBS>
-{
-    pub fn new(
-        model: M,
-        input_channel: &'a Channel<Mutex, I, N>,
-        input_handler: IH,
-        output_channel: &'a PubSubChannel<Mutex, O, CAP, SUBS, 1>,
-        propagate_output: PO,
-    ) -> Self {
-        Self {
-            simulator: crate::Simulator::new(model),
-            input_channel,
-            input_handler,
-            output_channel,
-            propagate_output,
-        }
+impl<'a, I, const N: usize> InputChannel<'a, I, N> {
+    pub fn new(channel: &'a Channel<Mutex, I, N>) -> Self {
+        Self { channel }
     }
+}
+unsafe impl<'a, I, const N: usize> RtEngineInputChannel for InputChannel<'a, I, N> {
+    type InputEnum = I;
+    type Sender = Sender<'a, I, N>;
 
-    pub async fn simulate_rt_async(mut self, config: &crate::Config) {
-        self.simulator
-            .simulate_rt_async(config, self.input_handler, self.propagate_output)
-            .await;
-    }
-
-    pub fn sender(&self) -> Sender<'a, I, N> {
+    fn sender(&self) -> Self::Sender {
         Sender {
-            channel: self.input_channel.sender(),
+            sender: self.channel.sender(),
         }
     }
 
-    pub fn subscriber(&self) -> Result<Subscriber<'a, O, CAP, SUBS>, SubscribeError> {
-        match self.output_channel.subscriber() {
+    async fn recv(&self) -> Self::InputEnum {
+        self.channel.receive().await
+    }
+}
+
+impl<'a, I, const N: usize> Sealed for InputChannel<'a, I, N> {}
+
+pub struct OutputChannel<'a, O: Clone, const CAP: usize, const SUBS: usize> {
+    channel: &'a PubSubChannel<Mutex, O, CAP, SUBS, 1>,
+    publisher: ePublisher<'a, Mutex, O, CAP, SUBS, 1>,
+}
+
+impl<'a, O: Clone, const CAP: usize, const SUBS: usize> OutputChannel<'a, O, CAP, SUBS> {
+    pub fn new(channel: &'a PubSubChannel<Mutex, O, CAP, SUBS, 1>) -> Self {
+        Self {
+            channel,
+            // SAFETY: This is the only publisher that will be created for this channel
+            publisher: channel.publisher().unwrap(),
+        }
+    }
+}
+unsafe impl<'a, O: Clone, const CAP: usize, const SUBS: usize> RtEngineOutputChannel
+    for OutputChannel<'a, O, CAP, SUBS>
+{
+    type OutputEnum = O;
+    type Subscriber = Subscriber<'a, Self::OutputEnum, CAP, SUBS>;
+
+    fn subscriber(&self) -> Result<Self::Subscriber, SubscribeError> {
+        match self.channel.subscriber() {
             Ok(subscriber) => Ok(Subscriber { subscriber }),
             Err(e) => Err(e),
         }
     }
+
+    fn publish(&self, output: Self::OutputEnum) {
+        self.publisher.publish_immediate(output);
+    }
 }
+impl<'a, O: Clone, const CAP: usize, const SUBS: usize> Sealed for OutputChannel<'a, O, CAP, SUBS> {}
