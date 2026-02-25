@@ -19,8 +19,7 @@ pub struct Config {
 
     /// The time scale factor for the simulation.
     ///
-    /// If `time_scale` is greater than 1.0, the simulation runs faster than real time.
-    /// If `time_scale` is less than 1.0, the simulation runs slower than real time.
+    /// If `mult` is greater than 1, the simulation runs faster than real time.
     pub mult: u64, //cambio time_scale por mult
 
     /// The maximum jitter duration allowed in the simulation.
@@ -75,7 +74,7 @@ impl<M: AbstractSimulator> Simulator<M> {
     ///
     /// - `wait_until`: a closure that is called between state transitions.
     ///   It receives the current time (NO), the time of the next state transition and a
-    ///   mutable reference to the input ports. It returns the actual time "waited".
+    ///   mutable reference to the input ports. It returns time until which the simulation should wait.
     ///   If the returned time is equal to the input time, an internal/confluent state transition is performed.
     ///   Otherwise, it assumes that an external event happened and executes the external transition function.
     ///

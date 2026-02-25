@@ -42,33 +42,33 @@ impl State {
             }
             unsafe impl xdevs::traits::AbstractSimulator for #atomic_ident {
                 #[inline]
-                fn start(&mut self, t_start: ::embassy_time::Instant) -> ::embassy_time::Instant {
+                fn start(&mut self, t_start: ::xdevs::Instant) -> ::xdevs::Instant {
                     // set t_last to t_start
                     xdevs::traits::Component::set_t_last(self, t_start);
                     // start state and get t_next from ta
                     <Self as xdevs::Atomic>::start(&mut self.state);
-                    let t_next = t_start + <Self as xdevs::Atomic>::ta(&self.state);
+                    let t_next = t_start.saturating_add(<Self as xdevs::Atomic>::ta(&self.state));
                     xdevs::traits::Component::set_t_next(self, t_next);
 
                     t_next
                 }
                 #[inline]
-                fn stop(&mut self, t_stop: ::embassy_time::Instant) {
+                fn stop(&mut self, t_stop: ::xdevs::Instant) {
                     // stop state
                     <Self as xdevs::Atomic>::stop(&mut self.state);
                     // set t_last to t_stop and t_next to infinity
                     xdevs::traits::Component::set_t_last(self, t_stop);
-                    xdevs::traits::Component::set_t_next(self, ::embassy_time::Instant::MAX);
+                    xdevs::traits::Component::set_t_next(self, ::xdevs::Instant::MAX);
                 }
                 #[inline]
-                fn lambda(&mut self, t: ::embassy_time::Instant) {
+                fn lambda(&mut self, t: ::xdevs::Instant) {
                     if t >= xdevs::traits::Component::get_t_next(self) {
                         // execute atomic model's lambda if applies
                         <Self as xdevs::Atomic>::lambda(&self.state, &mut self.output);
                     }
                 }
                 #[inline]
-                fn delta(&mut self, t: ::embassy_time::Instant) -> ::embassy_time::Instant {
+                fn delta(&mut self, t: ::xdevs::Instant) -> ::xdevs::Instant {
                     let mut t_next = xdevs::traits::Component::get_t_next(self);
                     if !xdevs::traits::Bag::is_empty(&self.input) {
                         if t >= t_next {
@@ -90,7 +90,7 @@ impl State {
                     // clear output events
                     xdevs::traits::Component::clear_output(self);
                     // get t_next from ta and set new t_last and t_next
-                    t_next = t + <Self as xdevs::Atomic>::ta(&self.state);
+                    t_next = t.saturating_add(<Self as xdevs::Atomic>::ta(&self.state));
                     xdevs::traits::Component::set_t_last(self, t);
                     xdevs::traits::Component::set_t_next(self, t_next);
 
