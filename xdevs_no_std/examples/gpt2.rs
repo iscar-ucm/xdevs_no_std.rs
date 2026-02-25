@@ -221,7 +221,7 @@ fn main() {
 
     let mut simulator = xdevs::simulator::Simulator::new(efp);
     let config =
-        xdevs::simulator::Config::new(eInstant::from_millis(0), eInstant::from_millis(14), 1, None);
+        xdevs::simulator::Config::new(eInstant::from_millis(0), eInstant::from_secs(20), 1, None);
     simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
 
     //simulator.simulate_vt(&config);

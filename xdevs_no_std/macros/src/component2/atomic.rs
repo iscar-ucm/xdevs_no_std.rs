@@ -168,7 +168,7 @@ impl Component {
                     xdevs::traits::Component::set_t_last(self, t_start);
                     // start state and get t_next from ta
                     <Self as xdevs::Atomic>::start(&mut self.state);
-                    let t_next = t_start + <Self as xdevs::Atomic>::ta(&self.state);
+                    let t_next = t_start.saturating_add(<Self as xdevs::Atomic>::ta(&self.state));
                     xdevs::traits::Component::set_t_next(self, t_next);
 
                     t_next

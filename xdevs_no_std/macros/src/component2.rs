@@ -115,19 +115,19 @@ fn impl_component(
             type InputRef<'__xdevs_ports> = &'__xdevs_ports mut #input_ident #input_generics where Self: '__xdevs_ports;
             type OutputRef<'__xdevs_ports> = &'__xdevs_ports #output_ident #output_generics where Self: '__xdevs_ports;
             #[inline]
-            fn get_t_last(&self) -> ::embassy_time::Instant {
+            fn get_t_last(&self) -> ::xdevs::Instant {
                 self.t_last
             }
             #[inline]
-            fn set_t_last(&mut self, t_last: ::embassy_time::Instant) {
+            fn set_t_last(&mut self, t_last: ::xdevs::Instant) {
                 self.t_last = t_last;
             }
             #[inline]
-            fn get_t_next(&self) -> ::embassy_time::Instant {
+            fn get_t_next(&self) -> ::xdevs::Instant {
                 self.t_next
             }
             #[inline]
-            fn set_t_next(&mut self, t_next: ::embassy_time::Instant) {
+            fn set_t_next(&mut self, t_next: ::xdevs::Instant) {
                 self.t_next = t_next;
             }
             #[inline]

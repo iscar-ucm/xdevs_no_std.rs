@@ -15,9 +15,7 @@ use std::{thread, time::Duration as stdDuration, time::Instant as stdInstant, ti
 /// It sleeps until the next state transition.
 pub fn sleep<T: Bag>(config: &Config) -> impl FnMut(eInstant, &mut T) -> eInstant {
     wait_event(config, |waiting_period, _| {
-        thread::sleep(std::time::Duration::from_millis(
-            waiting_period.as_millis() as u64
-        ))
+        thread::sleep(std::time::Duration::from_millis(waiting_period.as_millis()))
     })
     //embassy_time::Duration::from_nanos(waiting_period.as_nanos() as u64)
 }
@@ -64,11 +62,10 @@ pub fn wait_event<T: Bag>(
         let duration_embassy = t_until.saturating_duration_since(eInstant::now());
         let duration_std = std::time::Duration::from_millis(duration_embassy.as_millis());
         let next_rt = last_rt + duration_std * (mult as u32);
-        //let next_rt_std = std::time::Duration::from_millis(next_rt.as_millis() as u64);
 
         if let Ok(duration) = next_rt.duration_since(SystemTime::now()) {
             input_handler(
-                eInstant::now() + eDuration::from_millis(duration.as_millis() as u64),
+                eInstant::now().saturating_add(eDuration::from_millis(duration.as_millis() as u64)),
                 binput,
             );
         }
@@ -92,7 +89,7 @@ pub fn wait_event<T: Bag>(
                 let duration = last_rt.duration_since(start_rt).unwrap();
                 let dur_std =
                     std::time::Duration::from_millis(duration.as_millis() as u64) / (mult as u32);
-                eInstant::now() + eDuration::from_millis(dur_std.as_millis() as u64)
+                eInstant::now().saturating_add(eDuration::from_millis(dur_std.as_millis() as u64))
             }
         }
     }
