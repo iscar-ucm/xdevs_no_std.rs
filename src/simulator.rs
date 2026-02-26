@@ -97,12 +97,12 @@ impl<M: AbstractSimulator> Simulator<M> {
             t = wait_until(t_until, self.model.get_input_mut());
             //t = t + elapsed;
             if t >= t_next_internal {
-                self.model.lambda(t);
+                self.model.lambda(t); //comprobar
                 propagate_output(self.model.get_output());
             } else if self.model.get_input().is_empty() {
                 continue; // avoid spurious external transitions
             }
-            t_next_internal = self.model.delta(t);
+            t_next_internal = self.model.delta(t); //comprobar
         }
         self.model.stop(t_stop);
     }
