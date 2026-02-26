@@ -1,0 +1,93 @@
+pub mod atom {
+    pub struct AtomState {
+        sigma: f64,
+        period: f64,
+        count: usize,
+    }
+
+    impl AtomState {
+        pub fn new(period: f64) -> Self {
+            Self {
+                sigma: 0.0,
+                period,
+                count: 0,
+            }
+        }
+    }
+
+    xdevs::component!(
+        ident = Atom,
+        input = {
+            in_stop<bool>,
+        },
+        output = {
+            out_job<usize>,
+        },
+        state = AtomState,
+    );
+
+    impl xdevs::Atomic for Atom {
+        fn delta_int(state: &mut Self::State) {
+            state.count += 1;
+            state.sigma = state.period;
+        }
+
+        fn lambda(state: &Self::State, output: &mut Self::Output) {
+            println!("[A] sending job {}", state.count);
+            output.out_job.add_value(state.count).unwrap();
+        }
+
+        fn ta(state: &Self::State) -> f64 {
+            state.sigma
+        }
+
+        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+            state.sigma -= elapsed;
+            if let Some(&stop) = input.in_stop.get_values().last() {
+                println!("[A] received stop: {}", stop);
+                if stop {
+                    state.sigma = f64::INFINITY;
+                }
+            }
+        }
+    }
+}
+
+
+pub mod LI{
+    use super::atom::Atom;
+    #[xdevs::coupled2]
+    pub struct Coup<const W: usize, const P: usize> {
+        #[components]
+        coupled: Coup<W, P-1>,
+        atomic: [Atom; W-1],
+    }
+
+    impl xdevs::Coupled for Coup<1, 1> {
+        fn new() -> Self {
+            Self {
+                coupled: Coup::<1, 0>::new(),
+                atomic: [Atom::new(1.0)],
+            }
+        }
+    }
+
+    impl xdevs::Coupled for Coup<2,2> {
+        fn new() -> Self {
+            Self {
+                coupled: Coup::<2, 1>::new(),
+                atomic: [Atom::new(1.0), Atom::new(1.0)],
+            }
+        }
+    }
+
+    impl xdevs::Coupled for Coup<3,3> {
+        fn new() -> Self {
+            Self {
+                coupled: Coup::<3, 2>::new(),
+                atomic: [Atom::new(1.0), Atom::new(1.0), Atom::new(1.0)],
+            }
+        }
+    }
+}
+
