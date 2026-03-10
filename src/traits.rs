@@ -1,4 +1,4 @@
-use crate::simulator::Config;
+use crate::{simulator::Config, traits::sealed::Sealed};
 use core::future::Future;
 
 /// Trait that defines the methods that a DEVS event bag set must implement.
@@ -12,6 +12,16 @@ pub unsafe trait Bag {
 
     /// Clears the ports, removing all values.
     fn clear(&mut self);
+}
+
+/// Trait that defines the type inside of a Bag for rt_engine enums.
+///
+/// # Safety
+///
+/// This trait is implemented internally. Do not implement it manually.
+pub unsafe trait TypedBag: Bag + Sealed {
+    /// The type of the values contained in the bag.
+    type Item;
 }
 
 /// Interface for DEVS components. All DEVS components must implement this trait.
@@ -132,38 +142,30 @@ pub unsafe trait AbstractSimulator: Component {
     fn delta(&mut self, t: f64) -> f64;
 }
 
-/// Auto-generated input and output interface to be used by the rt_engine macro.
+/// Input port interface for DEVS models that can be simulated in real-time using the `RtEngine`.
 ///
 /// # Safety
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
-pub unsafe trait RtEngineWrapper: AbstractSimulator {
-    /// Enum representing the input ports of the model. Each variant corresponds to an input port.
-    type InputEnum;
-
-    /// Enum representing the output ports of the model. Each variant corresponds to an output port.
-    type OutputEnum;
-
-    /// Type of the sender used to send input events to the model.
-    type Sender;
-
-    /// Type of the subscriber used to receive output events from the model.
-    type Subscriber;
-
+pub unsafe trait MapInput: Bag {
     /// Input channel for the rt_engine macro.
     type InputChannel;
 
+    /// Maps the input enum to the corresponding input port
+    unsafe fn map_input(&mut self, in_channel: &Self::InputChannel) -> impl Future<Output = ()>;
+}
+
+/// Output port interface for DEVS models that can be simulated in real-time using the `RtEngine`.
+///
+/// # Safety
+///
+/// This trait must be implemented via macros. Do not implement it manually.
+pub unsafe trait MapOutput: Bag {
     /// Output channel for the rt_engine macro.
     type OutputChannel;
 
-    /// Maps the input enum to the corresponding input port
-    fn map_input(
-        in_channel: &Self::InputChannel,
-        input: &mut Self::Input,
-    ) -> impl Future<Output = ()>;
-
     /// Maps the output enum to the corresponding output port
-    fn map_output(output: &Self::Output, out_channel: &Self::OutputChannel);
+    unsafe fn map_output(&self, out_channel: &Self::OutputChannel);
 }
 
 /// Input channel for the rt_engine macro.

@@ -1,7 +1,6 @@
 use xdevs::port::Port;
 
-#[xdevs::rt_engine(in_size = 3, out_size = 1, max_out_subs = 1)]
-#[xdevs::atomic]
+#[xdevs::atomic(rt_engine = {in_size = 3, out_size = 1, max_out_subs = 1})]
 pub struct Transparent {
     #[input]
     pub in_job: [Port<usize, 1>; 3],
@@ -46,14 +45,12 @@ impl Transparent {
     }
 }
 
-async fn sender(sender: xdevs::rt_engine::Sender<Transparent>) {
+async fn sender(sender: TransparentSender) {
     let mut input = 0;
     let mut index = 0;
     loop {
         sender
-            .send(xdevs::rt_engine::InputEnum::<Transparent>::InJob((
-                index, input,
-            )))
+            .send(TransparentInputEnum::InJob((index, input)))
             .await;
         input += 1;
         index = (index + 1) % 3;
@@ -62,10 +59,10 @@ async fn sender(sender: xdevs::rt_engine::Sender<Transparent>) {
     }
 }
 
-async fn receiver(mut receiver: xdevs::rt_engine::Subscriber<Transparent>) {
+async fn receiver(mut receiver: TransparentSubscriber) {
     loop {
         match receiver.recv().await {
-            Ok(xdevs::rt_engine::OutputEnum::<Transparent>::OutJob(value)) => {
+            Ok(TransparentOutputEnum::OutJob(value)) => {
                 println!("[Receiver] got value {}", value);
             }
             Err(xdevs::RecvError::Lagged(u64)) => {

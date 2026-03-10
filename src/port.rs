@@ -1,3 +1,5 @@
+use crate::traits::sealed::Sealed;
+
 /// Port is a generic structure that can be used to store values of any type `T`.
 /// It is the main artifact to exchange data between components.
 /// Note that, in `no_std` environments, the capacity of the port `N` must be known at compile time.
@@ -78,3 +80,9 @@ unsafe impl<T: Clone, const N: usize> crate::traits::Bag for Port<T, N> {
         self.clear()
     }
 }
+
+unsafe impl<T: Clone, const N: usize> crate::traits::TypedBag for Port<T, N> {
+    type Item = T;
+}
+
+impl<T: Clone, const N: usize> Sealed for Port<T, N> {}

@@ -2,10 +2,11 @@ use super::check_duplicate_fields;
 use super::filter_generics;
 use super::impl_component;
 use super::port::Ports;
+use super::rt_engine::RtEngine;
 use super::state::State;
 use super::Field;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Error, Generics, Ident, ItemStruct};
+use syn::{braced, parse::ParseStream, Error, Generics, Ident, ItemStruct, Token};
 
 pub struct Component {
     pub ident: Ident,
@@ -13,20 +14,11 @@ pub struct Component {
     pub state: State,
     pub inputs: Ports,
     pub outputs: Ports,
+    pub rt_engine: Option<RtEngine>,
 }
 
 impl Component {
-    fn input_ident(&self) -> syn::Ident {
-        syn::Ident::new(&format!("{}Input", self.ident), self.ident.span())
-    }
-    fn output_ident(&self) -> syn::Ident {
-        syn::Ident::new(&format!("{}Output", self.ident), self.ident.span())
-    }
-    fn state_ident(&self) -> syn::Ident {
-        syn::Ident::new(&format!("{}State", self.ident), self.ident.span())
-    }
-
-    pub fn parse(item: TokenStream2) -> syn::Result<Self> {
+    pub fn parse(args: TokenStream2, item: TokenStream2) -> syn::Result<Self> {
         let component: ItemStruct = syn::parse2(item).unwrap();
 
         let ident = component.ident.clone();
@@ -34,6 +26,32 @@ impl Component {
         let mut state = Vec::new();
         let mut inputs = Vec::new();
         let mut outputs = Vec::new();
+        let mut rt_engine = None;
+
+        // Parse arguments
+        syn::parse::Parser::parse2(
+            |input: ParseStream| -> syn::Result<()> {
+                while !input.is_empty() {
+                    let ident: Ident = input.parse()?;
+                    input.parse::<Token![=]>()?;
+                    if ident == "rt_engine" {
+                        let content;
+                        braced!(content in input);
+                        rt_engine = Some(content.parse::<RtEngine>()?);
+                    } else {
+                        return Err(Error::new(
+                            ident.span(),
+                            "unknown atomic component argument",
+                        ));
+                    }
+                    if !input.is_empty() {
+                        input.parse::<Token![,]>()?;
+                    }
+                }
+                Ok(())
+            },
+            args,
+        )?;
 
         // Parse struct fields
         for field in &component.fields {
@@ -101,6 +119,7 @@ impl Component {
             state,
             inputs,
             outputs,
+            rt_engine,
         })
     }
 
@@ -108,26 +127,42 @@ impl Component {
         let ident = &self.ident;
 
         // Prepare identifiers for code generation
-        let input_ident = &self.input_ident();
-        let output_ident = &self.output_ident();
-        let state_ident = &self.state_ident();
+        let input_ident = syn::Ident::new(&format!("{}Input", &self.ident), self.ident.span());
+        let output_ident = syn::Ident::new(&format!("{}Output", &self.ident), self.ident.span());
+        let state_ident = syn::Ident::new(&format!("{}State", &self.ident), self.ident.span());
         let state_fields = self.state.field_idents();
         let state_tys = self.state.field_tys();
-        let input_struct = self.inputs.quote(input_ident);
-        let output_struct = self.outputs.quote(output_ident);
-        let state_struct = self.state.quote(state_ident);
 
         // Extract generics for impl
         let (impl_generics, ty_generics, _) = self.generics.split_for_impl();
-        let input_generics = &self.inputs.get_generics();
-        let output_generics = &self.outputs.get_generics();
-        let state_generics = &self.state.get_generics();
+        let (_, input_generics, _) = &self.inputs.generics.split_for_impl();
+        let (_, output_generics, _) = &self.outputs.generics.split_for_impl();
+        let (_, state_generics, _) = &self.state.generics.split_for_impl();
+
+        // Generate input, output, and state structs
+        let input_struct = self.inputs.quote(&input_ident);
+        let output_struct = self.outputs.quote(&output_ident);
+        let state_struct = self.state.quote(&state_ident);
+
+        // Generate rt_engine code if defined
+        let rt_engine_impl = if let Some(rt_engine) = &self.rt_engine {
+            rt_engine.quote(
+                &self.ident,
+                &self.generics,
+                &self.inputs,
+                &self.outputs,
+                &input_ident,
+                &output_ident,
+            )
+        } else {
+            quote::quote! {}
+        };
 
         // Component trait implementation
         let component_impl = impl_component(
             ident,
-            input_ident,
-            output_ident,
+            &input_ident,
+            &output_ident,
             &self.generics,
             input_generics,
             output_generics,
@@ -138,6 +173,7 @@ impl Component {
             #input_struct
             #output_struct
             #state_struct
+            #rt_engine_impl
             pub struct #ident #impl_generics{
                 pub input: #input_ident #input_generics,
                 pub output: #output_ident #output_generics,

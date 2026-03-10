@@ -22,8 +22,8 @@ pub fn component(input: TokenStream) -> TokenStream {
 // }
 
 #[proc_macro_attribute]
-pub fn atomic(_args: TokenStream, item: TokenStream) -> TokenStream {
-    let atomic_component = component2::atomic::Component::parse(item.into());
+pub fn atomic(args: TokenStream, item: TokenStream) -> TokenStream {
+    let atomic_component = component2::atomic::Component::parse(args.into(), item.into());
     match atomic_component {
         Ok(component) => component.quote().into(),
         Err(err) => err.to_compile_error().into(),
@@ -43,15 +43,6 @@ pub fn coupled(args: TokenStream, item: TokenStream) -> TokenStream {
 pub fn coupled2(args: TokenStream, item: TokenStream) -> TokenStream {
     let coupled_component = component2::coupled2::Component::parse(args.into(), item.into());
     match coupled_component {
-        Ok(component) => component.quote().into(),
-        Err(err) => err.to_compile_error().into(),
-    }
-}
-
-#[proc_macro_attribute]
-pub fn rt_engine(args: TokenStream, item: TokenStream) -> TokenStream {
-    let component = component2::rt_engine::Component::parse(args.into(), item.into());
-    match component {
         Ok(component) => component.quote().into(),
         Err(err) => err.to_compile_error().into(),
     }

@@ -166,9 +166,9 @@ impl Component {
 
         // Extract generics for impl
         let (impl_generics, ty_generics, _) = self.generics.split_for_impl();
-        let input_generics = &self.inputs.get_generics();
-        let output_generics = &self.outputs.get_generics();
-        let components_generics = &self.components.get_generics();
+        let (_, input_generics, _) = &self.inputs.generics.split_for_impl();
+        let (_, output_generics, _) = &self.outputs.generics.split_for_impl();
+        let (_, components_generics, _) = &self.components.generics.split_for_impl();
 
         // Component trait implementation
         let component_impl = impl_component(

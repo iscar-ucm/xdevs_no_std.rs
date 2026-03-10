@@ -1,5 +1,7 @@
 mod components;
 
+use crate::component2::rt_engine::RtEngine;
+
 use super::check_duplicate_fields;
 use super::filter_generics;
 use super::impl_component;
@@ -7,7 +9,7 @@ use super::port::Ports;
 use super::Field;
 use components::Components;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Error, Generics, Ident, ItemStruct};
+use syn::{braced, parse::ParseStream, Error, Generics, Ident, ItemStruct, Token};
 
 pub struct Component {
     pub ident: Ident,
@@ -15,20 +17,11 @@ pub struct Component {
     pub components: Components,
     pub inputs: Ports,
     pub outputs: Ports,
+    pub rt_engine: Option<RtEngine>,
 }
 
 impl Component {
-    fn input_ident(&self) -> syn::Ident {
-        syn::Ident::new(&format!("{}Input", self.ident), self.ident.span())
-    }
-    fn output_ident(&self) -> syn::Ident {
-        syn::Ident::new(&format!("{}Output", self.ident), self.ident.span())
-    }
-    fn components_ident(&self) -> syn::Ident {
-        syn::Ident::new(&format!("{}Components", self.ident), self.ident.span())
-    }
-
-    pub fn parse(_args: TokenStream2, item: TokenStream2) -> syn::Result<Self> {
+    pub fn parse(args: TokenStream2, item: TokenStream2) -> syn::Result<Self> {
         let component: ItemStruct = syn::parse2(item).unwrap();
 
         let ident = component.ident.clone();
@@ -36,6 +29,32 @@ impl Component {
         let mut components = Vec::new();
         let mut inputs = Vec::new();
         let mut outputs = Vec::new();
+        let mut rt_engine = None;
+
+        // Parse arguments
+        syn::parse::Parser::parse2(
+            |input: ParseStream| -> syn::Result<()> {
+                while !input.is_empty() {
+                    let ident: Ident = input.parse()?;
+                    input.parse::<Token![=]>()?;
+                    if ident == "rt_engine" {
+                        let content;
+                        braced!(content in input);
+                        rt_engine = Some(content.parse::<RtEngine>()?);
+                    } else {
+                        return Err(Error::new(
+                            ident.span(),
+                            "unknown atomic component argument",
+                        ));
+                    }
+                    if !input.is_empty() {
+                        input.parse::<Token![,]>()?;
+                    }
+                }
+                Ok(())
+            },
+            args,
+        )?;
 
         // Parse struct fields
         for field in &component.fields {
@@ -103,6 +122,7 @@ impl Component {
             components,
             inputs,
             outputs,
+            rt_engine,
         })
     }
 
@@ -110,30 +130,45 @@ impl Component {
         let ident = &self.ident;
 
         // Prepare identifiers for code generation
-        let input_ident = &self.input_ident();
-        let output_ident = &self.output_ident();
-        let components_ident = &self.components_ident();
+        let input_ident = syn::Ident::new(&format!("{}Input", &self.ident), self.ident.span());
+        let output_ident = syn::Ident::new(&format!("{}Output", &self.ident), self.ident.span());
+        let components_ident =
+            syn::Ident::new(&format!("{}Components", &self.ident), self.ident.span());
         let components_fields = self.components.field_idents();
         let components_tys = self.components.field_tys();
-        let input_struct = self.inputs.quote(input_ident);
-        let output_struct = self.outputs.quote(output_ident);
-        let components_struct = self.components.quote(components_ident);
+        let input_struct = self.inputs.quote(&input_ident);
+        let output_struct = self.outputs.quote(&output_ident);
+        let components_struct = self.components.quote(&components_ident);
 
         // Extract generics for impl
         let (impl_generics, ty_generics, _) = self.generics.split_for_impl();
-        let input_generics = &self.inputs.get_generics();
-        let output_generics = &self.outputs.get_generics();
-        let components_generics = &self.components.get_generics();
+        let (_, input_generics, _) = &self.inputs.generics.split_for_impl();
+        let (_, output_generics, _) = &self.outputs.generics.split_for_impl();
+        let (_, components_generics, _) = &self.components.generics.split_for_impl();
 
         // Component trait implementation
         let component_impl = impl_component(
             ident,
-            input_ident,
-            output_ident,
+            &input_ident,
+            &output_ident,
             &self.generics,
             input_generics,
             output_generics,
         );
+
+        // Generate rt_engine code if defined
+        let rt_engine_impl = if let Some(rt_engine) = &self.rt_engine {
+            rt_engine.quote(
+                &self.ident,
+                &self.generics,
+                &self.inputs,
+                &self.outputs,
+                &input_ident,
+                &output_ident,
+            )
+        } else {
+            quote::quote! {}
+        };
 
         // Generate wrapper structs for inner components' inputs and outputs
         // These structs hold references to all inner components' inputs/outputs,
@@ -273,6 +308,7 @@ impl Component {
             #input_struct
             #output_struct
             #components_struct
+            #rt_engine_impl
 
             /// Wrapper struct holding mutable references to all inner components' inputs.
             pub struct #component_inputs_ident #wrapper_def_generics #wrapper_where_clause {
