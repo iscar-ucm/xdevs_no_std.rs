@@ -1,9 +1,7 @@
+use super::Field;
 use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::Generics;
-use syn::TypeGenerics;
-
-use super::Field;
 
 pub struct Components {
     pub components: Vec<Field>,
@@ -24,11 +22,6 @@ impl Components {
 
     pub fn field_tys(&self) -> Vec<&syn::Type> {
         self.components.iter().map(|f| &f.ty).collect()
-    }
-
-    pub fn get_generics(&self) -> TypeGenerics<'_> {
-        let (_, ty_generics, _) = self.generics.split_for_impl();
-        ty_generics
     }
 
     pub fn quote(&self, ident: &Ident) -> TokenStream2 {

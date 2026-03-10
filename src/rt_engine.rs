@@ -1,26 +1,30 @@
 use crate::traits::{
-    AbstractSimulator, RtEngineInputChannel, RtEngineOutputChannel, RtEngineWrapper,
+    AbstractSimulator, MapInput, MapOutput, RtEngineInputChannel, RtEngineOutputChannel,
 };
 use crate::{Duration, Instant};
 
-/// Aliases for the RtEngineWrapper types, to avoid having to write the full path everywhere.
-pub type InputEnum<M> = <<M as RtEngineWrapper>::InputChannel as RtEngineInputChannel>::InputEnum;
-pub type OutputEnum<M> =
-    <<M as RtEngineWrapper>::OutputChannel as RtEngineOutputChannel>::OutputEnum;
-pub type Sender<M> = <<M as RtEngineWrapper>::InputChannel as RtEngineInputChannel>::Sender;
-pub type Subscriber<M> =
-    <<M as RtEngineWrapper>::OutputChannel as RtEngineOutputChannel>::Subscriber;
-
 /// Automated simulation engine for real-time execution of DEVS models.
 /// Its interfaces are created through the use of the `rt_engine` macro.
-pub struct RtEngine<M: RtEngineWrapper> {
+pub struct RtEngine<M: AbstractSimulator>
+where
+    M::Input: MapInput,
+    M::Output: MapOutput,
+{
     simulator: crate::Simulator<M>,
-    input_channel: M::InputChannel,
-    output_channel: M::OutputChannel,
+    input_channel: <M::Input as MapInput>::InputChannel,
+    output_channel: <M::Output as MapOutput>::OutputChannel,
 }
 
-impl<M: RtEngineWrapper> RtEngine<M> {
-    pub fn new(model: M, input_channel: M::InputChannel, output_channel: M::OutputChannel) -> Self {
+impl<M: AbstractSimulator> RtEngine<M>
+where
+    M::Input: MapInput,
+    M::Output: MapOutput,
+{
+    pub fn new(
+        model: M,
+        input_channel: <M::Input as MapInput>::InputChannel,
+        output_channel: <M::Output as MapOutput>::OutputChannel,
+    ) -> Self {
         Self {
             simulator: crate::Simulator::new(model),
             input_channel,
@@ -32,7 +36,7 @@ impl<M: RtEngineWrapper> RtEngine<M> {
         let input_handler = RtEngineInputHandler::<M>::new(&self.input_channel);
         self.simulator
             .simulate_rt_async(config, input_handler, |output| {
-                M::map_output(output, &mut self.output_channel);
+                unsafe { output.map_output(&mut self.output_channel) };
             })
             .await;
     }
@@ -40,36 +44,48 @@ impl<M: RtEngineWrapper> RtEngine<M> {
 
 /// Specialized implementation: Only exists if IC is a &'static Channel.
 /// Note how I and N are declared here, not on the struct.
-impl<M: RtEngineWrapper> RtEngine<M>
+impl<M: AbstractSimulator> RtEngine<M>
 where
-    M::InputChannel: RtEngineInputChannel,
+    M::Input: MapInput,
+    M::Output: MapOutput,
+    <M::Input as MapInput>::InputChannel: RtEngineInputChannel,
 {
-    pub fn sender(&self) -> <M::InputChannel as RtEngineInputChannel>::Sender {
+    pub fn sender(&self) -> <<M::Input as MapInput>::InputChannel as RtEngineInputChannel>::Sender {
         self.input_channel.sender()
     }
 }
 
 /// Specialized implementation: Only exists if OC is a &'static PubSubChannel.
 /// Note how O, CAP, and SUBS are declared here.
-impl<M: RtEngineWrapper> RtEngine<M>
+impl<M: AbstractSimulator> RtEngine<M>
 where
-    M::OutputChannel: RtEngineOutputChannel,
+    M::Input: MapInput,
+    M::Output: MapOutput,
+    <M::Output as MapOutput>::OutputChannel: RtEngineOutputChannel,
 {
     pub fn subscriber(
         &self,
-    ) -> Result<<M::OutputChannel as RtEngineOutputChannel>::Subscriber, crate::SubscribeError>
-    {
+    ) -> Result<
+        <<M::Output as MapOutput>::OutputChannel as RtEngineOutputChannel>::Subscriber,
+        crate::SubscribeError,
+    > {
         self.output_channel.subscriber()
     }
 }
 
-struct RtEngineInputHandler<'a, M: RtEngineWrapper + AbstractSimulator> {
-    input_channel: &'a M::InputChannel,
+struct RtEngineInputHandler<'a, M: AbstractSimulator>
+where
+    M::Input: MapInput,
+{
+    input_channel: &'a <M::Input as MapInput>::InputChannel,
     last_rt: Option<crate::Instant>,
 }
 
-impl<'a, M: RtEngineWrapper + AbstractSimulator> RtEngineInputHandler<'a, M> {
-    fn new(input_channel: &'a M::InputChannel) -> Self {
+impl<'a, M: AbstractSimulator> RtEngineInputHandler<'a, M>
+where
+    M::Input: MapInput,
+{
+    fn new(input_channel: &'a <M::Input as MapInput>::InputChannel) -> Self {
         Self {
             input_channel,
             last_rt: None,
@@ -77,8 +93,9 @@ impl<'a, M: RtEngineWrapper + AbstractSimulator> RtEngineInputHandler<'a, M> {
     }
 }
 
-impl<'a, M: AbstractSimulator + RtEngineWrapper> crate::traits::AsyncInput
-    for RtEngineInputHandler<'a, M>
+impl<'a, M: AbstractSimulator> crate::traits::AsyncInput for RtEngineInputHandler<'a, M>
+where
+    M::Input: MapInput,
 {
     type Input = M::Input;
 
@@ -95,7 +112,7 @@ impl<'a, M: AbstractSimulator + RtEngineWrapper> crate::traits::AsyncInput
         let next_rt = last_rt + Duration::from_nanos(time_duration);
 
         let future = async {
-            M::map_input(self.input_channel, input).await;
+            unsafe { input.map_input(self.input_channel) }.await;
         };
 
         if let Err(_) = embassy_time::with_deadline(next_rt.into(), future).await {

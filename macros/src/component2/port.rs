@@ -2,7 +2,6 @@ use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::Generics;
 use syn::Type;
-use syn::TypeGenerics;
 
 use super::Field;
 
@@ -22,11 +21,6 @@ impl Ports {
 
     pub fn field_tys(&self) -> Vec<&syn::Type> {
         self.ports.iter().map(|f| &f.ty).collect()
-    }
-
-    pub fn get_generics(&self) -> TypeGenerics<'_> {
-        let (_, ty_generics, _) = self.generics.split_for_impl();
-        ty_generics
     }
 
     fn generate_news(&self, ports: &Vec<Field>) -> Vec<TokenStream2> {
