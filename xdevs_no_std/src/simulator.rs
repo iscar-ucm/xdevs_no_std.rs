@@ -136,7 +136,7 @@ impl<M: AbstractSimulator> Simulator<M> {
             input_handler
                 .handle(config, t_until, self.model.get_input_mut())
                 .await; //como ahora input_handler no devuelve nada no modifica t
-            t = Instant::now(); //ahora comprobamos que se ha hecho en el tiempo que debería, no nos fiamos del valor que da. En simulate_vt hay que comprobar los tiempos en los que se realizan
+            t = t_until; //ahora comprobamos que se ha hecho en el tiempo que debería, no nos fiamos del valor que da. En simulate_vt hay que comprobar los tiempos en los que se realizan
             if t >= t_next_internal {
                 self.model.lambda(t);
                 propagate_output(self.model.get_output());
