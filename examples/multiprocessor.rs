@@ -1,6 +1,5 @@
 /// Example demonstrating multiple models with port arrays for coupling.
 /// This example shows a load balancer that distributes jobs to multiple processors.
-
 mod processor {
     use xdevs::port::Port;
 
