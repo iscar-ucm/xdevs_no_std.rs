@@ -20,6 +20,7 @@ mod generator {
 
         fn lambda(state: &Self::State, output: &mut Self::Output) {
             output.out_job.add_value(state.count).unwrap();
+            println!("[G] sending job {}", state.count); //Añadido
         }
 
         fn ta(state: &Self::State) -> eDuration {
@@ -77,6 +78,7 @@ mod processor {
                 if state.job.is_none() {
                     state.job = Some(job);
                     state.sigma = state.time;
+                    println!("[P] received job {}", job); //Añadido
                 }
             }
         }

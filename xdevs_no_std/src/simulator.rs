@@ -102,6 +102,7 @@ impl<M: AbstractSimulator> Simulator<M> {
             t = wait_until(t_until, self.model.get_input_mut());
             //t = t + elapsed;
             if t >= t_next_internal {
+                t = t_next_internal; // Ensure that we are exactly at the internal transition time
                 self.model.lambda(t); //comprobar
                 propagate_output(self.model.get_output());
             } else if self.model.get_input().is_empty() {
@@ -136,8 +137,10 @@ impl<M: AbstractSimulator> Simulator<M> {
             input_handler
                 .handle(config, t_until, self.model.get_input_mut())
                 .await; //como ahora input_handler no devuelve nada no modifica t
-            t = t_until; //ahora comprobamos que se ha hecho en el tiempo que debería, no nos fiamos del valor que da. En simulate_vt hay que comprobar los tiempos en los que se realizan
+            t = Instant::now(); //ahora comprobamos que se ha hecho en el tiempo que debería, no nos fiamos del valor que da. En simulate_vt hay que comprobar los tiempos en los que se realizan
             if t >= t_next_internal {
+                // TODO check jitter
+                t = t_next_internal; // Ensure that we are exactly at the internal transition time
                 self.model.lambda(t);
                 propagate_output(self.model.get_output());
             } else if self.model.get_input().is_empty() {
