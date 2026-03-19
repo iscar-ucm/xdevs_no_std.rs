@@ -147,7 +147,6 @@ impl RtEngine {
             private.extend(quote::quote! {
                 /// Auto-generated static input channel.
                 pub static #in_channel_ident #input_impl_generics: ::xdevs::export::Channel<
-                    ::xdevs::export::Mutex,
                     #input_enum_ident #input_ty_generics,
                     #in_size
                 > = ::xdevs::export::Channel::new();
@@ -215,11 +214,9 @@ impl RtEngine {
             private.extend(quote::quote! {
                 /// Auto-generated static output PubSub channel.
                 pub static #out_channel_ident #output_impl_generics: ::xdevs::export::PubSubChannel<
-                    ::xdevs::export::Mutex,
                     #output_enum_ident #output_ty_generics,
                     #out_size,
                     #max_out_subs,
-                    1
                 > = ::xdevs::export::PubSubChannel::new();
             });
 

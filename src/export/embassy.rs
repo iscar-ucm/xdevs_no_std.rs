@@ -1,26 +1,27 @@
 use crate::traits::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel};
-pub use embassy_sync::{
-    channel::{Channel, Sender as eSender},
-    pubsub::{
-        Error as SubscribeError, PubSubChannel, Publisher as ePublisher, Subscriber as eSubscriber,
-        WaitResult,
-    },
-};
-pub use embassy_time::with_deadline;
 
 #[cfg(feature = "embassy-noop")]
-pub use embassy_sync::blocking_mutex::raw::NoopRawMutex as Mutex;
+use embassy_sync::blocking_mutex::raw::NoopRawMutex as Mutex;
 
 #[cfg(feature = "embassy-cs")]
-pub use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex as Mutex;
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex as Mutex;
+
+pub type Channel<T, const N: usize> = embassy_sync::channel::Channel<Mutex, T, N>;
+pub type PubSubChannel<T, const CAP: usize, const SUBS: usize> =
+    embassy_sync::pubsub::PubSubChannel<Mutex, T, CAP, SUBS, 1>;
 
 pub enum RecvError {
     Lagged(u64),
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum SubscribeError {
+    MaximumSubscribersReached,
+}
+
 // Simplified Senders/Subscribers with 'static hardcoded
 pub struct Sender<'a, I, const N: usize> {
-    sender: eSender<'a, Mutex, I, N>,
+    sender: embassy_sync::channel::Sender<'a, Mutex, I, N>,
 }
 
 impl<'a, I, const N: usize> Sender<'a, I, N> {
@@ -30,11 +31,12 @@ impl<'a, I, const N: usize> Sender<'a, I, N> {
 }
 
 pub struct Subscriber<'a, O: Clone, const CAP: usize, const SUBS: usize> {
-    subscriber: eSubscriber<'a, Mutex, O, CAP, SUBS, 1>,
+    subscriber: embassy_sync::pubsub::Subscriber<'a, Mutex, O, CAP, SUBS, 1>,
 }
 
 impl<'a, O: Clone, const CAP: usize, const SUBS: usize> Subscriber<'a, O, CAP, SUBS> {
     pub async fn recv(&mut self) -> Result<O, RecvError> {
+        use embassy_sync::pubsub::WaitResult;
         match self.subscriber.next_message().await {
             WaitResult::Message(msg) => Ok(msg),
             WaitResult::Lagged(e) => Err(RecvError::Lagged(e)),
@@ -43,11 +45,11 @@ impl<'a, O: Clone, const CAP: usize, const SUBS: usize> Subscriber<'a, O, CAP, S
 }
 
 pub struct InputChannel<'a, I, const N: usize> {
-    channel: &'a Channel<Mutex, I, N>,
+    channel: &'a Channel<I, N>,
 }
 
 impl<'a, I, const N: usize> InputChannel<'a, I, N> {
-    pub fn new(channel: &'a Channel<Mutex, I, N>) -> Self {
+    pub fn new(channel: &'a Channel<I, N>) -> Self {
         Self { channel }
     }
 }
@@ -69,15 +71,14 @@ unsafe impl<'a, I, const N: usize> RtEngineInputChannel for InputChannel<'a, I, 
 impl<'a, I, const N: usize> Sealed for InputChannel<'a, I, N> {}
 
 pub struct OutputChannel<'a, O: Clone, const CAP: usize, const SUBS: usize> {
-    channel: &'a PubSubChannel<Mutex, O, CAP, SUBS, 1>,
-    publisher: ePublisher<'a, Mutex, O, CAP, SUBS, 1>,
+    channel: &'a PubSubChannel<O, CAP, SUBS>,
+    publisher: embassy_sync::pubsub::Publisher<'a, Mutex, O, CAP, SUBS, 1>,
 }
 
 impl<'a, O: Clone, const CAP: usize, const SUBS: usize> OutputChannel<'a, O, CAP, SUBS> {
-    pub fn new(channel: &'a PubSubChannel<Mutex, O, CAP, SUBS, 1>) -> Self {
+    pub fn new(channel: &'a PubSubChannel<O, CAP, SUBS>) -> Self {
         Self {
             channel,
-            // SAFETY: This is the only publisher that will be created for this channel
             publisher: channel.publisher().unwrap(),
         }
     }
@@ -91,7 +92,10 @@ unsafe impl<'a, O: Clone, const CAP: usize, const SUBS: usize> RtEngineOutputCha
     fn subscriber(&self) -> Result<Self::Subscriber, SubscribeError> {
         match self.channel.subscriber() {
             Ok(subscriber) => Ok(Subscriber { subscriber }),
-            Err(e) => Err(e),
+            Err(embassy_sync::pubsub::Error::MaximumSubscribersReached) => {
+                Err(SubscribeError::MaximumSubscribersReached)
+            }
+            _ => unreachable!(),
         }
     }
 
