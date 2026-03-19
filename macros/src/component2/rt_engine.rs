@@ -1,4 +1,5 @@
 use proc_macro2::TokenStream as TokenStream2;
+use heck::{ToShoutySnakeCase, ToSnakeCase, ToUpperCamelCase};
 use syn::{
     Error, Ident, LitInt, Token, Type, parse::{Parse, ParseStream}
 };
@@ -79,11 +80,11 @@ impl RtEngine {
         let sender_ident = quote::format_ident!("{}Sender", model_ident);
         let subscriber_ident = quote::format_ident!("{}Subscriber", model_ident);
 
-        let upper_name = to_screaming_snake_case(&model_ident.to_string());
+        let upper_name = model_ident.to_string().to_shouty_snake_case();
         let in_channel_ident = quote::format_ident!("{}_IN_CHANNEL", upper_name);
         let out_channel_ident = quote::format_ident!("{}_OUT_CHANNEL", upper_name);
 
-        let snake_name = to_snake_case(&model_ident.to_string());
+        let snake_name = model_ident.to_string().to_snake_case();
         let private_mod_ident =
         quote::format_ident!("__xdevs_no_std_private_{}_rt_engine", snake_name);
 
@@ -373,40 +374,5 @@ fn expand_output_for(info: &Field) -> TokenStream2 {
 
 /// Converts a snake_case identifier to PascalCase.
 fn to_pascal_case_ident(ident: &Ident) -> Ident {
-    let s = ident.to_string();
-    let pascal: String = s
-        .split('_')
-        .map(|word| {
-            let mut chars = word.chars();
-            match chars.next() {
-                Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
-                None => String::new(),
-            }
-        })
-        .collect();
-    Ident::new(&pascal, ident.span())
-}
-
-/// Converts PascalCase to SCREAMING_SNAKE_CASE.
-fn to_screaming_snake_case(s: &str) -> String {
-    let mut result = String::new();
-    for (i, ch) in s.chars().enumerate() {
-        if ch.is_uppercase() && i > 0 {
-            result.push('_');
-        }
-        result.push(ch.to_ascii_uppercase());
-    }
-    result
-}
-
-/// Converts PascalCase to snake_case.
-fn to_snake_case(s: &str) -> String {
-    let mut result = String::new();
-    for (i, ch) in s.chars().enumerate() {
-        if ch.is_uppercase() && i > 0 {
-            result.push('_');
-        }
-        result.push(ch.to_ascii_lowercase());
-    }
-    result
+    Ident::new(&ident.to_string().to_upper_camel_case(), ident.span())
 }
