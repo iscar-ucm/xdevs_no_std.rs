@@ -20,7 +20,7 @@ path = "src/lib.rs"
 heapless = "0.9"
 xdevs-no-std-macros = { path = "macros", version = "0.2.0" }
 tokio = { version = "1.0", optional = true, features = ["sync"] }
-embassy-time = { version = "0.5.0", optional = true }
+embassy-time = { version = "0.5.0" }
 embassy-sync = { version = "0.7.2", optional = true }
 
 [dev-dependencies]
@@ -30,11 +30,7 @@ embassy-sync = { version = "0.7.2", features = ["std"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [features]
-embassy = [
-    "embassy-time",
-    "embassy-sync",
-    "xdevs-no-std-macros/embassy-backend",
-]
+embassy = ["embassy-sync", "xdevs-no-std-macros/embassy-backend"]
 embassy-noop = ["embassy"]
 embassy-cs = ["embassy"]
 std = ["tokio/time", "xdevs-no-std-macros/std-backend"]
