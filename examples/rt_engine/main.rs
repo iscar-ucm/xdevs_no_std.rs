@@ -65,8 +65,12 @@ async fn receiver(mut receiver: TransparentSubscriber) {
             Ok(TransparentOutputEnum::OutJob(value)) => {
                 println!("[Receiver] got value {}", value);
             }
-            Err(xdevs::RecvError::Lagged(u64)) => {
+            Err(xdevs::rt_engine::RecvError::Lagged(u64)) => {
                 println!("[Receiver] lagged by {} messages", u64);
+            }
+            // This error exists only in std
+            Err(xdevs::rt_engine::RecvError::Closed) => {
+                println!("[Receiver] receive channel closed");
             }
         }
     }

@@ -183,7 +183,7 @@ pub unsafe trait RtEngineInputChannel: sealed::Sealed {
     fn sender(&self) -> Self::Sender;
 
     /// Receives from the channel and maps the received input event to the model's input ports.
-    fn recv(&self) -> impl Future<Output = Self::InputEnum>;
+    fn recv(&mut self) -> impl Future<Output = Self::InputEnum>;
 }
 
 /// Output channel for the rt_engine macro.
@@ -199,7 +199,7 @@ pub unsafe trait RtEngineOutputChannel: sealed::Sealed {
     type Subscriber;
 
     /// Returns a subscriber to the channel. The subscriber can be used to receive output events from the model.
-    fn subscriber(&self) -> Result<Self::Subscriber, crate::SubscribeError>;
+    fn subscriber(&self) -> Result<Self::Subscriber, crate::rt_engine::SubscribeError>;
 
     /// Publishes output events from the model to the channel, mapping the model's output ports to the channel's output events.
     fn publish(&self, output: Self::OutputEnum);

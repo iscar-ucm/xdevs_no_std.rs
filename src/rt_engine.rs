@@ -1,3 +1,4 @@
+pub use crate::export::{RecvError, SubscribeError};
 use crate::traits::{
     AbstractSimulator, MapInput, MapOutput, RtEngineInputChannel, RtEngineOutputChannel,
 };
@@ -67,7 +68,7 @@ where
         &self,
     ) -> Result<
         <<M::Output as MapOutput>::OutputChannel as RtEngineOutputChannel>::Subscriber,
-        crate::SubscribeError,
+        crate::rt_engine::SubscribeError,
     > {
         self.output_channel.subscriber()
     }
