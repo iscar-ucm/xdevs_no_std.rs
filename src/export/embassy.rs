@@ -63,7 +63,7 @@ unsafe impl<'a, I, const N: usize> RtEngineInputChannel for InputChannel<'a, I, 
         }
     }
 
-    async fn recv(&self) -> Self::InputEnum {
+    async fn recv(&mut self) -> Self::InputEnum {
         self.channel.receive().await
     }
 }
