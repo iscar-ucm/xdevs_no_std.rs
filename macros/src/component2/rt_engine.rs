@@ -5,6 +5,7 @@ use syn::{
 };
 
 use crate::component2::Field;
+use crate::component2::backend::*;
 
 use super::port::Ports;
 
@@ -33,13 +34,33 @@ impl Parse for RtEngine {
             let value: usize = value.base10_parse()?;
 
             match ident.to_string().as_str() {
-                "in_size" => in_size = Some(value),
-                "out_size" => out_size = Some(value),
-                "max_out_subs" => max_out_subs = Some(value),
-                _ => {
+                "in_size" => {
+                    if let Some(_) = in_size {
+                        return Err(Error::new(
+                            ident.span(),
+                            "duplicate argument: in_size",
+                        ));
+                    }
+                    else{
+                        in_size = Some(value)
+                    }
+                },
+                "out_size" => {
+                    if let Some(_) = out_size {
+                        return Err(Error::new(
+                            ident.span(),
+                            "duplicate argument: out_size",
+                        ));
+                    }
+                    else{
+                        out_size = Some(value)
+                    }
+                },
+                "max_out_subs" => max_out_subs = Some(parse_max_out_subs(&ident, &max_out_subs, value)?),
+                str => {
                     return Err(Error::new(
                         ident.span(),
-                        "unknown top argument; expected `in_size`, `out_size`, or `max_out_subs`",
+                        format!("unknown top argument: {}", str),
                     ))
                 }
             }
@@ -51,13 +72,9 @@ impl Parse for RtEngine {
         }
 
         Ok(RtEngine {
-            in_size: in_size
-                .ok_or_else(|| Error::new(input.span(), "missing mandatory argument: in_size"))?,
-            out_size: out_size
-                .ok_or_else(|| Error::new(input.span(), "missing mandatory argument: out_size"))?,
-            max_out_subs: max_out_subs.ok_or_else(|| {
-                Error::new(input.span(), "missing mandatory argument: max_out_subs")
-            })?,
+            in_size: in_size.unwrap_or(0),
+            out_size: out_size.unwrap_or(0),
+            max_out_subs: max_out_subs.unwrap_or(0),
         })
     }
 }
@@ -105,7 +122,6 @@ impl RtEngine {
         let out_size = &self.out_size;
         let max_out_subs = &self.max_out_subs;
 
-        let mut private = TokenStream2::new();
 
         // Input generation
         let map_input_body;
@@ -143,13 +159,6 @@ impl RtEngine {
                 pub type #sender_ident #model_impl_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
                 Input as ::xdevs::traits::MapInput>::InputChannel as 
                 ::xdevs::traits::RtEngineInputChannel>::Sender;
-            });
-            private.extend(quote::quote! {
-                /// Auto-generated static input channel.
-                pub static #in_channel_ident #input_impl_generics: ::xdevs::export::Channel<
-                    #input_enum_ident #input_ty_generics,
-                    #in_size
-                > = ::xdevs::export::Channel::new();
             });
 
             map_input_body = quote::quote! {
@@ -211,14 +220,6 @@ impl RtEngine {
                 Output as ::xdevs::traits::MapOutput>::OutputChannel as 
                 ::xdevs::traits::RtEngineOutputChannel>::Subscriber;
             });
-            private.extend(quote::quote! {
-                /// Auto-generated static output PubSub channel.
-                pub static #out_channel_ident #output_impl_generics: ::xdevs::export::PubSubChannel<
-                    #output_enum_ident #output_ty_generics,
-                    #out_size,
-                    #max_out_subs,
-                > = ::xdevs::export::PubSubChannel::new();
-            });
 
             map_output_body = quote::quote! {
                 #(#propagations)*
@@ -273,14 +274,38 @@ impl RtEngine {
             }
         });
 
-        // Combine all generated code into the final output
-        generated.extend(quote::quote! {            
-            /// Hidden module containing auto-generated infrastructure for the top-level component.
-            mod #private_mod_ident {
-                use super::*;
-                #private
+        #[cfg(feature = "embassy-backend")]
+        // Private module generation
+        {
+            let mut private = TokenStream2::new();
+
+            if !input_ports.is_empty() {
+                private.extend(quote::quote! {
+                    /// Auto-generated static output PubSub channel.
+                    pub static #out_channel_ident #output_impl_generics: ::xdevs::export::PubSubChannel<
+                        #output_enum_ident #output_ty_generics,
+                        #out_size,
+                        #max_out_subs,
+                    > = ::xdevs::export::PubSubChannel::new();
+                });
             }
-        });
+            if !output_ports.is_empty() {
+                private.extend(quote::quote! {
+                    /// Auto-generated static input channel.
+                    pub static #in_channel_ident #input_impl_generics: ::xdevs::export::Channel<
+                        #input_enum_ident #input_ty_generics,
+                        #in_size
+                    > = ::xdevs::export::Channel::new();
+                });
+            }
+            generated.extend(quote::quote! {            
+                /// Hidden module containing auto-generated infrastructure for the top-level component.
+                mod #private_mod_ident {
+                    use super::*;
+                    #private
+                }
+            });
+        }
 
         generated
     }
