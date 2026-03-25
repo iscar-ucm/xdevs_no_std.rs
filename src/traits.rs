@@ -19,9 +19,22 @@ pub unsafe trait Bag {
 /// # Safety
 ///
 /// This trait is implemented internally. Do not implement it manually.
-pub unsafe trait TypedBag: Bag + Sealed {
+pub unsafe trait AsPort: Bag + Sealed {
     /// The type of the values contained in the bag.
     type Item;
+}
+
+/// Trait that defines an enum that can be used for the input or output channel for the rt_engine macro.
+///
+/// # Safety
+///
+/// This trait must be implemented via macros. Do not implement it manually.
+pub unsafe trait BagMux: Bag {
+    /// The enum type that represents the ports of the model. Each variant corresponds to a port.
+    type Mux;
+
+    fn enum_to_input(&mut self, input_enum: Self::Mux);
+    fn output_to_enum(&self, output_fn: impl FnMut(Self::Mux));
 }
 
 /// Interface for DEVS components. All DEVS components must implement this trait.

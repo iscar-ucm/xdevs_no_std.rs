@@ -1,13 +1,10 @@
 use proc_macro2::TokenStream as TokenStream2;
-use heck::{ToShoutySnakeCase, ToSnakeCase, ToUpperCamelCase};
+use heck::{ToSnakeCase};
 use syn::{
-    Error, Ident, LitInt, Token, Type, parse::{Parse, ParseStream}
+    Error, Ident, LitInt, Token, parse::{Parse, ParseStream}
 };
 
-use crate::component2::Field;
-use crate::component2::backend::*;
-
-use super::port::Ports;
+use crate::component2::{CommonComponent, backend::{Backend, ChannelGenerator}};
 
 /// Arguments for the `#[rt_engine]` attribute macro.
 ///
@@ -23,6 +20,7 @@ pub struct RtEngine {
 
 impl Parse for RtEngine {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        let channel_generator = ChannelGenerator::new();
         let mut in_size = None;
         let mut out_size = None;
         let mut max_out_subs = None;
@@ -56,10 +54,10 @@ impl Parse for RtEngine {
                         out_size = Some(value)
                     }
                 },
-                "max_out_subs" => max_out_subs = Some(parse_max_out_subs(&ident, &max_out_subs, value)?),
+                "max_out_subs" => channel_generator.parse_max_out_subs(&mut max_out_subs, value)?,
                 str => {
                     return Err(Error::new(
-                        ident.span(),
+                        proc_macro2::Span::call_site(),
                         format!("unknown top argument: {}", str),
                     ))
                 }
@@ -79,322 +77,148 @@ impl Parse for RtEngine {
     }
 }
 
-impl RtEngine {
-    /// Generate the top-level infrastructure code:
-    /// - Input/Output enums for channel communication
-    /// - Static input `Channel` and output `PubSubChannel`
-    /// - `unsafe impl RtEngine` with `map_input` and `map_output`
-    ///
-    /// The original item (with inner attributes like `#[atomic]`, `#[coupled]`, etc.)
-    /// is passed through unchanged so those macros can process the struct next.
-    pub fn quote(&self, model_ident: &syn::Ident, model_generics: &syn::Generics, input: &Ports, output: &Ports, input_ident: &syn::Ident, output_ident: &syn::Ident) -> TokenStream2 {
-        let mut generated = TokenStream2::new();
+impl CommonComponent {
+    /// Generate the rt-engine infrastructure code:
+    pub fn quote_rt_engine(&self) -> TokenStream2 {
+        if let Some(rt_engine) = &self.rt_engine{
+            let mut channel_generator = ChannelGenerator::new();
+            let mut generated = TokenStream2::new();
 
-        // Generate identifiers for code generation
-        let input_enum_ident = quote::format_ident!("{}InputEnum", model_ident);
-        let output_enum_ident = quote::format_ident!("{}OutputEnum", model_ident);
+            // Generate identifiers for code generation
+            let model_ident = &self.ident;
+            let input_enum_ident = quote::format_ident!("{}InputEnum", self.ident);
+            let output_enum_ident = quote::format_ident!("{}OutputEnum", self.ident);
+            let sender_ident = quote::format_ident!("{}Sender", self.ident);
+            let subscriber_ident = quote::format_ident!("{}Subscriber", self.ident);
 
-        let sender_ident = quote::format_ident!("{}Sender", model_ident);
-        let subscriber_ident = quote::format_ident!("{}Subscriber", model_ident);
+            let snake_name = self.ident.to_string().to_snake_case();
+            let private_mod_ident =
+            quote::format_ident!("__xdevs_no_std_private_{}_rt_engine", snake_name);
 
-        let upper_name = model_ident.to_string().to_shouty_snake_case();
-        let in_channel_ident = quote::format_ident!("{}_IN_CHANNEL", upper_name);
-        let out_channel_ident = quote::format_ident!("{}_OUT_CHANNEL", upper_name);
+            // Extract model generics
+            let (model_impl_generics, model_ty_generics, model_where_clause) =
+                self.generics.split_for_impl();
 
-        let snake_name = model_ident.to_string().to_snake_case();
-        let private_mod_ident =
-        quote::format_ident!("__xdevs_no_std_private_{}_rt_engine", snake_name);
+            // Extract input and output parameters
+            let input_ident = self.input.ident();
+            let output_ident = self.output.ident();
+            let input_ports = self.input.ports();
+            let output_ports = self.output.ports();
+            let (input_impl_generics, input_ty_generics, input_where_clause) =
+                self.input.generics().split_for_impl();
+            let (output_impl_generics, output_ty_generics, output_where_clause) =
+                self.output.generics().split_for_impl();
 
-        // Extract model generics
-        let (model_impl_generics, model_ty_generics, model_where_clause) =
-            model_generics.split_for_impl();
+            // Get sizes
+            let in_size = rt_engine.in_size;
+            let out_size = rt_engine.out_size;
 
-        // Extract input and output parameters
-        let input_ports = &input.ports;
-        let output_ports = &output.ports;
-        let (input_impl_generics, input_ty_generics, input_where_clause) =
-            input.generics.split_for_impl();
-        let (output_impl_generics, output_ty_generics, output_where_clause) =
-            output.generics.split_for_impl();
-
-        // Get sizes
-        let in_size = &self.in_size;
-        let out_size = &self.out_size;
-        let max_out_subs = &self.max_out_subs;
-
-
-        // Input generation
-        let map_input_body;
-        let input_channel_type;
-        let input_channel_call;
-
-        if !input_ports.is_empty() {
-            let input_variants: Vec<TokenStream2> = input_ports
-                .iter()
-                .map(|info| {
-                    let variant = to_pascal_case_ident(&info.ident);
-                    let ty = &info.ty;
-                    quote::quote! { #variant(<#ty as ::xdevs::traits::TypedBag>::Item) }
-                })
-                .collect();
-
-            let match_arms: Vec<TokenStream2> = input_ports
-                .iter()
-                .map(|info| {
-                    let variant = to_pascal_case_ident(&info.ident);
-                    let arm_body = expand_input_match_arm(info);
-                    quote::quote!{
-                        #input_enum_ident::#variant(value) => #arm_body
-                    }
-                })
-                .collect();
-
-            generated.extend(quote::quote! {
-                /// Auto-generated input enum for top-level channel communication.
-                pub enum #input_enum_ident #input_impl_generics #input_where_clause {
-                    #(#input_variants),*
-                }
-
-                // Auto-generated sender type alias for the RtEngine implementation.
-                pub type #sender_ident #model_impl_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
-                Input as ::xdevs::traits::MapInput>::InputChannel as 
-                ::xdevs::traits::RtEngineInputChannel>::Sender;
-            });
-
-            map_input_body = quote::quote! {
-                match ::xdevs::traits::RtEngineInputChannel::recv(in_channel).await {
-                    #(#match_arms),*
-                }
-            };
-            input_channel_type = quote::quote! { ::xdevs::export::InputChannel<'static,
-                    #input_enum_ident #input_ty_generics,
-                    #in_size
-                > };
-            input_channel_call = quote::quote! {::xdevs::export::InputChannel::new(&#private_mod_ident::#in_channel_ident) };
-        } else {
-            map_input_body = quote::quote! {};
-            input_channel_type = quote::quote! { () };
-            input_channel_call = quote::quote! { () };
-        }
-
-        // Output generation
-        let map_output_body;
-        let output_channel_type;
-        let output_channel_call;
-
-        if !output_ports.is_empty() {
-            let output_variants: Vec<TokenStream2> = output_ports
-                .iter()
-                .map(|info| {
-                    let variant = to_pascal_case_ident(&info.ident);
-                    let ty = &info.ty;
-                    quote::quote! { #variant(<#ty as ::xdevs::traits::TypedBag>::Item) }
-                })
-                .collect();
-
-            let propagations: Vec<TokenStream2> = output_ports
-                .iter()
-                .map(|info| {
-                    let variant = to_pascal_case_ident(&info.ident);
-                    let for_body = expand_output_for(info);
-                    quote::quote! {
-                        let publish_fn = |value| {
-                             ::xdevs::traits::RtEngineOutputChannel::publish(
-                                out_channel, 
-                                #output_enum_ident::#variant(value));
-                        };
-                        #for_body
-                    }
-                })
-                .collect();
-
-            generated.extend(quote::quote! {
-                /// Auto-generated output enum for top-level channel communication.
-                #[derive(Clone)]
-                pub enum #output_enum_ident #output_impl_generics #output_where_clause {
-                    #(#output_variants),*
-                }
-
-                /// Auto-generated output subscriber type alias.
-                pub type #subscriber_ident #model_impl_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
-                Output as ::xdevs::traits::MapOutput>::OutputChannel as 
-                ::xdevs::traits::RtEngineOutputChannel>::Subscriber;
-            });
-
-            map_output_body = quote::quote! {
-                #(#propagations)*
-            };
-            output_channel_type = quote::quote! { ::xdevs::export::OutputChannel<'static,
-                    #output_enum_ident #output_ty_generics,
-                    #out_size,
-                    #max_out_subs                
-                > };
-            output_channel_call = quote::quote! {::xdevs::export::OutputChannel::new(&#private_mod_ident::#out_channel_ident) };
-        } else {
-            map_output_body = quote::quote! {};
-            output_channel_type = quote::quote! { () };
-            output_channel_call = quote::quote! { () };
-        }
-
-        // === RtEngine trait implementation ===
-        generated.extend(quote::quote! {
-            /// Auto-generated `MapInput` implementation for the top-level component input.
-            unsafe impl #input_impl_generics ::xdevs::traits::MapInput for #input_ident #input_ty_generics #input_where_clause {
-                type InputChannel = #input_channel_type;
-                
-                async unsafe fn map_input(
-                    &mut self,
-                    in_channel: &Self::InputChannel,
-                ) {
-                    #map_input_body
-                }
-            }
-
-            /// Auto-generated `MapOutput` implementation for the top-level component output.
-            unsafe impl #output_impl_generics ::xdevs::traits::MapOutput for #output_ident #output_ty_generics #output_where_clause {
-                type OutputChannel = #output_channel_type;
-
-                unsafe fn map_output(
-                    &self,
-                    out_channel: &Self::OutputChannel,
-                ) {
-                    #map_output_body
-                }
-            }
-
-            impl #model_impl_generics #model_ident #model_ty_generics #model_where_clause {
-                /// Constructor for RtEngine.
-                pub fn into_rt_engine(self) -> ::xdevs::rt_engine::RtEngine<Self> {
-                    ::xdevs::rt_engine::RtEngine::new(
-                        self,
-                        #input_channel_call,
-                        #output_channel_call,
-                    )
-                }
-            }
-        });
-
-        #[cfg(feature = "embassy-backend")]
-        // Private module generation
-        {
-            let mut private = TokenStream2::new();
+            // Input generation
+            let map_input_body;
+            let input_channel_type;
+            let input_channel_call;
+            let private_input_channel;
 
             if !input_ports.is_empty() {
-                private.extend(quote::quote! {
-                    /// Auto-generated static output PubSub channel.
-                    pub static #out_channel_ident #output_impl_generics: ::xdevs::export::PubSubChannel<
-                        #output_enum_ident #output_ty_generics,
-                        #out_size,
-                        #max_out_subs,
-                    > = ::xdevs::export::PubSubChannel::new();
+                generated.extend(quote::quote! {
+                    // Auto-generated sender type alias for the RtEngine implementation.
+                    pub type #sender_ident #model_impl_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
+                    Input as ::xdevs::traits::MapInput>::
+                    InputChannel as ::xdevs::traits::RtEngineInputChannel>::Sender;
+
+                    /// Auto-generated input enum for channel communication alias.
+                    pub type #input_enum_ident #model_impl_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
+                    Input as ::xdevs::traits::BagMux>::Enum;
                 });
+                (input_channel_type, input_channel_call, private_input_channel) = channel_generator.input_channel(&model_ident, &input_enum_ident, &input_ty_generics, in_size);
+                map_input_body = quote::quote!{
+                    let input = in_channel.recv().await;
+                    <self as ::xdevs::traits::BagMux>::enum_to_input(self, input);
+                }
+            } else {
+                map_input_body = quote::quote! {};
+                input_channel_type = quote::quote! { () };
+                input_channel_call = quote::quote! { () };
+                private_input_channel = TokenStream2::new();
             }
+
+            // Output generation
+            let map_output_body;
+            let output_channel_type;
+            let output_channel_call;
+            let private_output_channel;
+
             if !output_ports.is_empty() {
-                private.extend(quote::quote! {
-                    /// Auto-generated static input channel.
-                    pub static #in_channel_ident #input_impl_generics: ::xdevs::export::Channel<
-                        #input_enum_ident #input_ty_generics,
-                        #in_size
-                    > = ::xdevs::export::Channel::new();
+                generated.extend(quote::quote! {
+                    /// Auto-generated output subscriber type alias.
+                    pub type #subscriber_ident #model_impl_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
+                    Output as ::xdevs::traits::MapOutput>::OutputChannel as 
+                    ::xdevs::traits::RtEngineOutputChannel>::Subscriber;
+
+                    /// Auto-generated output enum for channel communication alias.
+                    pub type #output_enum_ident #model_impl_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
+                    Output as ::xdevs::traits::BagMux>::Enum;
                 });
+                (output_channel_type, output_channel_call, private_output_channel) = channel_generator.output_channel(&model_ident, &output_enum_ident, &output_ty_generics, out_size);
+                map_output_body = quote::quote!{
+                    let output = <self as ::xdevs::traits::BagMux>::output_from_enum(self);
+                    out_channel.publish(output);
+                }
+            } else {
+                map_output_body = quote::quote! {};
+                output_channel_type = quote::quote! { () };
+                output_channel_call = quote::quote! { () };
+                private_output_channel = TokenStream2::new();
             }
-            generated.extend(quote::quote! {            
-                /// Hidden module containing auto-generated infrastructure for the top-level component.
+
+            // RtEngine trait implementation
+            generated.extend(quote::quote! {
+                /// Auto-generated `MapInput` implementation for the top-level component input.
+                unsafe impl #input_impl_generics ::xdevs::traits::MapInput for #input_ident #input_ty_generics #input_where_clause {
+                    type InputChannel = #input_channel_type;
+                    
+                    async unsafe fn map_input(
+                        &mut self,
+                        in_channel: &Self::InputChannel,
+                    ) {
+                        #map_input_body
+                    }
+                }
+
+                /// Auto-generated `MapOutput` implementation for the top-level component output.
+                unsafe impl #output_impl_generics ::xdevs::traits::MapOutput for #output_ident #output_ty_generics #output_where_clause {
+                    type OutputChannel = #output_channel_type;
+
+                    unsafe fn map_output(
+                        &self,
+                        out_channel: &Self::OutputChannel,
+                    ) {
+                        #map_output_body
+                    }
+                }
+
+                impl #model_impl_generics #model_ident #model_ty_generics #model_where_clause {
+                    /// Constructor for RtEngine.
+                    pub fn into_rt_engine(self) -> ::xdevs::rt_engine::RtEngine<Self> {
+                        ::xdevs::rt_engine::RtEngine::new(
+                            self,
+                            #input_channel_call,
+                            #output_channel_call,
+                        )
+                    }
+                }
+
                 mod #private_mod_ident {
                     use super::*;
-                    #private
+                    #private_input_channel
+                    #private_output_channel
                 }
             });
-        }
 
-        generated
-    }
-}
-
-/// Generate a match arm for the input enum to add received values to the corresponding input port.
-fn expand_input_match_arm(info: &Field) -> TokenStream2 {
-    fn input_match_arm_body(ty: &Type) -> TokenStream2 {
-        match ty{
-            Type::Path(_) => {quote::quote! {
-                port.add_value(value).unwrap();
-            }},
-            Type::Array(array) => {
-                let elem_ty = &array.elem;
-                let body = input_match_arm_body(elem_ty);
-                quote::quote! {
-                    let (index, value) = value;
-                    if let Some(port) = port.get_mut(index)
-                    {
-                        #body
-                    }
-                }
-            },
-            _ => {
-                quote::quote! {
-                    compile_error!("unsupported input port type; expected array or Port");
-                }
-            },
+            generated
         }
+    else{
+        TokenStream2::new()
     }
-    let field = &info.ident;
-    let ty = &info.ty;
-    let body = input_match_arm_body(ty);
-    quote::quote! {
-        {
-            let port = &mut self.#field;
-            {
-                #body
-            }
-        }
     }
-}
-
-/// Generate a for loop for the output enum to publish values from the corresponding output port.
-fn expand_output_for(info: &Field) -> TokenStream2 {
-    fn output_for_body(ty: &Type, from_array: bool) -> TokenStream2 {
-        match ty{
-            Type::Path(_) => {          
-                if from_array {
-                    quote::quote! {
-                        for value in port.iter() {
-                            publish_fn((index, value.clone()));
-                        }
-                    }
-                } else {
-                    quote::quote! {
-                        for value in port.get_values() {
-                            publish_fn(value.clone());
-                        }
-                    }
-                }
-            },
-            Type::Array(array) => {
-                let body = output_for_body(&array.elem, true);
-                quote::quote!{
-                    for (index, port) in port.iter().enumerate() {
-                        #body
-                    }
-                }
-            },
-            _ => {
-                quote::quote! {
-                    compile_error!("unsupported output port type; expected array or Port");
-                }
-            },
-        }
-    }   
-    let field = &info.ident;
-    let ty = &info.ty;
-    let body = output_for_body(ty, false);
-    quote::quote! {
-        let port = &self.#field;
-        {
-            #body
-        }
-    }
-}
-
-/// Converts a snake_case identifier to PascalCase.
-fn to_pascal_case_ident(ident: &Ident) -> Ident {
-    Ident::new(&ident.to_string().to_upper_camel_case(), ident.span())
 }

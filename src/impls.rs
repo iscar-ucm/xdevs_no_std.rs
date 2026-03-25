@@ -4,9 +4,9 @@ extern crate alloc;
 
 use crate::traits::sealed::Sealed;
 use crate::traits::AbstractSimulator;
+use crate::traits::AsPort;
 use crate::traits::Bag;
 use crate::traits::Component;
-use crate::traits::TypedBag;
 
 //////////////////////////////////////////////// Arrays //////////////////////////////////////////////
 unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
@@ -19,11 +19,11 @@ unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
     }
 }
 
-unsafe impl<T: TypedBag, const N: usize> TypedBag for [T; N] {
+unsafe impl<T: AsPort, const N: usize> AsPort for [T; N] {
     type Item = (T::Item, usize); // Include index to identify which bag the value came from
 }
 
-impl<T: TypedBag, const N: usize> Sealed for [T; N] {}
+impl<T: AsPort, const N: usize> Sealed for [T; N] {}
 
 unsafe impl<T: Component, const N: usize> Component for [T; N] {
     type Input = ();

@@ -209,7 +209,7 @@ struct MultiProcessor {
 
 impl xdevs::Coupled for MultiProcessor {
     fn eic(_from: &Self::Input, _to: &mut Self::ComponentsInput<'_>) {
-        // No external input coupling needed
+        // No external input coupling needed, this implementation could be omitted
     }
     fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
         from.generator

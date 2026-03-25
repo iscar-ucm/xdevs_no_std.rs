@@ -11,16 +11,27 @@ use std::collections::HashSet;
 use syn::visit::{self, Visit};
 use syn::{Error, GenericParam, Generics, Ident, Lifetime, TypeGenerics};
 
-pub struct Field {
+use self::port::Ports;
+use self::rt_engine::RtEngine;
+
+pub struct ComponentField {
     ident: syn::Ident,
     ty: syn::Type,
 }
 
+pub struct CommonComponent {
+    pub ident: Ident,
+    pub generics: Generics,
+    pub input: Ports,
+    pub output: Ports,
+    pub rt_engine: Option<RtEngine>,
+}
+
 /// Check for duplicate field names across inputs, outputs, and a third field list (state or components).
 pub fn check_duplicate_fields(
-    inputs: &[Field],
-    outputs: &[Field],
-    third: &[Field],
+    inputs: &[ComponentField],
+    outputs: &[ComponentField],
+    third: &[ComponentField],
 ) -> syn::Result<()> {
     let output_names: HashSet<String> = outputs.iter().map(|f| f.ident.to_string()).collect();
     let third_names: HashSet<String> = third.iter().map(|f| f.ident.to_string()).collect();
@@ -71,7 +82,7 @@ impl<'a, 'ast: 'a> Visit<'ast> for GenericsCollector<'a> {
     }
 }
 
-pub fn filter_generics(fields: &[Field], all: &Generics) -> Generics {
+pub fn filter_generics(fields: &[ComponentField], all: &Generics) -> Generics {
     let mut collector = GenericsCollector {
         type_idents: HashSet::new(),
         lifetimes: HashSet::new(),
