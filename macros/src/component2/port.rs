@@ -3,27 +3,46 @@ use proc_macro2::TokenStream as TokenStream2;
 use syn::Generics;
 use syn::Type;
 
-use super::Field;
+use super::ComponentField;
 
 pub struct Ports {
-    pub ports: Vec<Field>,
-    pub generics: Generics,
+    ports: Vec<ComponentField>,
+    ident: Ident,
+    generics: Generics,
+    is_bagmux: bool,
 }
 
 impl Ports {
-    pub fn new(ports: Vec<Field>, generics: Generics) -> Self {
-        Ports { ports, generics }
+    pub fn new(ports: Vec<ComponentField>, ident: Ident, generics: Generics, is_bagmux: bool) -> Self {
+        Ports {
+            ports,
+            ident,
+            generics,
+            is_bagmux,
+        }
     }
 
-    pub fn field_idents(&self) -> Vec<&syn::Ident> {
+    pub fn ports(&self) -> &Vec<ComponentField> {
+        &self.ports
+    }
+
+    pub fn ident(&self) -> &Ident {
+        &self.ident
+    }
+
+    pub fn generics(&self) -> &Generics {
+        &self.generics
+    }
+
+    fn field_idents(&self) -> Vec<&syn::Ident> {
         self.ports.iter().map(|f| &f.ident).collect()
     }
 
-    pub fn field_tys(&self) -> Vec<&syn::Type> {
+    fn field_tys(&self) -> Vec<&syn::Type> {
         self.ports.iter().map(|f| &f.ty).collect()
     }
 
-    fn generate_news(&self, ports: &Vec<Field>) -> Vec<TokenStream2> {
+    fn generate_news(&self, ports: &Vec<ComponentField>) -> Vec<TokenStream2> {
         let mut news: Vec<TokenStream2> = Vec::new();
         for port in ports {
             let port_ident = &port.ident;
@@ -36,31 +55,29 @@ impl Ports {
         news
     }
 
-    pub fn quote(&self, ident: &Ident) -> TokenStream2 {
+    pub fn quote(&self) -> TokenStream2 {
+        let ident = &self.ident;
         let ports_ident = self.field_idents();
         let ports_ty = self.field_tys();
-        let (impl_generics, ty_generics, _) = self.generics.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
         let new_fn = self.generate_news(&self.ports);
+        let bagmux = if self.is_bagmux {
+            quote::quote! {
+                , ::xdevs::traits::BagMux
+            }
+        } else {
+            TokenStream2::new()
+        };
 
         quote::quote! {
-            #[derive(Debug, Default)]
-            pub struct #ident #impl_generics {
+            #[derive(Debug, Default, ::xdevs::traits::Bag #bagmux)]
+            pub struct #ident #impl_generics #where_clause {
                 #(pub #ports_ident: #ports_ty,)*
             }
             impl #impl_generics #ident #ty_generics {
                 #[inline]
                 pub const fn new() -> Self {
                     Self { #(#new_fn),* }
-                }
-            }
-            unsafe impl #impl_generics xdevs::traits::Bag for #ident #ty_generics{
-                #[inline]
-                fn is_empty(&self) -> bool {
-                    true #( && self.#ports_ident.is_empty() )*
-                }
-                #[inline]
-                fn clear(&mut self) {
-                    #( self.#ports_ident.clear(); )*
                 }
             }
         }
@@ -70,7 +87,7 @@ impl Ports {
 fn extract_new(ty: &Type) -> TokenStream2 {
     let token: TokenStream2 = match ty {
         Type::Array(array) => {
-            let token = extract_new(&*array.elem);
+            let token = extract_new(&array.elem);
             let length = &array.len;
 
             // Try to parse length as a literal integer

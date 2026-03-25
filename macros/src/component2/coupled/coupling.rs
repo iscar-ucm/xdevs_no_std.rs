@@ -8,7 +8,7 @@ use syn::{
     Error, Ident, Token,
 };
 
-use super::Field;
+use super::ComponentField;
 
 #[derive(Clone)]
 pub struct Coupling {
@@ -62,12 +62,16 @@ impl Hash for Coupling {
 }
 
 impl Coupling {
-    pub fn is_eoc(&self, outputs: &[Field]) -> bool {
+    pub fn is_eoc(&self, outputs: &[ComponentField]) -> bool {
         outputs.iter().any(|f| f.ident == self.first_dest_ident)
     }
 
     /// Build the base path for source access
-    fn build_source_base(&self, inputs: &[Field], components: &[Field]) -> TokenStream2 {
+    fn build_source_base(
+        &self,
+        inputs: &[ComponentField],
+        components: &[ComponentField],
+    ) -> TokenStream2 {
         let first_source = &self.first_source_ident;
         let source_1 = &self.source_1;
         let source_2 = &self.source_2;
@@ -91,7 +95,11 @@ impl Coupling {
     }
 
     /// Build the base path for destination access
-    fn build_dest_base(&self, outputs: &[Field], components: &[Field]) -> TokenStream2 {
+    fn build_dest_base(
+        &self,
+        outputs: &[ComponentField],
+        components: &[ComponentField],
+    ) -> TokenStream2 {
         let first_dest = &self.first_dest_ident;
         let destination_1 = &self.destination_1;
         let destination_2 = &self.destination_2;
@@ -114,7 +122,12 @@ impl Coupling {
         }
     }
 
-    pub fn quote(&self, inputs: &[Field], outputs: &[Field], components: &[Field]) -> TokenStream2 {
+    pub fn quote(
+        &self,
+        inputs: &[ComponentField],
+        outputs: &[ComponentField],
+        components: &[ComponentField],
+    ) -> TokenStream2 {
         let first_source = &self.first_source_ident;
         let first_dest = &self.first_dest_ident;
 
@@ -349,9 +362,9 @@ pub struct Couplings {
 impl Couplings {
     pub fn quote(
         &self,
-        inputs: &[Field],
-        outputs: &[Field],
-        components: &[Field],
+        inputs: &[ComponentField],
+        outputs: &[ComponentField],
+        components: &[ComponentField],
     ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
         let mut eoc = Vec::new();
         let mut xic = Vec::new();
