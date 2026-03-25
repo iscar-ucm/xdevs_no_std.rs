@@ -2,20 +2,23 @@ use crate::traits::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel}
 
 pub use tokio::sync::broadcast::error::RecvError;
 pub type SubscribeError = core::convert::Infallible;
+use tokio::sync::mpsc::error::SendError;
 
+#[repr(transparent)]
 pub struct Sender<T> {
     sender: tokio::sync::mpsc::Sender<T>,
 }
 impl<T> Sender<T> {
-    pub async fn send(&self, msg: T) {
-        let _ = self.sender.send(msg).await;
+    pub async fn send(&self, msg: T) -> Result<(), SendError<T>> {
+        self.sender.send(msg).await;
     }
 }
 
-pub struct Subscriber<T> {
+#[repr(transparent)]
+pub struct Receiver<T> {
     receiver: tokio::sync::broadcast::Receiver<T>,
 }
-impl<T: Clone> Subscriber<T> {
+impl<T: Clone> Receiver<T> {
     pub async fn recv(&mut self) -> Result<T, RecvError> {
         self.receiver.recv().await
     }
@@ -60,10 +63,10 @@ impl<T: Clone, const N: usize> OutputChannel<T, N> {
 }
 unsafe impl<T: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<T, N> {
     type OutputEnum = T;
-    type Subscriber = Subscriber<T>;
+    type Subscriber = Receiver<T>;
 
     fn subscriber(&self) -> Result<Self::Subscriber, SubscribeError> {
-        Ok(Subscriber {
+        Ok(Receiver {
             receiver: self.receiver.resubscribe(),
         })
     }

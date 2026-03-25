@@ -1,3 +1,5 @@
+use core::convert::Infallible;
+
 use crate::traits::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel};
 
 #[cfg(feature = "embassy-noop")]
@@ -20,21 +22,23 @@ pub enum SubscribeError {
 }
 
 // Simplified Senders/Subscribers with 'static hardcoded
+#[repr(transparent)]
 pub struct Sender<'a, I, const N: usize> {
     sender: embassy_sync::channel::Sender<'a, Mutex, I, N>,
 }
 
 impl<'a, I, const N: usize> Sender<'a, I, N> {
-    pub async fn send(&self, msg: I) {
-        self.sender.send(msg).await;
+    pub async fn send(&self, msg: I) -> Result<(), Infallible> {
+        Ok(self.sender.send(msg).await)
     }
 }
 
-pub struct Subscriber<'a, O: Clone, const CAP: usize, const SUBS: usize> {
+#[repr(transparent)]
+pub struct Receiver<'a, O: Clone, const CAP: usize, const SUBS: usize> {
     subscriber: embassy_sync::pubsub::Subscriber<'a, Mutex, O, CAP, SUBS, 1>,
 }
 
-impl<'a, O: Clone, const CAP: usize, const SUBS: usize> Subscriber<'a, O, CAP, SUBS> {
+impl<'a, O: Clone, const CAP: usize, const SUBS: usize> Receiver<'a, O, CAP, SUBS> {
     pub async fn recv(&mut self) -> Result<O, RecvError> {
         use embassy_sync::pubsub::WaitResult;
         match self.subscriber.next_message().await {
@@ -44,6 +48,7 @@ impl<'a, O: Clone, const CAP: usize, const SUBS: usize> Subscriber<'a, O, CAP, S
     }
 }
 
+#[repr(transparent)]
 pub struct InputChannel<'a, I, const N: usize> {
     channel: &'a Channel<I, N>,
 }
@@ -87,11 +92,11 @@ unsafe impl<'a, O: Clone, const CAP: usize, const SUBS: usize> RtEngineOutputCha
     for OutputChannel<'a, O, CAP, SUBS>
 {
     type OutputEnum = O;
-    type Subscriber = Subscriber<'a, Self::OutputEnum, CAP, SUBS>;
+    type Subscriber = Receiver<'a, Self::OutputEnum, CAP, SUBS>;
 
     fn subscriber(&self) -> Result<Self::Subscriber, SubscribeError> {
         match self.channel.subscriber() {
-            Ok(subscriber) => Ok(Subscriber { subscriber }),
+            Ok(subscriber) => Ok(Receiver { subscriber }),
             Err(embassy_sync::pubsub::Error::MaximumSubscribersReached) => {
                 Err(SubscribeError::MaximumSubscribersReached)
             }

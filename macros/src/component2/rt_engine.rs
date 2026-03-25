@@ -4,7 +4,7 @@ use syn::{
     Error, Ident, LitInt, Token, parse::{Parse, ParseStream}
 };
 
-use crate::component2::{CommonComponent, backend::{Backend, ChannelGenerator}};
+use crate::component2::{CommonComponent, backend::{Backend, RtEngineBackend}};
 
 /// Arguments for the `#[rt_engine]` attribute macro.
 ///
@@ -18,9 +18,19 @@ pub struct RtEngine {
     max_out_subs: usize,
 }
 
+impl Default for RtEngine {
+    fn default() -> Self {
+        Self {
+            in_size: 1,
+            out_size: 1,
+            max_out_subs: 1,
+        }
+    }
+}
+
 impl Parse for RtEngine {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let channel_generator = ChannelGenerator::new();
+        let rt_backend = RtEngineBackend::new();
         let mut in_size = None;
         let mut out_size = None;
         let mut max_out_subs = None;
@@ -54,7 +64,7 @@ impl Parse for RtEngine {
                         out_size = Some(value)
                     }
                 },
-                "max_out_subs" => channel_generator.parse_max_out_subs(&mut max_out_subs, value)?,
+                "max_out_subs" => rt_backend.parse_max_out_subs(&mut max_out_subs, value)?,
                 str => {
                     return Err(Error::new(
                         proc_macro2::Span::call_site(),
@@ -70,19 +80,38 @@ impl Parse for RtEngine {
         }
 
         Ok(RtEngine {
-            in_size: in_size.unwrap_or(0),
-            out_size: out_size.unwrap_or(0),
-            max_out_subs: max_out_subs.unwrap_or(0),
+            in_size: in_size.unwrap_or(1),
+            out_size: out_size.unwrap_or(1),
+            max_out_subs: max_out_subs.unwrap_or(1),
         })
     }
+}
+
+impl RtEngine {
+    pub fn in_size(&self) -> usize {
+        self.in_size
+    }
+    pub fn out_size(&self) -> usize {
+        self.out_size
+    }
+    pub fn max_out_subs(&self) -> usize {
+        self.max_out_subs
+    }
+
 }
 
 impl CommonComponent {
     /// Generate the rt-engine infrastructure code:
     pub fn quote_rt_engine(&self) -> TokenStream2 {
-        if let Some(rt_engine) = &self.rt_engine{
-            let mut channel_generator = ChannelGenerator::new();
+        if let Some(_) = &self.rt_engine{
+            let rt_backend = RtEngineBackend::new();
             let mut generated = TokenStream2::new();
+
+            // Check compatibility of the component with the selected rt-engine backend.
+            let compatibility = rt_backend.check_compatibility(&self);
+            if let Err(e) = compatibility {
+                return e.to_compile_error();
+            }
 
             // Generate identifiers for code generation
             let model_ident = &self.ident;
@@ -109,10 +138,6 @@ impl CommonComponent {
             let (output_impl_generics, output_ty_generics, output_where_clause) =
                 self.output.generics().split_for_impl();
 
-            // Get sizes
-            let in_size = rt_engine.in_size;
-            let out_size = rt_engine.out_size;
-
             // Input generation
             let map_input_body;
             let input_channel_type;
@@ -122,18 +147,18 @@ impl CommonComponent {
             if !input_ports.is_empty() {
                 generated.extend(quote::quote! {
                     // Auto-generated sender type alias for the RtEngine implementation.
-                    pub type #sender_ident #model_impl_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
+                    pub type #sender_ident #model_ty_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
                     Input as ::xdevs::traits::MapInput>::
                     InputChannel as ::xdevs::traits::RtEngineInputChannel>::Sender;
 
                     /// Auto-generated input enum for channel communication alias.
-                    pub type #input_enum_ident #model_impl_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
-                    Input as ::xdevs::traits::BagMux>::Enum;
+                    pub type #input_enum_ident #model_ty_generics = <<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
+                    Input as ::xdevs::traits::BagMux>::Mux;
                 });
-                (input_channel_type, input_channel_call, private_input_channel) = channel_generator.input_channel(&model_ident, &input_enum_ident, &input_ty_generics, in_size);
+                (input_channel_type, input_channel_call, private_input_channel) = rt_backend.input_channel(&self);
                 map_input_body = quote::quote!{
-                    let input = in_channel.recv().await;
-                    <self as ::xdevs::traits::BagMux>::enum_to_input(self, input);
+                    let input = <Self::InputChannel as ::xdevs::traits::RtEngineInputChannel>::recv(in_channel).await;
+                    <Self as ::xdevs::traits::BagMux>::inject_event(self, input);
                 }
             } else {
                 map_input_body = quote::quote! {};
@@ -151,18 +176,23 @@ impl CommonComponent {
             if !output_ports.is_empty() {
                 generated.extend(quote::quote! {
                     /// Auto-generated output subscriber type alias.
-                    pub type #subscriber_ident #model_impl_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
+                    pub type #subscriber_ident #model_ty_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
                     Output as ::xdevs::traits::MapOutput>::OutputChannel as 
                     ::xdevs::traits::RtEngineOutputChannel>::Subscriber;
 
                     /// Auto-generated output enum for channel communication alias.
-                    pub type #output_enum_ident #model_impl_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
-                    Output as ::xdevs::traits::BagMux>::Enum;
+                    pub type #output_enum_ident #model_ty_generics = <<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
+                    Output as ::xdevs::traits::BagMux>::Mux;
                 });
-                (output_channel_type, output_channel_call, private_output_channel) = channel_generator.output_channel(&model_ident, &output_enum_ident, &output_ty_generics, out_size);
+                (output_channel_type, output_channel_call, private_output_channel) = rt_backend.output_channel(&self);
                 map_output_body = quote::quote!{
-                    let output = <self as ::xdevs::traits::BagMux>::output_from_enum(self);
-                    out_channel.publish(output);
+                    let out_func = |output| {
+                        <Self::OutputChannel as ::xdevs::traits::RtEngineOutputChannel>::publish(
+                            out_channel,
+                            output,
+                        );
+                    };
+                    <Self as ::xdevs::traits::BagMux>::eject_events(self, out_func);
                 }
             } else {
                 map_output_body = quote::quote! {};
@@ -179,7 +209,7 @@ impl CommonComponent {
                     
                     async unsafe fn map_input(
                         &mut self,
-                        in_channel: &Self::InputChannel,
+                        in_channel: &mut Self::InputChannel,
                     ) {
                         #map_input_body
                     }
@@ -200,6 +230,7 @@ impl CommonComponent {
                 impl #model_impl_generics #model_ident #model_ty_generics #model_where_clause {
                     /// Constructor for RtEngine.
                     pub fn into_rt_engine(self) -> ::xdevs::rt_engine::RtEngine<Self> {
+                        use #private_mod_ident::*;
                         ::xdevs::rt_engine::RtEngine::new(
                             self,
                             #input_channel_call,

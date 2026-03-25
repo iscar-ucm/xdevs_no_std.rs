@@ -30,11 +30,16 @@ impl Component {
             |input: ParseStream| -> syn::Result<()> {
                 while !input.is_empty() {
                     let ident: Ident = input.parse()?;
-                    input.parse::<Token![=]>()?;
                     if ident == "rt_engine" {
-                        let content;
-                        braced!(content in input);
-                        rt_engine = Some(content.parse::<RtEngine>()?);
+                        // Accept both `rt_engine` and `rt_engine = { ... }`.
+                        if input.peek(Token![=]) {
+                            input.parse::<Token![=]>()?;
+                            let content;
+                            braced!(content in input);
+                            rt_engine = Some(content.parse::<RtEngine>()?);
+                        } else {
+                            rt_engine = Some(RtEngine::default());
+                        }
                     } else {
                         return Err(Error::new(
                             ident.span(),
@@ -110,8 +115,8 @@ impl Component {
         let output_ident = syn::Ident::new(&format!("{}Output", ident), ident.span());
         let state_ident = syn::Ident::new(&format!("{}State", ident), ident.span());
 
-        let input = Ports::new(inputs, input_ident, input_generics, rt_engine.is_some());
-        let output = Ports::new(outputs, output_ident, output_generics, rt_engine.is_some());
+        let input = Ports::new(inputs, input_ident, input_generics);
+        let output = Ports::new(outputs, output_ident, output_generics);
         let state = State::new(state, state_ident, state_generics);
 
         Ok(Component {
@@ -143,8 +148,9 @@ impl Component {
         let (_, state_generics, _) = &self.state.generics().split_for_impl();
 
         // Generate input, output, and state structs
-        let input_struct = self.common.input.quote();
-        let output_struct = self.common.output.quote();
+        let is_bagmux = self.common.rt_engine.is_some();
+        let input_struct = self.common.input.quote(is_bagmux);
+        let output_struct = self.common.output.quote(is_bagmux);
         let state_struct = self.state.quote();
 
         // Generate rt_engine code if defined

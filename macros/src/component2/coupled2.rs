@@ -33,11 +33,16 @@ impl Component {
             |input: ParseStream| -> syn::Result<()> {
                 while !input.is_empty() {
                     let ident: Ident = input.parse()?;
-                    input.parse::<Token![=]>()?;
                     if ident == "rt_engine" {
-                        let content;
-                        braced!(content in input);
-                        rt_engine = Some(content.parse::<RtEngine>()?);
+                        // Accept both `rt_engine` and `rt_engine = { ... }`.
+                        if input.peek(Token![=]) {
+                            input.parse::<Token![=]>()?;
+                            let content;
+                            braced!(content in input);
+                            rt_engine = Some(content.parse::<RtEngine>()?);
+                        } else {
+                            rt_engine = Some(RtEngine::default());
+                        }
                     } else {
                         return Err(Error::new(
                             ident.span(),
@@ -113,8 +118,8 @@ impl Component {
         let output_ident = syn::Ident::new(&format!("{}Output", &ident), ident.span());
         let components_ident = syn::Ident::new(&format!("{}Components", &ident), ident.span());
 
-        let inputs = Ports::new(inputs, input_ident, input_generics, rt_engine.is_some());
-        let outputs = Ports::new(outputs, output_ident, output_generics, rt_engine.is_some());
+        let inputs = Ports::new(inputs, input_ident, input_generics);
+        let outputs = Ports::new(outputs, output_ident, output_generics);
         let components = Components::new(components, components_ident, components_generics);
 
         Ok(Component {
@@ -155,8 +160,9 @@ impl Component {
         let (_, components_generics, _) = &self.components.generics().split_for_impl();
 
         // Generate input, output, and components structs
-        let input_struct = self.common.input.quote();
-        let output_struct = self.common.output.quote();
+        let is_bagmux = self.common.rt_engine.is_some();
+        let input_struct = self.common.input.quote(is_bagmux);
+        let output_struct = self.common.output.quote(is_bagmux);
         let components_struct = self.components.quote();
         // Component trait implementation
         let component_impl = impl_component(

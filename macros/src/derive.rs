@@ -97,10 +97,10 @@ pub fn derive_bagmux(input: DeriveInput) -> syn::Result<TokenStream2> {
             Ok(quote::quote! {
             unsafe impl #impl_generics ::xdevs::traits::BagMux for #ident #ty_generics #where_clause {
                 type Mux = ();
-                fn enum_to_input(&mut self, _input: Self::Mux) {
+                fn inject_event(&mut self, _event: Self::Mux) {
                     // No ports to receive input
                 }
-                fn output_to_enum(&self, _output_fn: impl FnMut(Self::Mux)) {
+                fn eject_events(&self, _ejector: impl FnMut(Self::Mux)) {
                     // No ports to produce output
                 }
             }})
@@ -127,7 +127,7 @@ pub fn derive_bagmux(input: DeriveInput) -> syn::Result<TokenStream2> {
                     let variant = to_pascal_case_ident(
                         info.ident.as_ref().expect("named field must have ident"),
                     );
-                    let arm_body = expand_input_match_arm(info);
+                    let arm_body = expand_input_match_arm(info, &variant);
                     quote::quote! {
                         Self::Mux::#variant(value) => #arm_body
                     }
@@ -148,16 +148,16 @@ pub fn derive_bagmux(input: DeriveInput) -> syn::Result<TokenStream2> {
                 })
                 .collect();
 
-            let enum_to_input_body = quote::quote! {
-                fn enum_to_input(&mut self, input: Self::Mux) {
-                    match input {
+            let inject_event_body = quote::quote! {
+                fn inject_event(&mut self, event: Self::Mux) -> Result<(), Self::Mux> {
+                    match event {
                         #(#match_arms),*
                     }
                 }
             };
 
-            let output_to_enum_body = quote::quote! {
-                fn output_to_enum(&self, mut output_fn: impl FnMut(Self::Mux)) {
+            let eject_events_body = quote::quote! {
+                fn eject_events(&self, mut ejector: impl FnMut(Self::Mux)) {
                     #(#propagations)*
                 }
             };
@@ -165,15 +165,15 @@ pub fn derive_bagmux(input: DeriveInput) -> syn::Result<TokenStream2> {
             Ok(quote::quote! {
                 unsafe impl #impl_generics ::xdevs::traits::BagMux for #ident #ty_generics #where_clause {
                     type Mux = #private_mod_ident::PortMux #ty_generics;
-                    #enum_to_input_body
-                    #output_to_enum_body
+                    #inject_event_body
+                    #eject_events_body
                 }
 
                 mod #private_mod_ident {
                     use super::*;
                     /// Auto-generated enum for top-level channel communication.
                     #[derive(Clone)]
-                    pub enum PortMux #ty_generics #where_clause {
+                    pub enum PortMux #impl_generics #where_clause {
                         #(#variants),*
                     }
                 }
@@ -188,22 +188,45 @@ fn to_pascal_case_ident(ident: &Ident) -> Ident {
 }
 
 /// Generate a match arm for the input enum to add received values to the corresponding input port.
-fn expand_input_match_arm(info: &Field) -> TokenStream2 {
-    fn input_match_arm_body(ty: &Type) -> TokenStream2 {
+fn expand_input_match_arm(info: &Field, variant: &Ident) -> TokenStream2 {
+    fn input_match_arm_body(ty: &Type, variant: &Ident, comes_from_array: bool) -> TokenStream2 {
         match ty {
             Type::Path(_) => {
-                quote::quote! {
-                    port.add_value(value).unwrap();
-                }
+                let mut token = quote::quote! {
+                    let result = port.add_value(value);
+                };
+                token.extend(if comes_from_array {
+                    quote::quote! {
+                        if let Err(value) = result {
+                            Err(Self::Mux::#variant((index, value)))
+
+                        } else {
+                            Ok(())
+                        }
+                    }
+                } else {
+                    quote::quote! {
+                        if let Err(value) = result {
+                            Err(Self::Mux::#variant(value))
+                        } else {
+                            Ok(())
+                        }
+                    }
+                });
+                token
             }
             Type::Array(array) => {
                 let elem_ty = &array.elem;
-                let body = input_match_arm_body(elem_ty);
+                let body = input_match_arm_body(elem_ty, variant, true);
                 quote::quote! {
                     let (index, value) = value;
                     if let Some(port) = port.get_mut(index)
                     {
                         #body
+                    }
+                    else
+                    {
+                        Ok(()) // Ignore out-of-bounds index, as it cannot be added to any port
                     }
                 }
             }
@@ -216,7 +239,7 @@ fn expand_input_match_arm(info: &Field) -> TokenStream2 {
     }
     let field = &info.ident;
     let ty = &info.ty;
-    let body = input_match_arm_body(ty);
+    let body = input_match_arm_body(ty, variant, false);
     quote::quote! {
         {
             let port = &mut self.#field;
@@ -235,13 +258,13 @@ fn expand_output_for(info: &Field, variant: Ident) -> TokenStream2 {
                 if from_array {
                     quote::quote! {
                         for value in port.get_values() {
-                            output_fn(Self::Mux::#variant((index, value.clone())));
+                            ejector(Self::Mux::#variant((index, value.clone())));
                         }
                     }
                 } else {
                     quote::quote! {
                         for value in port.get_values() {
-                            output_fn(Self::Mux::#variant(value.clone()));
+                            ejector(Self::Mux::#variant(value.clone()));
                         }
                     }
                 }

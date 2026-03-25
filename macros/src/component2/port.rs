@@ -9,16 +9,14 @@ pub struct Ports {
     ports: Vec<ComponentField>,
     ident: Ident,
     generics: Generics,
-    is_bagmux: bool,
 }
 
 impl Ports {
-    pub fn new(ports: Vec<ComponentField>, ident: Ident, generics: Generics, is_bagmux: bool) -> Self {
+    pub fn new(ports: Vec<ComponentField>, ident: Ident, generics: Generics) -> Self {
         Ports {
             ports,
             ident,
             generics,
-            is_bagmux,
         }
     }
 
@@ -55,22 +53,22 @@ impl Ports {
         news
     }
 
-    pub fn quote(&self) -> TokenStream2 {
+    pub fn quote(&self, is_bagmux: bool) -> TokenStream2 {
         let ident = &self.ident;
         let ports_ident = self.field_idents();
         let ports_ty = self.field_tys();
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
         let new_fn = self.generate_news(&self.ports);
-        let bagmux = if self.is_bagmux {
+        let bagmux = if is_bagmux {
             quote::quote! {
-                , ::xdevs::traits::BagMux
+                , ::xdevs::BagMux
             }
         } else {
             TokenStream2::new()
         };
 
         quote::quote! {
-            #[derive(Debug, Default, ::xdevs::traits::Bag #bagmux)]
+            #[derive(Debug, Default, ::xdevs::Bag #bagmux)]
             pub struct #ident #impl_generics #where_clause {
                 #(pub #ports_ident: #ports_ty,)*
             }
