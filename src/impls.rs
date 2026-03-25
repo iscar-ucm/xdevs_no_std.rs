@@ -20,7 +20,7 @@ unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
 }
 
 unsafe impl<T: AsPort, const N: usize> AsPort for [T; N] {
-    type Item = (T::Item, usize); // Include index to identify which bag the value came from
+    type Item = (usize, T::Item); // Include index to identify which bag the value came from
 }
 
 impl<T: AsPort, const N: usize> Sealed for [T; N] {}

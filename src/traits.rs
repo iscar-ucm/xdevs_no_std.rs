@@ -24,17 +24,21 @@ pub unsafe trait AsPort: Bag + Sealed {
     type Item;
 }
 
-/// Trait that defines an enum that can be used for the input or output channel for the rt_engine macro.
+/// Trait that defines a type that maps to an event bag ports.
+/// Its main purpose is its usage by the `RtEngine` to inject and eject events from the model's ports.
 ///
 /// # Safety
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
 pub unsafe trait BagMux: Bag {
-    /// The enum type that represents the ports of the model. Each variant corresponds to a port.
+    /// The type that represents the ports of the model. Each variant corresponds to a port.
     type Mux;
 
-    fn enum_to_input(&mut self, input_enum: Self::Mux);
-    fn output_to_enum(&self, output_fn: impl FnMut(Self::Mux));
+    /// Maps the type to the corresponding port, allowing to inject events to the bag.
+    fn inject_event(&mut self, event: Self::Mux) -> Result<(), Self::Mux>;
+
+    /// Maps the type to the corresponding port, allowing to receive events from the bag.
+    fn eject_events(&self, ejector: impl FnMut(Self::Mux));
 }
 
 /// Interface for DEVS components. All DEVS components must implement this trait.
@@ -165,7 +169,8 @@ pub unsafe trait MapInput: Bag {
     type InputChannel;
 
     /// Maps the input enum to the corresponding input port
-    unsafe fn map_input(&mut self, in_channel: &Self::InputChannel) -> impl Future<Output = ()>;
+    unsafe fn map_input(&mut self, in_channel: &mut Self::InputChannel)
+        -> impl Future<Output = ()>;
 }
 
 /// Output port interface for DEVS models that can be simulated in real-time using the `RtEngine`.

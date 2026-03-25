@@ -121,8 +121,8 @@ impl Component {
         let output_ident = syn::Ident::new(&format!("{}Output", &ident), ident.span());
         let components_ident = syn::Ident::new(&format!("{}Components", &ident), ident.span());
 
-        let input = Ports::new(inputs, input_ident, input_generics, false);
-        let output = Ports::new(outputs, output_ident, output_generics, false);
+        let input = Ports::new(inputs, input_ident, input_generics);
+        let output = Ports::new(outputs, output_ident, output_generics);
         let components = Components::new(components, components_ident, components_generics);
 
         Ok(Component {
@@ -144,8 +144,8 @@ impl Component {
         let components_ident = &self.components.ident();
         let components_fields = self.components.field_idents();
         let components_tys = self.components.field_tys();
-        let input_struct = self.input.quote();
-        let output_struct = self.output.quote();
+        let input_struct = self.input.quote(false);
+        let output_struct = self.output.quote(false);
         let components_struct = self.components.quote();
 
         let (eoc, xic) = if let Some(couplings) = &self.couplings {

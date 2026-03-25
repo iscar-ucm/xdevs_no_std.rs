@@ -34,7 +34,7 @@ where
     }
 
     pub async fn simulate_rt_async(&mut self, config: &crate::Config) {
-        let input_handler = RtEngineInputHandler::<M>::new(&self.input_channel);
+        let input_handler = RtEngineInputHandler::<M>::new(&mut self.input_channel);
         self.simulator
             .simulate_rt_async(config, input_handler, |output| {
                 unsafe { output.map_output(&mut self.output_channel) };
@@ -78,7 +78,7 @@ struct RtEngineInputHandler<'a, M: AbstractSimulator>
 where
     M::Input: MapInput,
 {
-    input_channel: &'a <M::Input as MapInput>::InputChannel,
+    input_channel: &'a mut <M::Input as MapInput>::InputChannel,
     last_rt: Option<crate::Instant>,
 }
 
@@ -86,7 +86,7 @@ impl<'a, M: AbstractSimulator> RtEngineInputHandler<'a, M>
 where
     M::Input: MapInput,
 {
-    fn new(input_channel: &'a <M::Input as MapInput>::InputChannel) -> Self {
+    fn new(input_channel: &'a mut <M::Input as MapInput>::InputChannel) -> Self {
         Self {
             input_channel,
             last_rt: None,
@@ -113,7 +113,7 @@ where
         let next_rt = last_rt + Duration::from_nanos(time_duration);
 
         let future = async {
-            unsafe { input.map_input(self.input_channel) }.await;
+            unsafe { input.map_input(&mut self.input_channel) }.await;
         };
 
         if let Err(_) = embassy_time::with_deadline(next_rt.into(), future).await {
