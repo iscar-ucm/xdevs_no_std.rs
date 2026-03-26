@@ -12,7 +12,7 @@ use syn::visit::{self, Visit};
 use syn::{Error, GenericParam, Generics, Ident, Lifetime, TypeGenerics};
 
 use self::port::Ports;
-use self::rt_engine::RtEngine;
+use backend::RtEngine;
 
 pub struct ComponentField {
     ident: syn::Ident,
