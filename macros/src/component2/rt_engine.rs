@@ -1,114 +1,15 @@
 use proc_macro2::TokenStream as TokenStream2;
 use heck::{ToSnakeCase};
-use syn::{
-    Error, Ident, LitInt, Token, parse::{Parse, ParseStream}
-};
-
-use crate::component2::{CommonComponent, backend::{Backend, RtEngineBackend}};
-
-/// Arguments for the `#[rt_engine]` attribute macro.
-///
-/// Supported arguments:
-/// - `in_size`: capacity of the input channel
-/// - `out_size`: capacity of the output channel
-/// - `max_out_subs`: number of subscribers for the output PubSubChannel
-pub struct RtEngine {
-    in_size: usize,
-    out_size: usize,
-    max_out_subs: usize,
-}
-
-impl Default for RtEngine {
-    fn default() -> Self {
-        Self {
-            in_size: 1,
-            out_size: 1,
-            max_out_subs: 1,
-        }
-    }
-}
-
-impl Parse for RtEngine {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let rt_backend = RtEngineBackend::new();
-        let mut in_size = None;
-        let mut out_size = None;
-        let mut max_out_subs = None;
-
-        while !input.is_empty() {
-            let ident: Ident = input.parse()?;
-            input.parse::<Token![=]>()?;
-            let value: LitInt = input.parse()?;
-            let value: usize = value.base10_parse()?;
-
-            match ident.to_string().as_str() {
-                "in_size" => {
-                    if let Some(_) = in_size {
-                        return Err(Error::new(
-                            ident.span(),
-                            "duplicate argument: in_size",
-                        ));
-                    }
-                    else{
-                        in_size = Some(value)
-                    }
-                },
-                "out_size" => {
-                    if let Some(_) = out_size {
-                        return Err(Error::new(
-                            ident.span(),
-                            "duplicate argument: out_size",
-                        ));
-                    }
-                    else{
-                        out_size = Some(value)
-                    }
-                },
-                "max_out_subs" => rt_backend.parse_max_out_subs(&mut max_out_subs, value)?,
-                str => {
-                    return Err(Error::new(
-                        proc_macro2::Span::call_site(),
-                        format!("unknown top argument: {}", str),
-                    ))
-                }
-            }
-
-            // Optional trailing comma
-            if !input.is_empty() {
-                input.parse::<Token![,]>()?;
-            }
-        }
-
-        Ok(RtEngine {
-            in_size: in_size.unwrap_or(1),
-            out_size: out_size.unwrap_or(1),
-            max_out_subs: max_out_subs.unwrap_or(1),
-        })
-    }
-}
-
-impl RtEngine {
-    pub fn in_size(&self) -> usize {
-        self.in_size
-    }
-    pub fn out_size(&self) -> usize {
-        self.out_size
-    }
-    pub fn max_out_subs(&self) -> usize {
-        self.max_out_subs
-    }
-
-}
+use super::{CommonComponent, backend::{Backend}};
 
 impl CommonComponent {
     /// Generate the rt-engine infrastructure code:
     pub fn quote_rt_engine(&self) -> TokenStream2 {
-        if let Some(_) = &self.rt_engine{
-            let rt_backend = RtEngineBackend::new();
+        if let Some(rt_engine) = &self.rt_engine{
             let mut generated = TokenStream2::new();
 
             // Check compatibility of the component with the selected rt-engine backend.
-            let compatibility = rt_backend.check_compatibility(&self);
+            let compatibility = rt_engine.check_compatibility(&self);
             if let Err(e) = compatibility {
                 return e.to_compile_error();
             }
@@ -155,10 +56,11 @@ impl CommonComponent {
                     pub type #input_enum_ident #model_ty_generics = <<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
                     Input as ::xdevs::traits::BagMux>::Mux;
                 });
-                (input_channel_type, input_channel_call, private_input_channel) = rt_backend.input_channel(&self);
+                (input_channel_type, input_channel_call, private_input_channel) = rt_engine.input_channel(&self);
                 map_input_body = quote::quote!{
                     let input = <Self::InputChannel as ::xdevs::traits::RtEngineInputChannel>::recv(in_channel).await;
-                    <Self as ::xdevs::traits::BagMux>::inject_event(self, input);
+                    // TODO: Return Result when embassy time is merged
+                    let _ = <Self as ::xdevs::traits::BagMux>::inject_event(self, input);
                 }
             } else {
                 map_input_body = quote::quote! {};
@@ -184,7 +86,7 @@ impl CommonComponent {
                     pub type #output_enum_ident #model_ty_generics = <<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
                     Output as ::xdevs::traits::BagMux>::Mux;
                 });
-                (output_channel_type, output_channel_call, private_output_channel) = rt_backend.output_channel(&self);
+                (output_channel_type, output_channel_call, private_output_channel) = rt_engine.output_channel(&self);
                 map_output_body = quote::quote!{
                     let out_func = |output| {
                         <Self::OutputChannel as ::xdevs::traits::RtEngineOutputChannel>::publish(

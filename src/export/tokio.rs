@@ -10,7 +10,7 @@ pub struct Sender<T> {
 }
 impl<T> Sender<T> {
     pub async fn send(&self, msg: T) -> Result<(), SendError<T>> {
-        self.sender.send(msg).await;
+        self.sender.send(msg).await
     }
 }
 

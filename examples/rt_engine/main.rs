@@ -1,6 +1,6 @@
 use xdevs::port::Port;
 
-#[xdevs::atomic(rt_engine = {in_size = 3, out_size = 1, max_out_subs = 1})]
+#[xdevs::atomic(rt_engine = {in_size = 3, out_size = 1})]
 pub struct Transparent {
     #[input]
     pub in_job: [Port<usize, 1>; 3],
@@ -51,7 +51,8 @@ async fn sender(sender: TransparentSender) {
     loop {
         sender
             .send(TransparentInputEnum::InJob((index, input)))
-            .await;
+            .await
+            .unwrap();
         input += 1;
         index = (index + 1) % 3;
         //index += 1;

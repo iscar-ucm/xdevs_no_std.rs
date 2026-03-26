@@ -1,7 +1,6 @@
 mod components;
 
-use crate::component2::rt_engine::RtEngine;
-
+use super::backend::RtEngine;
 use super::check_duplicate_fields;
 use super::filter_generics;
 use super::impl_component;
