@@ -12,6 +12,7 @@ pub type Channel<T, const N: usize> = embassy_sync::channel::Channel<Mutex, T, N
 pub type PubSubChannel<T, const CAP: usize, const SUBS: usize> =
     embassy_sync::pubsub::PubSubChannel<Mutex, T, CAP, SUBS, 1>;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RecvError {
     Lagged(u64),
 }

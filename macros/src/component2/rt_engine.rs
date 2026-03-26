@@ -63,7 +63,7 @@ impl CommonComponent {
                     let _ = <Self as ::xdevs::traits::BagMux>::inject_event(self, input);
                 }
             } else {
-                map_input_body = quote::quote! {};
+                map_input_body = quote::quote! {core::future::pending::<()>().await;};
                 input_channel_type = quote::quote! { () };
                 input_channel_call = quote::quote! { () };
                 private_input_channel = TokenStream2::new();
