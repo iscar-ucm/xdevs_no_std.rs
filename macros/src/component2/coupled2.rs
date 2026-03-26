@@ -45,7 +45,7 @@ impl Component {
                     } else {
                         return Err(Error::new(
                             ident.span(),
-                            "unknown atomic component argument",
+                            "unknown coupled component argument",
                         ));
                     }
                     if !input.is_empty() {
@@ -220,7 +220,7 @@ impl Component {
                 let input_var = quote::format_ident!("{}_input", field_ident);
                 let output_var = quote::format_ident!("{}_output", field_ident);
                 quote::quote! {
-                    let (#input_var, #output_var) = ::xdevs::traits::Component::get_ports(&mut self.components.#field_ident);
+                    let (#input_var, #output_var) = self.components.#field_ident.get_ports();
                 }
             })
             .collect();
@@ -269,6 +269,26 @@ impl Component {
         // We need to include ALL generic parameters from components (lifetimes, types, consts)
         // so that the field types can reference them.
         let components_params: Vec<_> = self.components.generics().params.iter().collect();
+        let components_ty_args: Vec<TokenStream2> = self
+            .components
+            .generics()
+            .params
+            .iter()
+            .map(|p| match p {
+                syn::GenericParam::Type(tp) => {
+                    let ident = &tp.ident;
+                    quote::quote! { #ident }
+                }
+                syn::GenericParam::Lifetime(lp) => {
+                    let lifetime = &lp.lifetime;
+                    quote::quote! { #lifetime }
+                }
+                syn::GenericParam::Const(cp) => {
+                    let ident = &cp.ident;
+                    quote::quote! { #ident }
+                }
+            })
+            .collect();
         let has_components_params = !components_params.is_empty();
 
         // Extract lifetime parameters to generate bounds (lifetime: '__xdevs_inner)
@@ -298,8 +318,8 @@ impl Component {
             if has_components_params {
                 (
                     quote::quote! { <'__xdevs_inner, #(#components_params),*> },
-                    quote::quote! { <'_, #(#components_params),*> },
-                    quote::quote! { <'__xdevs_inner, #(#components_params),*> },
+                    quote::quote! { <'_, #(#components_ty_args),*> },
+                    quote::quote! { <'__xdevs_inner, #(#components_ty_args),*> },
                 )
             } else {
                 (
@@ -391,6 +411,7 @@ impl Component {
                 fn delta(&mut self, t: f64) -> f64 {
                     // propagate EICs and ICs via Coupled trait
                     {
+                        use ::xdevs::traits::Component;
                         #(#component_ports_inits)*
                         let component_outputs: #component_outputs_ident #wrapper_use_generics = #component_outputs_ident {
                             #(#component_output_inits),*
