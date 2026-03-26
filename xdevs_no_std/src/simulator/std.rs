@@ -117,13 +117,7 @@ impl<T: Bag> SleepAsync<T> {
 impl<T: Bag> AsyncInput for SleepAsync<T> {
     type Input = T;
 
-    async fn handle(
-        &mut self,
-        config: &Config,
-        //t_from: eInstant,
-        t_until: eInstant,
-        _input: &mut Self::Input,
-    ) {
+    async fn handle(&mut self, _input: &mut Self::Input) {
         //no devuelve nada. en el propio simulador se comprueba que se realice en el tiempo correcto
         //let last_rt = self.last_rt.unwrap_or_else(eInstant::now);
         //let next_rt = last_rt + (t_until - Timer::now()) * (config.mult as u32);

@@ -144,13 +144,7 @@ pub trait AsyncInput {
 
     /// Handles input events asynchronously.
     ///
-    /// It receives the time a mutable reference ends `[t_until]` and the mutable reference to the input event bag.
     /// It returns the time of the next event, which is usually the time of the next state transition.
     /// If an external event occurs, it should inject the event to the input and return the time at which the event happened.
-    fn handle(
-        &mut self,
-        config: &Config,
-        t_until: Instant,
-        input: &mut Self::Input,
-    ) -> impl Future<Output = ()>;
+    fn handle(&mut self, input: &mut Self::Input) -> impl Future<Output = ()>;
 }
