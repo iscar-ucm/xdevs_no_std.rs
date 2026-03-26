@@ -1,6 +1,6 @@
 use crate::traits::{AbstractSimulator, AsyncInput, Bag};
 //use core::time::Duration;
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::{with_deadline, Duration, Instant, Timer};
 
 #[cfg(feature = "std")]
 pub mod std;
@@ -129,9 +129,8 @@ impl<M: AbstractSimulator> Simulator<M> {
         let mut t_next_internal = self.model.start(t);
         while t < config.t_stop {
             let t_until = Instant::min(t_next_internal, config.t_stop);
-            input_handler
-                .handle(config, t_until, self.model.get_input_mut())
-                .await; //como ahora input_handler no devuelve nada no modifica t
+            let future = input_handler.handle(self.model.get_input_mut()); //como ahora input_handler no devuelve nada no modifica t
+            with_deadline(t_until, future).await;
             t = Instant::now(); //ahora comprobamos que se ha hecho en el tiempo que debería, no nos fiamos del valor que da. En simulate_vt hay que comprobar los tiempos en los que se realizan
             if t >= t_next_internal {
                 // TODO check jitter
