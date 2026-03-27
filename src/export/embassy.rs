@@ -1,11 +1,5 @@
-use core::convert::Infallible;
-
 use crate::traits::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel};
-
-#[cfg(feature = "embassy-noop")]
-use embassy_sync::blocking_mutex::raw::NoopRawMutex as Mutex;
-
-#[cfg(feature = "embassy-cs")]
+use core::convert::Infallible;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex as Mutex;
 
 pub type Channel<T, const N: usize> = embassy_sync::channel::Channel<Mutex, T, N>;
