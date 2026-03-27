@@ -93,9 +93,9 @@ unsafe impl<'a, O: Clone, const CAP: usize, const SUBS: usize> RtEngineOutputCha
     for OutputChannel<'a, O, CAP, SUBS>
 {
     type OutputEnum = O;
-    type Subscriber = Receiver<'a, Self::OutputEnum, CAP, SUBS>;
+    type Receiver = Receiver<'a, Self::OutputEnum, CAP, SUBS>;
 
-    fn subscriber(&self) -> Result<Self::Subscriber, SubscribeError> {
+    fn receiver(&self) -> Result<Self::Receiver, SubscribeError> {
         match self.channel.subscriber() {
             Ok(subscriber) => Ok(Receiver { subscriber }),
             Err(embassy_sync::pubsub::Error::MaximumSubscribersReached) => {

@@ -64,13 +64,13 @@ where
     M::Output: MapOutput,
     <M::Output as MapOutput>::OutputChannel: RtEngineOutputChannel,
 {
-    pub fn subscriber(
+    pub fn receiver(
         &self,
     ) -> Result<
-        <<M::Output as MapOutput>::OutputChannel as RtEngineOutputChannel>::Subscriber,
+        <<M::Output as MapOutput>::OutputChannel as RtEngineOutputChannel>::Receiver,
         crate::rt_engine::SubscribeError,
     > {
-        self.output_channel.subscriber()
+        self.output_channel.receiver()
     }
 }
 

@@ -19,7 +19,7 @@ impl CommonComponent {
             let input_enum_ident = quote::format_ident!("{}InputEnum", self.ident);
             let output_enum_ident = quote::format_ident!("{}OutputEnum", self.ident);
             let sender_ident = quote::format_ident!("{}Sender", self.ident);
-            let subscriber_ident = quote::format_ident!("{}Subscriber", self.ident);
+            let receiver_ident = quote::format_ident!("{}Receiver", self.ident);
 
             let snake_name = self.ident.to_string().to_snake_case();
             let private_mod_ident =
@@ -77,10 +77,10 @@ impl CommonComponent {
 
             if !output_ports.is_empty() {
                 generated.extend(quote::quote! {
-                    /// Auto-generated output subscriber type alias.
-                    pub type #subscriber_ident #model_ty_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
+                    /// Auto-generated output receiver type alias.
+                    pub type #receiver_ident #model_ty_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
                     Output as ::xdevs::traits::MapOutput>::OutputChannel as 
-                    ::xdevs::traits::RtEngineOutputChannel>::Subscriber;
+                    ::xdevs::traits::RtEngineOutputChannel>::Receiver;
 
                     /// Auto-generated output enum for channel communication alias.
                     pub type #output_enum_ident #model_ty_generics = <<#model_ident #model_ty_generics as ::xdevs::traits::Component>::

@@ -63,15 +63,15 @@ impl<T: Clone, const N: usize> OutputChannel<T, N> {
 }
 unsafe impl<T: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<T, N> {
     type OutputEnum = T;
-    type Subscriber = Receiver<T>;
+    type Receiver = Receiver<T>;
 
-    fn subscriber(&self) -> Result<Self::Subscriber, SubscribeError> {
+    fn receiver(&self) -> Result<Self::Receiver, SubscribeError> {
         Ok(Receiver {
             receiver: self.receiver.resubscribe(),
         })
     }
     fn publish(&self, msg: Self::OutputEnum) {
-        // There will always be a subscriber, so this should never fail
+        // There will always be a receiver, so this should never fail
         let _ = self.sender.send(msg);
     }
 }
