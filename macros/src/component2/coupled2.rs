@@ -220,7 +220,7 @@ impl Component {
                 let input_var = quote::format_ident!("{}_input", field_ident);
                 let output_var = quote::format_ident!("{}_output", field_ident);
                 quote::quote! {
-                    let (#input_var, #output_var) = self.components.#field_ident.get_ports();
+                    let (#input_var, #output_var) = ::xdevs::traits::Component::get_ports(&mut self.components.#field_ident);
                 }
             })
             .collect();
@@ -411,7 +411,6 @@ impl Component {
                 fn delta(&mut self, t: f64) -> f64 {
                     // propagate EICs and ICs via Coupled trait
                     {
-                        use ::xdevs::traits::Component;
                         #(#component_ports_inits)*
                         let component_outputs: #component_outputs_ident #wrapper_use_generics = #component_outputs_ident {
                             #(#component_output_inits),*

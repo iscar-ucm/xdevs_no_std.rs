@@ -24,16 +24,18 @@ embassy-time = { version = "0.5.0" }
 embassy-sync = { version = "0.7.2", optional = true }
 
 [dev-dependencies]
-embassy-time = { version = "0.5.0", features = ["std", "generic-queue-128"] }
-critical-section = { version = "1.1", features = ["std"] }
-embassy-sync = { version = "0.7.2", features = ["std"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [features]
 embassy = ["embassy-sync", "xdevs-no-std-macros/embassy-backend"]
 embassy-noop = ["embassy"]
 embassy-cs = ["embassy"]
-std = ["tokio/time", "xdevs-no-std-macros/std-backend"]
+std = [
+    "tokio/time",
+    "xdevs-no-std-macros/std-backend",
+    "embassy-time/std",
+    "embassy-time/generic-queue-8",
+]
 alloc = []
 
 [package.metadata.docs.rs]
