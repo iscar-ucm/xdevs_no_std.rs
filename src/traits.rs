@@ -213,11 +213,11 @@ pub unsafe trait RtEngineOutputChannel: sealed::Sealed {
     /// Enum representing the output ports of the model. Each variant corresponds to an output port.
     type OutputEnum;
 
-    /// Type of the subscriber used to receive output events from the model.
-    type Subscriber;
+    /// Type of the receiver used to receive output events from the model.
+    type Receiver;
 
     /// Returns a subscriber to the channel. The subscriber can be used to receive output events from the model.
-    fn subscriber(&self) -> Result<Self::Subscriber, crate::rt_engine::SubscribeError>;
+    fn receiver(&self) -> Result<Self::Receiver, crate::rt_engine::SubscribeError>;
 
     /// Publishes output events from the model to the channel, mapping the model's output ports to the channel's output events.
     fn publish(&self, output: Self::OutputEnum);

@@ -60,7 +60,7 @@ async fn sender(sender: TransparentSender) {
     }
 }
 
-async fn receiver(mut receiver: TransparentSubscriber) {
+async fn receiver(mut receiver: TransparentReceiver) {
     loop {
         match receiver.recv().await {
             Ok(TransparentOutputEnum::OutJob(value)) => {
@@ -84,7 +84,7 @@ async fn main() {
     let config = xdevs::simulator::Config::new(0.0, 15.0, 1.0, None);
 
     let send = engine.sender();
-    let recv = engine.subscriber().unwrap();
+    let recv = engine.receiver().unwrap();
 
     tokio::spawn(sender(send));
     tokio::spawn(receiver(recv));
