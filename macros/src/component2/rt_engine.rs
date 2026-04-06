@@ -1,6 +1,9 @@
 use proc_macro2::TokenStream as TokenStream2;
 use heck::{ToSnakeCase};
-use super::{CommonComponent, backend::{Backend}};
+use super::{
+    backend::Backend,
+    CommonComponent,
+};
 
 impl CommonComponent {
     /// Generate the rt-engine infrastructure code:
@@ -30,14 +33,14 @@ impl CommonComponent {
                 self.generics.split_for_impl();
 
             // Extract input and output parameters
-            let input_ident = self.input.ident();
-            let output_ident = self.output.ident();
-            let input_ports = self.input.ports();
-            let output_ports = self.output.ports();
+            let input_ident = &self.input.ident;
+            let output_ident = &self.output.ident;
+            let input_ports = &self.input.ports;
+            let output_ports = &self.output.ports;
             let (input_impl_generics, input_ty_generics, input_where_clause) =
-                self.input.generics().split_for_impl();
+                self.input.generics.split_for_impl();
             let (output_impl_generics, output_ty_generics, output_where_clause) =
-                self.output.generics().split_for_impl();
+                self.output.generics.split_for_impl();
 
             // Input generation
             let map_input_body;
@@ -49,19 +52,25 @@ impl CommonComponent {
                 generated.extend(quote::quote! {
                     // Auto-generated sender type alias for the RtEngine implementation.
                     pub type #sender_ident #model_ty_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
-                    Input as ::xdevs::traits::MapInput>::
+                    Input as ::xdevs::traits::InjectInput>::
                     InputChannel as ::xdevs::traits::RtEngineInputChannel>::Sender;
 
                     /// Auto-generated input enum for channel communication alias.
                     pub type #input_enum_ident #model_ty_generics = <<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
                     Input as ::xdevs::traits::BagMux>::Mux;
                 });
-                (input_channel_type, input_channel_call, private_input_channel) = rt_engine.input_channel(&self);
+
+                let input_channel_tokens = rt_engine.input_channel(&self);
+
+                // Generate TokenStreams
                 map_input_body = quote::quote!{
                     let input = <Self::InputChannel as ::xdevs::traits::RtEngineInputChannel>::recv(in_channel).await;
                     // TODO: Return Result when embassy time is merged
                     let _ = <Self as ::xdevs::traits::BagMux>::inject_event(self, input);
-                }
+                };
+                input_channel_type = input_channel_tokens.channel_type;
+                input_channel_call = input_channel_tokens.channel_call;
+                private_input_channel = input_channel_tokens.private_channel;
             } else {
                 map_input_body = quote::quote! {core::future::pending::<()>().await;};
                 input_channel_type = quote::quote! { () };
@@ -79,14 +88,16 @@ impl CommonComponent {
                 generated.extend(quote::quote! {
                     /// Auto-generated output receiver type alias.
                     pub type #receiver_ident #model_ty_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
-                    Output as ::xdevs::traits::MapOutput>::OutputChannel as 
+                    Output as ::xdevs::traits::EjectOutput>::OutputChannel as 
                     ::xdevs::traits::RtEngineOutputChannel>::Receiver;
 
                     /// Auto-generated output enum for channel communication alias.
                     pub type #output_enum_ident #model_ty_generics = <<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
                     Output as ::xdevs::traits::BagMux>::Mux;
                 });
-                (output_channel_type, output_channel_call, private_output_channel) = rt_engine.output_channel(&self);
+                let output_channel_tokens = rt_engine.output_channel(&self);
+
+                // Generate TokenStreams
                 map_output_body = quote::quote!{
                     let out_func = |output| {
                         <Self::OutputChannel as ::xdevs::traits::RtEngineOutputChannel>::publish(
@@ -95,7 +106,10 @@ impl CommonComponent {
                         );
                     };
                     <Self as ::xdevs::traits::BagMux>::eject_events(self, out_func);
-                }
+                };
+                output_channel_type = output_channel_tokens.channel_type;
+                output_channel_call = output_channel_tokens.channel_call;
+                private_output_channel = output_channel_tokens.private_channel;
             } else {
                 map_output_body = quote::quote! {};
                 output_channel_type = quote::quote! { () };
@@ -105,8 +119,8 @@ impl CommonComponent {
 
             // RtEngine trait implementation
             generated.extend(quote::quote! {
-                /// Auto-generated `MapInput` implementation for the top-level component input.
-                unsafe impl #input_impl_generics ::xdevs::traits::MapInput for #input_ident #input_ty_generics #input_where_clause {
+                /// Auto-generated `InjectInput` implementation for the top-level component input.
+                unsafe impl #input_impl_generics ::xdevs::traits::InjectInput for #input_ident #input_ty_generics #input_where_clause {
                     type InputChannel = #input_channel_type;
                     
                     async unsafe fn map_input(
@@ -117,8 +131,8 @@ impl CommonComponent {
                     }
                 }
 
-                /// Auto-generated `MapOutput` implementation for the top-level component output.
-                unsafe impl #output_impl_generics ::xdevs::traits::MapOutput for #output_ident #output_ty_generics #output_where_clause {
+                /// Auto-generated `EjectOutput` implementation for the top-level component output.
+                unsafe impl #output_impl_generics ::xdevs::traits::EjectOutput for #output_ident #output_ty_generics #output_where_clause {
                     type OutputChannel = #output_channel_type;
 
                     unsafe fn map_output(

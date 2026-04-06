@@ -5,9 +5,9 @@ use syn::Generics;
 use super::ComponentField;
 
 pub struct State {
-    fields: Vec<ComponentField>,
-    ident: Ident,
-    generics: Generics,
+    pub fields: Vec<ComponentField>,
+    pub ident: Ident,
+    pub generics: Generics,
 }
 
 impl State {
@@ -17,14 +17,6 @@ impl State {
             ident,
             generics,
         }
-    }
-
-    pub fn ident(&self) -> &Ident {
-        &self.ident
-    }
-
-    pub fn generics(&self) -> &Generics {
-        &self.generics
     }
 
     pub fn field_idents(&self) -> Vec<&syn::Ident> {

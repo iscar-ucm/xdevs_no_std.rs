@@ -19,7 +19,7 @@ pub unsafe trait Bag {
 /// # Safety
 ///
 /// This trait is implemented internally. Do not implement it manually.
-pub unsafe trait AsPort: Bag + Sealed {
+pub trait AsPort: Bag + Sealed {
     /// The type of the values contained in the bag.
     type Item;
 }
@@ -164,7 +164,7 @@ pub unsafe trait AbstractSimulator: Component {
 /// # Safety
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
-pub unsafe trait MapInput: Bag {
+pub unsafe trait InjectInput: Bag {
     /// Input channel for the rt_engine macro.
     type InputChannel;
 
@@ -178,7 +178,7 @@ pub unsafe trait MapInput: Bag {
 /// # Safety
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
-pub unsafe trait MapOutput: Bag {
+pub unsafe trait EjectOutput: Bag {
     /// Output channel for the rt_engine macro.
     type OutputChannel;
 
@@ -193,7 +193,7 @@ pub unsafe trait MapOutput: Bag {
 /// This trait is implemented internally. Do not implement it manually.
 pub unsafe trait RtEngineInputChannel: sealed::Sealed {
     /// Enum representing the input ports of the model. Each variant corresponds to an input port.
-    type InputEnum;
+    type Input;
     /// Type of the sender used to send input events to the model.
     type Sender;
 
@@ -201,7 +201,7 @@ pub unsafe trait RtEngineInputChannel: sealed::Sealed {
     fn sender(&self) -> Self::Sender;
 
     /// Receives from the channel and maps the received input event to the model's input ports.
-    fn recv(&mut self) -> impl Future<Output = Self::InputEnum>;
+    fn recv(&mut self) -> impl Future<Output = Self::Input>;
 }
 
 /// Output channel for the rt_engine macro.
@@ -211,7 +211,7 @@ pub unsafe trait RtEngineInputChannel: sealed::Sealed {
 /// This trait is implemented internally. Do not implement it manually.
 pub unsafe trait RtEngineOutputChannel: sealed::Sealed {
     /// Enum representing the output ports of the model. Each variant corresponds to an output port.
-    type OutputEnum;
+    type Output;
 
     /// Type of the receiver used to receive output events from the model.
     type Receiver;
@@ -220,7 +220,7 @@ pub unsafe trait RtEngineOutputChannel: sealed::Sealed {
     fn receiver(&self) -> Result<Self::Receiver, crate::rt_engine::SubscribeError>;
 
     /// Publishes output events from the model to the channel, mapping the model's output ports to the channel's output events.
-    fn publish(&self, output: Self::OutputEnum);
+    fn publish(&self, output: Self::Output);
 }
 
 /// Interface for handling input events in an asynchronous DEVS simulation.

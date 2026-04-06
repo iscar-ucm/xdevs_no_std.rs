@@ -35,7 +35,7 @@ impl<T, const N: usize> InputChannel<T, N> {
     }
 }
 unsafe impl<T, const N: usize> RtEngineInputChannel for InputChannel<T, N> {
-    type InputEnum = T;
+    type Input = T;
     type Sender = Sender<T>;
 
     fn sender(&self) -> Self::Sender {
@@ -44,7 +44,7 @@ unsafe impl<T, const N: usize> RtEngineInputChannel for InputChannel<T, N> {
         }
     }
 
-    async fn recv(&mut self) -> Self::InputEnum {
+    async fn recv(&mut self) -> Self::Input {
         // There will always be a sender, so this should never fail
         self.receiver.recv().await.unwrap()
     }
@@ -62,7 +62,7 @@ impl<T: Clone, const N: usize> OutputChannel<T, N> {
     }
 }
 unsafe impl<T: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<T, N> {
-    type OutputEnum = T;
+    type Output = T;
     type Receiver = Receiver<T>;
 
     fn receiver(&self) -> Result<Self::Receiver, SubscribeError> {
@@ -70,7 +70,7 @@ unsafe impl<T: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<T,
             receiver: self.receiver.resubscribe(),
         })
     }
-    fn publish(&self, msg: Self::OutputEnum) {
+    fn publish(&self, msg: Self::Output) {
         // There will always be a receiver, so this should never fail
         let _ = self.sender.send(msg);
     }

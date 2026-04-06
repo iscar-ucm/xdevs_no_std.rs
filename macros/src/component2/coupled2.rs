@@ -154,9 +154,9 @@ impl Component {
 
         // Extract generics for impl
         let (impl_generics, ty_generics, _) = self.common.generics.split_for_impl();
-        let (_, input_generics, _) = &self.common.input.generics().split_for_impl();
-        let (_, output_generics, _) = &self.common.output.generics().split_for_impl();
-        let (_, components_generics, _) = &self.components.generics().split_for_impl();
+        let (_, input_generics, _) = &self.common.input.generics.split_for_impl();
+        let (_, output_generics, _) = &self.common.output.generics.split_for_impl();
+        let (_, components_generics, _) = &self.components.generics.split_for_impl();
 
         // Generate input, output, and components structs
         let is_bagmux = self.common.rt_engine.is_some();
@@ -187,7 +187,7 @@ impl Component {
 
         let component_input_fields: Vec<TokenStream2> = self
             .components
-            .components()
+            .components
             .iter()
             .map(|field| {
                 let field_ident = &field.ident;
@@ -200,7 +200,7 @@ impl Component {
 
         let component_output_fields: Vec<TokenStream2> = self
             .components
-            .components()
+            .components
             .iter()
             .map(|field| {
                 let field_ident = &field.ident;
@@ -213,7 +213,7 @@ impl Component {
 
         let component_ports_inits: Vec<TokenStream2> = self
             .components
-            .components()
+            .components
             .iter()
             .map(|field| {
                 let field_ident = &field.ident;
@@ -228,7 +228,7 @@ impl Component {
         // For lambda, we only use output refs via get_out_ports
         let component_out_ports_inits: Vec<TokenStream2> = self
             .components
-            .components()
+            .components
             .iter()
             .map(|field| {
                 let field_ident = &field.ident;
@@ -241,7 +241,7 @@ impl Component {
 
         let component_input_inits: Vec<TokenStream2> = self
             .components
-            .components()
+            .components
             .iter()
             .map(|field| {
                 let field_ident = &field.ident;
@@ -254,7 +254,7 @@ impl Component {
 
         let component_output_inits: Vec<TokenStream2> = self
             .components
-            .components()
+            .components
             .iter()
             .map(|field| {
                 let field_ident = &field.ident;
@@ -268,10 +268,10 @@ impl Component {
         // Generate struct definition generics and usage generics for ComponentsInput/ComponentsOutput
         // We need to include ALL generic parameters from components (lifetimes, types, consts)
         // so that the field types can reference them.
-        let components_params: Vec<_> = self.components.generics().params.iter().collect();
+        let components_params: Vec<_> = self.components.generics.params.iter().collect();
         let components_ty_args: Vec<TokenStream2> = self
             .components
-            .generics()
+            .generics
             .params
             .iter()
             .map(|p| match p {
@@ -294,7 +294,7 @@ impl Component {
         // Extract lifetime parameters to generate bounds (lifetime: '__xdevs_inner)
         let lifetime_params: Vec<_> = self
             .components
-            .generics()
+            .generics
             .params
             .iter()
             .filter_map(|p| {

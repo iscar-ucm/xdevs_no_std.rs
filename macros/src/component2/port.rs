@@ -6,9 +6,9 @@ use syn::Type;
 use super::ComponentField;
 
 pub struct Ports {
-    ports: Vec<ComponentField>,
-    ident: Ident,
-    generics: Generics,
+    pub ports: Vec<ComponentField>,
+    pub ident: Ident,
+    pub generics: Generics,
 }
 
 impl Ports {
@@ -18,18 +18,6 @@ impl Ports {
             ident,
             generics,
         }
-    }
-
-    pub fn ports(&self) -> &Vec<ComponentField> {
-        &self.ports
-    }
-
-    pub fn ident(&self) -> &Ident {
-        &self.ident
-    }
-
-    pub fn generics(&self) -> &Generics {
-        &self.generics
     }
 
     fn field_idents(&self) -> Vec<&syn::Ident> {

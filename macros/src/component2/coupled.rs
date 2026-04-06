@@ -139,9 +139,9 @@ impl Component {
         let ident = &self.ident;
 
         // Prepare identifiers for code generation
-        let input_ident = &self.input.ident();
-        let output_ident = &self.output.ident();
-        let components_ident = &self.components.ident();
+        let input_ident = &self.input.ident;
+        let output_ident = &self.output.ident;
+        let components_ident = &self.components.ident;
         let components_fields = self.components.field_idents();
         let components_tys = self.components.field_tys();
         let input_struct = self.input.quote(false);
@@ -150,9 +150,9 @@ impl Component {
 
         let (eoc, xic) = if let Some(couplings) = &self.couplings {
             couplings.quote(
-                &self.input.ports(),
-                &self.output.ports(),
-                &self.components.components(),
+                &self.input.ports,
+                &self.output.ports,
+                &self.components.components,
             )
         } else {
             (vec![], vec![])
@@ -160,9 +160,9 @@ impl Component {
 
         // Extract generics for impl
         let (impl_generics, ty_generics, _) = self.generics.split_for_impl();
-        let (_, input_generics, _) = &self.input.generics().split_for_impl();
-        let (_, output_generics, _) = &self.output.generics().split_for_impl();
-        let (_, components_generics, _) = &self.components.generics().split_for_impl();
+        let (_, input_generics, _) = &self.input.generics.split_for_impl();
+        let (_, output_generics, _) = &self.output.generics.split_for_impl();
+        let (_, components_generics, _) = &self.components.generics.split_for_impl();
 
         // Component trait implementation
         let component_impl = impl_component(

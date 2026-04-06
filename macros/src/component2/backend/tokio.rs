@@ -1,110 +1,78 @@
-use proc_macro2::TokenStream as TokenStream2;
-use syn::{parse::ParseStream, Error, Ident, LitInt, Token};
-
+use super::{Backend, ChannelTokens, RtEngineArgs};
 use crate::component2::CommonComponent;
+use proc_macro2::{Span, TokenStream as TokenStream2};
+use syn::{
+    parse::{Parse, ParseStream},
+    Result,
+};
 
 /// Arguments for the `#[rt_engine]` attribute macro.
-///
-/// Supported arguments:
-/// - `in_size`: capacity of the input channel
-/// - `out_size`: capacity of the output channel
 pub struct RtEngineBackend {
-    in_size: usize,
-    out_size: usize,
+    /// Capacity of the input channel (`in_channel_size = ...`).
+    in_channel_size: usize,
+    /// Capacity of the output channel (`out_channel_size = ...`).
+    out_channel_size: usize,
 }
 
 impl Default for RtEngineBackend {
     fn default() -> Self {
         Self {
-            in_size: 1,
-            out_size: 1,
+            in_channel_size: 1,
+            out_channel_size: 1,
         }
     }
 }
 
-impl syn::parse::Parse for RtEngineBackend {
+impl Parse for RtEngineBackend {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let mut in_size = None;
-        let mut out_size = None;
+        let parsed_args: RtEngineArgs = input.parse()?;
 
-        while !input.is_empty() {
-            let ident: Ident = input.parse()?;
-            input.parse::<Token![=]>()?;
-            let value: LitInt = input.parse()?;
-            let value: usize = value.base10_parse()?;
-
-            match ident.to_string().as_str() {
-                "in_size" => {
-                    if let Some(_) = in_size {
-                        return Err(Error::new(ident.span(), "duplicate argument: in_size"));
-                    } else {
-                        in_size = Some(value)
-                    }
-                }
-                "out_size" => {
-                    if let Some(_) = out_size {
-                        return Err(Error::new(ident.span(), "duplicate argument: out_size"));
-                    } else {
-                        out_size = Some(value)
-                    }
-                }
-                "max_out_subs" => {
-                    return Err(syn::Error::new(
-                        proc_macro2::Span::call_site(),
-                        "max_out_subs is not supported in the std backend",
-                    ))
-                }
-                str => {
-                    return Err(Error::new(
-                        proc_macro2::Span::call_site(),
-                        format!("unknown top argument: {}", str),
-                    ))
-                }
-            }
-
-            // Optional trailing comma
-            if !input.is_empty() {
-                input.parse::<Token![,]>()?;
-            }
+        if parsed_args.max_out_subs.is_some() {
+            return Err(syn::Error::new(
+                Span::call_site(),
+                "max_out_subs is not supported in the std backend",
+            ));
         }
 
         Ok(RtEngineBackend {
-            in_size: in_size.unwrap_or(1),
-            out_size: out_size.unwrap_or(1),
+            in_channel_size: parsed_args.in_channel_size.unwrap_or(1),
+            out_channel_size: parsed_args.out_channel_size.unwrap_or(1),
         })
     }
 }
 
-impl super::Backend for RtEngineBackend {
-    fn check_compatibility(&self, _: &CommonComponent) -> Result<(), syn::Error> {
+impl Backend for RtEngineBackend {
+    fn check_compatibility(&self, _: &CommonComponent) -> Result<()> {
         Ok(())
     }
 
-    fn input_channel(
-        &self,
-        _model: &CommonComponent,
-    ) -> (TokenStream2, TokenStream2, TokenStream2) {
-        let in_size = self.in_size;
+    fn input_channel(&self, _model: &CommonComponent) -> ChannelTokens {
+        let in_channel_size = self.in_channel_size;
         let channel_type = quote::quote! { ::xdevs::export::InputChannel<
             <Self as ::xdevs::traits::BagMux>::Mux,
-            #in_size
+            #in_channel_size
         > };
         let channel_call = quote::quote! {::xdevs::export::InputChannel::new() };
         let private_channel = TokenStream2::new();
-        (channel_type, channel_call, private_channel)
+        ChannelTokens {
+            channel_type,
+            channel_call,
+            private_channel,
+        }
     }
 
-    fn output_channel(
-        &self,
-        _model: &CommonComponent,
-    ) -> (TokenStream2, TokenStream2, TokenStream2) {
-        let out_size = self.out_size;
+    fn output_channel(&self, _model: &CommonComponent) -> ChannelTokens {
+        let out_channel_size = self.out_channel_size;
         let channel_type = quote::quote! { ::xdevs::export::OutputChannel<
             <Self as ::xdevs::traits::BagMux>::Mux,
-            #out_size
+            #out_channel_size
         > };
         let channel_call = quote::quote! {::xdevs::export::OutputChannel::new() };
         let private_channel = TokenStream2::new();
-        (channel_type, channel_call, private_channel)
+        ChannelTokens {
+            channel_type,
+            channel_call,
+            private_channel,
+        }
     }
 }
