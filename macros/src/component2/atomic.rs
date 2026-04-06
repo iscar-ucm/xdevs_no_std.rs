@@ -111,9 +111,9 @@ impl Component {
         let output_generics = filter_generics(&outputs, &generics);
         let state_generics = filter_generics(&state, &generics);
 
-        let input_ident = syn::Ident::new(&format!("{}Input", ident), ident.span());
-        let output_ident = syn::Ident::new(&format!("{}Output", ident), ident.span());
-        let state_ident = syn::Ident::new(&format!("{}State", ident), ident.span());
+        let input_ident = syn::Ident::new(&format!("{ident}Input"), ident.span());
+        let output_ident = syn::Ident::new(&format!("{ident}Output"), ident.span());
+        let state_ident = syn::Ident::new(&format!("{ident}State"), ident.span());
 
         let input = Ports::new(inputs, input_ident, input_generics);
         let output = Ports::new(outputs, output_ident, output_generics);
@@ -135,17 +135,17 @@ impl Component {
         let ident = &self.common.ident;
 
         // Prepare identifiers for code generation
-        let input_ident = &self.common.input.ident();
-        let output_ident = &self.common.output.ident();
-        let state_ident = &self.state.ident();
+        let input_ident = &self.common.input.ident;
+        let output_ident = &self.common.output.ident;
+        let state_ident = &self.state.ident;
         let state_fields = self.state.field_idents();
         let state_tys = self.state.field_tys();
 
         // Extract generics for impl
         let (impl_generics, ty_generics, _) = self.common.generics.split_for_impl();
-        let (_, input_generics, _) = &self.common.input.generics().split_for_impl();
-        let (_, output_generics, _) = &self.common.output.generics().split_for_impl();
-        let (_, state_generics, _) = &self.state.generics().split_for_impl();
+        let (_, input_generics, _) = &self.common.input.generics.split_for_impl();
+        let (_, output_generics, _) = &self.common.output.generics.split_for_impl();
+        let (_, state_generics, _) = &self.state.generics.split_for_impl();
 
         // Generate input, output, and state structs
         let is_bagmux = self.common.rt_engine.is_some();

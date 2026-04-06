@@ -1,6 +1,6 @@
 use xdevs::port::Port;
 
-#[xdevs::atomic(rt_engine = {in_size = 3, out_size = 1})]
+#[xdevs::atomic(rt_engine = {in_channel_size = 3, out_channel_size = 1})]
 pub struct Transparent {
     #[input]
     pub in_job: [Port<usize, 1>; 3],

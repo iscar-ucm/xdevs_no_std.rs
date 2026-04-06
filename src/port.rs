@@ -81,7 +81,7 @@ unsafe impl<T: Clone, const N: usize> crate::traits::Bag for Port<T, N> {
     }
 }
 
-unsafe impl<T: Clone, const N: usize> crate::traits::AsPort for Port<T, N> {
+impl<T: Clone, const N: usize> crate::traits::AsPort for Port<T, N> {
     type Item = T;
 }
 

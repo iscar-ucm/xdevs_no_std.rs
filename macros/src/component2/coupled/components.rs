@@ -1,13 +1,12 @@
-use proc_macro2::Ident;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{Ident, TokenStream as TokenStream2};
 use syn::Generics;
 
 use super::ComponentField;
 
 pub struct Components {
-    components: Vec<ComponentField>,
-    ident: Ident,
-    generics: Generics,
+    pub components: Vec<ComponentField>,
+    pub ident: Ident,
+    pub generics: Generics,
 }
 
 impl Components {
@@ -17,18 +16,6 @@ impl Components {
             ident,
             generics,
         }
-    }
-
-    pub fn components(&self) -> &Vec<ComponentField> {
-        &self.components
-    }
-
-    pub fn ident(&self) -> &Ident {
-        &self.ident
-    }
-
-    pub fn generics(&self) -> &Generics {
-        &self.generics
     }
 
     pub fn field_idents(&self) -> Vec<&syn::Ident> {

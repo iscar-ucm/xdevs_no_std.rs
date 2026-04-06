@@ -54,7 +54,7 @@ impl<'a, I, const N: usize> InputChannel<'a, I, N> {
     }
 }
 unsafe impl<'a, I, const N: usize> RtEngineInputChannel for InputChannel<'a, I, N> {
-    type InputEnum = I;
+    type Input = I;
     type Sender = Sender<'a, I, N>;
 
     fn sender(&self) -> Self::Sender {
@@ -63,7 +63,7 @@ unsafe impl<'a, I, const N: usize> RtEngineInputChannel for InputChannel<'a, I, 
         }
     }
 
-    async fn recv(&mut self) -> Self::InputEnum {
+    async fn recv(&mut self) -> Self::Input {
         self.channel.receive().await
     }
 }
@@ -86,8 +86,8 @@ impl<'a, O: Clone, const CAP: usize, const SUBS: usize> OutputChannel<'a, O, CAP
 unsafe impl<'a, O: Clone, const CAP: usize, const SUBS: usize> RtEngineOutputChannel
     for OutputChannel<'a, O, CAP, SUBS>
 {
-    type OutputEnum = O;
-    type Receiver = Receiver<'a, Self::OutputEnum, CAP, SUBS>;
+    type Output = O;
+    type Receiver = Receiver<'a, Self::Output, CAP, SUBS>;
 
     fn receiver(&self) -> Result<Self::Receiver, SubscribeError> {
         match self.channel.subscriber() {
@@ -99,7 +99,7 @@ unsafe impl<'a, O: Clone, const CAP: usize, const SUBS: usize> RtEngineOutputCha
         }
     }
 
-    fn publish(&self, output: Self::OutputEnum) {
+    fn publish(&self, output: Self::Output) {
         self.publisher.publish_immediate(output);
     }
 }

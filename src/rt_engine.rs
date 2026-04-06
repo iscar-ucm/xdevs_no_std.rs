@@ -1,33 +1,33 @@
 pub use crate::export::{RecvError, SubscribeError};
 use crate::traits::{
-    AbstractSimulator, MapInput, MapOutput, RtEngineInputChannel, RtEngineOutputChannel,
+    AbstractSimulator, EjectOutput, InjectInput, RtEngineInputChannel, RtEngineOutputChannel,
 };
-use crate::{Duration, Instant};
+use crate::{Duration, Instant, Simulator};
 
 /// Automated simulation engine for real-time execution of DEVS models.
 /// Its interfaces are created through the use of the `rt_engine` macro.
 pub struct RtEngine<M: AbstractSimulator>
 where
-    M::Input: MapInput,
-    M::Output: MapOutput,
+    M::Input: InjectInput,
+    M::Output: EjectOutput,
 {
-    simulator: crate::Simulator<M>,
-    input_channel: <M::Input as MapInput>::InputChannel,
-    output_channel: <M::Output as MapOutput>::OutputChannel,
+    simulator: Simulator<M>,
+    input_channel: <M::Input as InjectInput>::InputChannel,
+    output_channel: <M::Output as EjectOutput>::OutputChannel,
 }
 
 impl<M: AbstractSimulator> RtEngine<M>
 where
-    M::Input: MapInput,
-    M::Output: MapOutput,
+    M::Input: InjectInput,
+    M::Output: EjectOutput,
 {
     pub fn new(
         model: M,
-        input_channel: <M::Input as MapInput>::InputChannel,
-        output_channel: <M::Output as MapOutput>::OutputChannel,
+        input_channel: <M::Input as InjectInput>::InputChannel,
+        output_channel: <M::Output as EjectOutput>::OutputChannel,
     ) -> Self {
         Self {
-            simulator: crate::Simulator::new(model),
+            simulator: Simulator::new(model),
             input_channel,
             output_channel,
         }
@@ -47,11 +47,13 @@ where
 /// Note how I and N are declared here, not on the struct.
 impl<M: AbstractSimulator> RtEngine<M>
 where
-    M::Input: MapInput,
-    M::Output: MapOutput,
-    <M::Input as MapInput>::InputChannel: RtEngineInputChannel,
+    M::Input: InjectInput,
+    M::Output: EjectOutput,
+    <M::Input as InjectInput>::InputChannel: RtEngineInputChannel,
 {
-    pub fn sender(&self) -> <<M::Input as MapInput>::InputChannel as RtEngineInputChannel>::Sender {
+    pub fn sender(
+        &self,
+    ) -> <<M::Input as InjectInput>::InputChannel as RtEngineInputChannel>::Sender {
         self.input_channel.sender()
     }
 }
@@ -60,14 +62,14 @@ where
 /// Note how O, CAP, and SUBS are declared here.
 impl<M: AbstractSimulator> RtEngine<M>
 where
-    M::Input: MapInput,
-    M::Output: MapOutput,
-    <M::Output as MapOutput>::OutputChannel: RtEngineOutputChannel,
+    M::Input: InjectInput,
+    M::Output: EjectOutput,
+    <M::Output as EjectOutput>::OutputChannel: RtEngineOutputChannel,
 {
     pub fn receiver(
         &self,
     ) -> Result<
-        <<M::Output as MapOutput>::OutputChannel as RtEngineOutputChannel>::Receiver,
+        <<M::Output as EjectOutput>::OutputChannel as RtEngineOutputChannel>::Receiver,
         crate::rt_engine::SubscribeError,
     > {
         self.output_channel.receiver()
@@ -76,17 +78,17 @@ where
 
 struct RtEngineInputHandler<'a, M: AbstractSimulator>
 where
-    M::Input: MapInput,
+    M::Input: InjectInput,
 {
-    input_channel: &'a mut <M::Input as MapInput>::InputChannel,
+    input_channel: &'a mut <M::Input as InjectInput>::InputChannel,
     last_rt: Option<crate::Instant>,
 }
 
 impl<'a, M: AbstractSimulator> RtEngineInputHandler<'a, M>
 where
-    M::Input: MapInput,
+    M::Input: InjectInput,
 {
-    fn new(input_channel: &'a mut <M::Input as MapInput>::InputChannel) -> Self {
+    fn new(input_channel: &'a mut <M::Input as InjectInput>::InputChannel) -> Self {
         Self {
             input_channel,
             last_rt: None,
@@ -96,7 +98,7 @@ where
 
 impl<'a, M: AbstractSimulator> crate::traits::AsyncInput for RtEngineInputHandler<'a, M>
 where
-    M::Input: MapInput,
+    M::Input: InjectInput,
 {
     type Input = M::Input;
 
