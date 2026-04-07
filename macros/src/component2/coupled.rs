@@ -11,7 +11,7 @@ use coupling::Couplings;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{
     parse::{Parse, ParseStream},
-    Error, Generics, Ident, ItemStruct, Token,
+    parse2, Error, Generics, Ident, ItemStruct, Result, Token,
 };
 
 struct CoupledArgs {
@@ -19,14 +19,14 @@ struct CoupledArgs {
 }
 
 impl Parse for CoupledArgs {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         let mut couplings = None;
 
         while !input.is_empty() {
             let token: Ident = input.parse()?;
             input.parse::<Token![=]>()?; // consume the '='
             if token == "couplings" {
-                couplings = Some(syn::parse2(input.parse()?)?);
+                couplings = Some(parse2(input.parse()?)?);
             } else {
                 return Err(Error::new(
                     token.span(),
@@ -48,8 +48,8 @@ pub struct Component {
 }
 
 impl Component {
-    pub fn parse(args: TokenStream2, item: TokenStream2) -> syn::Result<Self> {
-        let component: ItemStruct = syn::parse2(item).unwrap();
+    pub fn parse(args: TokenStream2, item: TokenStream2) -> Result<Self> {
+        let component: ItemStruct = parse2(item).unwrap();
 
         let ident = component.ident.clone();
         let ParsedComponentFields {
@@ -73,7 +73,7 @@ impl Component {
         }
 
         // Parse arguments
-        let args = syn::parse2::<CoupledArgs>(args)?;
+        let args = parse2::<CoupledArgs>(args)?;
         let couplings = args.couplings;
 
         // Get generics and idents and assign them to each struct accordingly
@@ -82,9 +82,9 @@ impl Component {
         let output_generics = filter_generics(&outputs, &generics);
         let components_generics = filter_generics(&components, &generics);
 
-        let input_ident = syn::Ident::new(&format!("{}Input", &ident), ident.span());
-        let output_ident = syn::Ident::new(&format!("{}Output", &ident), ident.span());
-        let components_ident = syn::Ident::new(&format!("{}Components", &ident), ident.span());
+        let input_ident = Ident::new(&format!("{}Input", &ident), ident.span());
+        let output_ident = Ident::new(&format!("{}Output", &ident), ident.span());
+        let components_ident = Ident::new(&format!("{}Components", &ident), ident.span());
 
         let input = Ports::new(inputs, input_ident, input_generics);
         let output = Ports::new(outputs, output_ident, output_generics);

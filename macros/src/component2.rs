@@ -12,13 +12,15 @@ use proc_macro2::TokenStream as TokenStream2;
 use std::collections::HashSet;
 use syn::visit::{self, Visit};
 use syn::{
-    braced, parse::ParseStream, Error, GenericParam, Generics, Ident, ItemStruct, Lifetime, Token,
-    TypeGenerics,
+    braced,
+    parse::{ParseStream, Parser},
+    Error, Field, GenericParam, Generics, Ident, ItemStruct, Lifetime, Result, Token, Type,
+    TypeGenerics, TypePath,
 };
 
 pub struct ComponentField {
-    ident: syn::Ident,
-    ty: syn::Type,
+    ident: Ident,
+    ty: Type,
 }
 
 pub struct CommonComponent {
@@ -33,10 +35,10 @@ impl CommonComponent {
     fn parse_rt_engine(
         args: TokenStream2,
         unknown_arg_error: &'static str,
-    ) -> syn::Result<Option<RtEngine>> {
+    ) -> Result<Option<RtEngine>> {
         let mut rt_engine = None;
-        syn::parse::Parser::parse2(
-            |input: ParseStream| -> syn::Result<()> {
+        Parser::parse2(
+            |input: ParseStream| -> Result<()> {
                 while !input.is_empty() {
                     let ident: Ident = input.parse()?;
                     if ident == "rt_engine" {
@@ -71,13 +73,13 @@ impl CommonComponent {
         outputs: Vec<ComponentField>,
         args: TokenStream2,
         unknown_arg_error: &'static str,
-    ) -> syn::Result<Self> {
+    ) -> Result<Self> {
         let rt_engine = Self::parse_rt_engine(args, unknown_arg_error)?;
         let input_generics = filter_generics(&inputs, &generics);
         let output_generics = filter_generics(&outputs, &generics);
 
-        let input_ident = syn::Ident::new(&format!("{ident}Input"), ident.span());
-        let output_ident = syn::Ident::new(&format!("{ident}Output"), ident.span());
+        let input_ident = Ident::new(&format!("{ident}Input"), ident.span());
+        let output_ident = Ident::new(&format!("{ident}Output"), ident.span());
 
         Ok(Self {
             ident,
@@ -103,7 +105,7 @@ impl ParsedComponentFields {
         inputs: &[ComponentField],
         outputs: &[ComponentField],
         third: &[ComponentField],
-    ) -> syn::Result<()> {
+    ) -> Result<()> {
         let output_names: HashSet<String> = outputs.iter().map(|f| f.ident.to_string()).collect();
         let third_names: HashSet<String> = third.iter().map(|f| f.ident.to_string()).collect();
 
@@ -138,8 +140,8 @@ impl ParsedComponentFields {
     ///
     /// Supported attributes are `#[input]`, `#[output]`, `#[state]`,
     /// `#[components]`, and `#[component]`.
-    pub fn parse(component: &ItemStruct) -> syn::Result<Self> {
-        fn to_component_field(field: &syn::Field) -> syn::Result<ComponentField> {
+    pub fn parse(component: &ItemStruct) -> Result<Self> {
+        fn to_component_field(field: &Field) -> Result<ComponentField> {
             let ident = field.ident.clone().ok_or_else(|| {
                 Error::new_spanned(field, "Only named struct fields are supported")
             })?;
@@ -201,7 +203,7 @@ struct GenericsCollector<'a> {
 }
 
 impl<'a, 'ast: 'a> Visit<'ast> for GenericsCollector<'a> {
-    fn visit_type_path(&mut self, node: &'ast syn::TypePath) {
+    fn visit_type_path(&mut self, node: &'ast TypePath) {
         if let Some(ident) = node.path.get_ident() {
             self.type_idents.insert(ident);
         }
@@ -245,9 +247,9 @@ pub fn filter_generics(fields: &[ComponentField], all: &Generics) -> Generics {
 }
 
 fn impl_component(
-    ident: &syn::Ident,
-    input_ident: &syn::Ident,
-    output_ident: &syn::Ident,
+    ident: &Ident,
+    input_ident: &Ident,
+    output_ident: &Ident,
     generics: &Generics,
     input_generics: &TypeGenerics,
     output_generics: &TypeGenerics,
