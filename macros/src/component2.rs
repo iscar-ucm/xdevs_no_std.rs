@@ -6,13 +6,15 @@ mod port;
 mod rt_engine;
 mod state;
 
+use self::port::Ports;
+use backend::RtEngine;
 use proc_macro2::TokenStream as TokenStream2;
 use std::collections::HashSet;
 use syn::visit::{self, Visit};
-use syn::{Error, GenericParam, Generics, Ident, Lifetime, TypeGenerics};
-
-use self::port::Ports;
-use backend::RtEngine;
+use syn::{
+    braced, parse::ParseStream, Error, GenericParam, Generics, Ident, ItemStruct, Lifetime, Token,
+    TypeGenerics,
+};
 
 pub struct ComponentField {
     ident: syn::Ident,
@@ -27,40 +29,170 @@ pub struct CommonComponent {
     pub rt_engine: Option<RtEngine>,
 }
 
-/// Check for duplicate field names across inputs, outputs, and a third field list (state or components).
-pub fn check_duplicate_fields(
-    inputs: &[ComponentField],
-    outputs: &[ComponentField],
-    third: &[ComponentField],
-) -> syn::Result<()> {
-    let output_names: HashSet<String> = outputs.iter().map(|f| f.ident.to_string()).collect();
-    let third_names: HashSet<String> = third.iter().map(|f| f.ident.to_string()).collect();
+impl CommonComponent {
+    fn parse_rt_engine(
+        args: TokenStream2,
+        unknown_arg_error: &'static str,
+    ) -> syn::Result<Option<RtEngine>> {
+        let mut rt_engine = None;
+        syn::parse::Parser::parse2(
+            |input: ParseStream| -> syn::Result<()> {
+                while !input.is_empty() {
+                    let ident: Ident = input.parse()?;
+                    if ident == "rt_engine" {
+                        // Accept both `rt_engine` and `rt_engine = { ... }`.
+                        if input.peek(Token![=]) {
+                            input.parse::<Token![=]>()?;
+                            let content;
+                            braced!(content in input);
+                            rt_engine = Some(content.parse::<RtEngine>()?);
+                        } else {
+                            rt_engine = Some(RtEngine::default());
+                        }
+                    } else {
+                        return Err(Error::new(ident.span(), unknown_arg_error));
+                    }
+                    if !input.is_empty() {
+                        input.parse::<Token![,]>()?;
+                    }
+                }
+                Ok(())
+            },
+            args,
+        )?;
 
-    for input in inputs {
-        let name = input.ident.to_string();
-        if output_names.contains(&name) {
-            return Err(Error::new_spanned(
-                &input.ident,
-                format!("Duplicate field name '{}': already defined as input", name),
-            ));
-        }
-        if third_names.contains(&name) {
-            return Err(Error::new_spanned(
-                &input.ident,
-                format!("Duplicate field name '{}': already defined as input", name),
-            ));
-        }
+        Ok(rt_engine)
     }
-    for output in outputs {
-        let name = output.ident.to_string();
-        if third_names.contains(&name) {
-            return Err(Error::new_spanned(
-                &output.ident,
-                format!("Duplicate field name '{}': already defined as output", name),
-            ));
-        }
+
+    pub fn new(
+        ident: Ident,
+        generics: Generics,
+        inputs: Vec<ComponentField>,
+        outputs: Vec<ComponentField>,
+        args: TokenStream2,
+        unknown_arg_error: &'static str,
+    ) -> syn::Result<Self> {
+        let rt_engine = Self::parse_rt_engine(args, unknown_arg_error)?;
+        let input_generics = filter_generics(&inputs, &generics);
+        let output_generics = filter_generics(&outputs, &generics);
+
+        let input_ident = syn::Ident::new(&format!("{ident}Input"), ident.span());
+        let output_ident = syn::Ident::new(&format!("{ident}Output"), ident.span());
+
+        Ok(Self {
+            ident,
+            generics,
+            input: Ports::new(inputs, input_ident, input_generics),
+            output: Ports::new(outputs, output_ident, output_generics),
+            rt_engine,
+        })
     }
-    Ok(())
+}
+
+#[derive(Default)]
+pub struct ParsedComponentFields {
+    pub inputs: Vec<ComponentField>,
+    pub outputs: Vec<ComponentField>,
+    pub state: Vec<ComponentField>,
+    pub components: Vec<ComponentField>,
+}
+
+impl ParsedComponentFields {
+    /// Check for duplicate field names across inputs, outputs, and a third field list (state or components).
+    fn check_duplicate_fields(
+        inputs: &[ComponentField],
+        outputs: &[ComponentField],
+        third: &[ComponentField],
+    ) -> syn::Result<()> {
+        let output_names: HashSet<String> = outputs.iter().map(|f| f.ident.to_string()).collect();
+        let third_names: HashSet<String> = third.iter().map(|f| f.ident.to_string()).collect();
+
+        for input in inputs {
+            let name = input.ident.to_string();
+            if output_names.contains(&name) || third_names.contains(&name) {
+                return Err(Error::new_spanned(
+                    &input.ident,
+                    format!("Duplicate field name '{}': already defined as input", name),
+                ));
+            }
+            if third_names.contains(&name) {
+                return Err(Error::new_spanned(
+                    &input.ident,
+                    format!("Duplicate field name '{}': already defined as input", name),
+                ));
+            }
+        }
+        for output in outputs {
+            let name = output.ident.to_string();
+            if third_names.contains(&name) {
+                return Err(Error::new_spanned(
+                    &output.ident,
+                    format!("Duplicate field name '{}': already defined as output", name),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Parse and classify all recognized component fields by attribute.
+    ///
+    /// Supported attributes are `#[input]`, `#[output]`, `#[state]`,
+    /// `#[components]`, and `#[component]`.
+    pub fn parse(component: &ItemStruct) -> syn::Result<Self> {
+        fn to_component_field(field: &syn::Field) -> syn::Result<ComponentField> {
+            let ident = field.ident.clone().ok_or_else(|| {
+                Error::new_spanned(field, "Only named struct fields are supported")
+            })?;
+            Ok(ComponentField {
+                ident,
+                ty: field.ty.clone(),
+            })
+        }
+
+        let mut parsed = Self::default();
+        let mut last_attr = None;
+
+        for field in &component.fields {
+            let field_attrs = &field.attrs;
+
+            if field_attrs.len() > 1 {
+                return Err(Error::new_spanned(
+                    field,
+                    "Each field may have at most one attribute",
+                ));
+            }
+
+            if let Some(attr) = field_attrs.first() {
+                last_attr = Some(attr);
+            }
+            if let Some(attr) = last_attr {
+                let parsed_field = to_component_field(field)?;
+                if attr.path().is_ident("input") {
+                    parsed.inputs.push(parsed_field);
+                } else if attr.path().is_ident("output") {
+                    parsed.outputs.push(parsed_field);
+                } else if attr.path().is_ident("state") {
+                    parsed.state.push(parsed_field);
+                } else if attr.path().is_ident("components") {
+                    parsed.components.push(parsed_field);
+                } else {
+                    return Err(Error::new_spanned(attr, "Unknown attribute"));
+                }
+            }
+        }
+
+        // Validate duplicate names as part of common field parsing.
+        // Only run checks for non-empty groups so each macro kind can keep
+        // its own semantic constraints (e.g. state vs components) separately.
+        if !parsed.state.is_empty() {
+            Self::check_duplicate_fields(&parsed.inputs, &parsed.outputs, &parsed.state)?;
+        }
+        if !parsed.components.is_empty() {
+            Self::check_duplicate_fields(&parsed.inputs, &parsed.outputs, &parsed.components)?;
+        }
+
+        Ok(parsed)
+    }
 }
 
 struct GenericsCollector<'a> {

@@ -1,4 +1,4 @@
-use super::ComponentField;
+use crate::component2::ComponentField;
 use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::Generics;

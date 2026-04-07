@@ -1,13 +1,10 @@
-use super::backend::RtEngine;
-use super::check_duplicate_fields;
 use super::filter_generics;
 use super::impl_component;
-use super::port::Ports;
 use super::state::State;
 use super::CommonComponent;
-use super::ComponentField;
+use super::ParsedComponentFields;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{braced, parse::ParseStream, Error, Ident, ItemStruct, Token};
+use syn::{Error, ItemStruct};
 
 pub struct Component {
     pub common: CommonComponent,
@@ -19,82 +16,19 @@ impl Component {
         let component: ItemStruct = syn::parse2(item).unwrap();
 
         let ident = component.ident.clone();
-        let mut last_attr = None;
-        let mut state = Vec::new();
-        let mut inputs = Vec::new();
-        let mut outputs = Vec::new();
-        let mut rt_engine = None;
+        let ParsedComponentFields {
+            inputs,
+            outputs,
+            state,
+            components,
+        } = ParsedComponentFields::parse(&component)?;
 
-        // Parse arguments
-        syn::parse::Parser::parse2(
-            |input: ParseStream| -> syn::Result<()> {
-                while !input.is_empty() {
-                    let ident: Ident = input.parse()?;
-                    if ident == "rt_engine" {
-                        // Accept both `rt_engine` and `rt_engine = { ... }`.
-                        if input.peek(Token![=]) {
-                            input.parse::<Token![=]>()?;
-                            let content;
-                            braced!(content in input);
-                            rt_engine = Some(content.parse::<RtEngine>()?);
-                        } else {
-                            rt_engine = Some(RtEngine::default());
-                        }
-                    } else {
-                        return Err(Error::new(
-                            ident.span(),
-                            "unknown atomic component argument",
-                        ));
-                    }
-                    if !input.is_empty() {
-                        input.parse::<Token![,]>()?;
-                    }
-                }
-                Ok(())
-            },
-            args,
-        )?;
-
-        // Parse struct fields
-        for field in &component.fields {
-            let field_attrs = &field.attrs;
-
-            if field_attrs.len() > 1 {
-                return Err(Error::new_spanned(
-                    &field,
-                    "Each field may have at most one attribute",
-                ));
-            }
-
-            if let Some(attr) = field_attrs.first() {
-                last_attr = Some(attr);
-            }
-            if let Some(attr) = last_attr {
-                if attr.path().is_ident("state") {
-                    let field_ident = field.ident.clone().unwrap();
-                    let field_ty = field.ty.clone();
-                    state.push(ComponentField {
-                        ident: field_ident,
-                        ty: field_ty,
-                    });
-                } else if attr.path().is_ident("input") {
-                    let field_ident = field.ident.clone().unwrap();
-                    let field_ty = field.ty.clone();
-                    inputs.push(ComponentField {
-                        ident: field_ident,
-                        ty: field_ty,
-                    });
-                } else if attr.path().is_ident("output") {
-                    let field_ident = field.ident.clone().unwrap();
-                    let field_ty = field.ty.clone();
-                    outputs.push(ComponentField {
-                        ident: field_ident,
-                        ty: field_ty,
-                    });
-                } else {
-                    return Err(Error::new_spanned(attr, "Unknown attribute"));
-                }
-            }
+        // Atomic components must not declare inner components.
+        if !components.is_empty() {
+            return Err(Error::new_spanned(
+                &components[0].ident,
+                "Atomic components cannot define #[components] fields",
+            ));
         }
 
         // Check that state is defined
@@ -102,33 +36,21 @@ impl Component {
             return Err(Error::new_spanned(&component, "No state definition found"));
         }
 
-        // Check for duplicate field names across input, output, and state
-        check_duplicate_fields(&inputs, &outputs, &state)?;
-
-        // Get generics and idents and assign them to each struct accordingly
+        // Build shared component metadata (rt_engine + top-level ports).
         let generics = component.generics.clone();
-        let input_generics = filter_generics(&inputs, &generics);
-        let output_generics = filter_generics(&outputs, &generics);
         let state_generics = filter_generics(&state, &generics);
-
-        let input_ident = syn::Ident::new(&format!("{ident}Input"), ident.span());
-        let output_ident = syn::Ident::new(&format!("{ident}Output"), ident.span());
         let state_ident = syn::Ident::new(&format!("{ident}State"), ident.span());
-
-        let input = Ports::new(inputs, input_ident, input_generics);
-        let output = Ports::new(outputs, output_ident, output_generics);
+        let common = CommonComponent::new(
+            ident,
+            generics,
+            inputs,
+            outputs,
+            args,
+            "unknown atomic component argument",
+        )?;
         let state = State::new(state, state_ident, state_generics);
 
-        Ok(Component {
-            common: CommonComponent {
-                ident,
-                generics,
-                input,
-                output,
-                rt_engine,
-            },
-            state,
-        })
+        Ok(Component { common, state })
     }
 
     pub fn quote(&self) -> TokenStream2 {

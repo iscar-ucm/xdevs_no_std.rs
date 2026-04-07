@@ -1,11 +1,11 @@
 mod components;
 mod coupling;
 
-use super::check_duplicate_fields;
 use super::filter_generics;
 use super::impl_component;
 use super::port::Ports;
 use super::ComponentField;
+use super::ParsedComponentFields;
 use components::Components;
 use coupling::Couplings;
 use proc_macro2::TokenStream as TokenStream2;
@@ -52,60 +52,25 @@ impl Component {
         let component: ItemStruct = syn::parse2(item).unwrap();
 
         let ident = component.ident.clone();
-        let mut last_attr = None;
-        let mut components = Vec::new();
-        let mut inputs = Vec::new();
-        let mut outputs = Vec::new();
+        let ParsedComponentFields {
+            inputs,
+            outputs,
+            state,
+            components,
+        } = ParsedComponentFields::parse(&component)?;
 
-        // Parse struct fields
-        for field in &component.fields {
-            let field_attrs = &field.attrs;
-
-            if field_attrs.len() > 1 {
-                return Err(Error::new_spanned(
-                    &field,
-                    "Each field may have at most one attribute",
-                ));
-            }
-
-            if let Some(attr) = field_attrs.first() {
-                last_attr = Some(attr);
-            }
-            if let Some(attr) = last_attr {
-                if attr.path().is_ident("components") {
-                    let field_ident = field.ident.clone().unwrap();
-                    let field_ty = field.ty.clone();
-                    components.push(ComponentField {
-                        ident: field_ident,
-                        ty: field_ty,
-                    });
-                } else if attr.path().is_ident("input") {
-                    let field_ident = field.ident.clone().unwrap();
-                    let field_ty = field.ty.clone();
-                    inputs.push(ComponentField {
-                        ident: field_ident,
-                        ty: field_ty,
-                    });
-                } else if attr.path().is_ident("output") {
-                    let field_ident = field.ident.clone().unwrap();
-                    let field_ty = field.ty.clone();
-                    outputs.push(ComponentField {
-                        ident: field_ident,
-                        ty: field_ty,
-                    });
-                } else {
-                    return Err(Error::new_spanned(attr, "Unknown attribute"));
-                }
-            }
+        // Legacy coupled components cannot declare state fields.
+        if !state.is_empty() {
+            return Err(Error::new_spanned(
+                &state[0].ident,
+                "Coupled components cannot define #[state] fields",
+            ));
         }
 
         // Check that components is defined
         if components.is_empty() {
             return Err(Error::new_spanned(&component, "No components found"));
         }
-
-        // Check for duplicate field names across input, output, and components
-        check_duplicate_fields(&inputs, &outputs, &components)?;
 
         // Parse arguments
         let args = syn::parse2::<CoupledArgs>(args)?;

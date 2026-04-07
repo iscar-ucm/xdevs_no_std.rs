@@ -1,15 +1,12 @@
 mod components;
 
-use super::backend::RtEngine;
-use super::check_duplicate_fields;
 use super::filter_generics;
 use super::impl_component;
-use super::port::Ports;
 use super::CommonComponent;
-use super::ComponentField;
+use super::ParsedComponentFields;
 use components::Components;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{braced, parse::ParseStream, Error, Ident, ItemStruct, Token};
+use syn::{Error, ItemStruct};
 
 pub struct Component {
     pub common: CommonComponent,
@@ -21,82 +18,19 @@ impl Component {
         let component: ItemStruct = syn::parse2(item).unwrap();
 
         let ident = component.ident.clone();
-        let mut last_attr = None;
-        let mut components = Vec::new();
-        let mut inputs = Vec::new();
-        let mut outputs = Vec::new();
-        let mut rt_engine = None;
+        let ParsedComponentFields {
+            inputs,
+            outputs,
+            state,
+            components,
+        } = ParsedComponentFields::parse(&component)?;
 
-        // Parse arguments
-        syn::parse::Parser::parse2(
-            |input: ParseStream| -> syn::Result<()> {
-                while !input.is_empty() {
-                    let ident: Ident = input.parse()?;
-                    if ident == "rt_engine" {
-                        // Accept both `rt_engine` and `rt_engine = { ... }`.
-                        if input.peek(Token![=]) {
-                            input.parse::<Token![=]>()?;
-                            let content;
-                            braced!(content in input);
-                            rt_engine = Some(content.parse::<RtEngine>()?);
-                        } else {
-                            rt_engine = Some(RtEngine::default());
-                        }
-                    } else {
-                        return Err(Error::new(
-                            ident.span(),
-                            "unknown coupled component argument",
-                        ));
-                    }
-                    if !input.is_empty() {
-                        input.parse::<Token![,]>()?;
-                    }
-                }
-                Ok(())
-            },
-            args,
-        )?;
-
-        // Parse struct fields
-        for field in &component.fields {
-            let field_attrs = &field.attrs;
-
-            if field_attrs.len() > 1 {
-                return Err(Error::new_spanned(
-                    &field,
-                    "Each field may have at most one attribute",
-                ));
-            }
-
-            if let Some(attr) = field_attrs.first() {
-                last_attr = Some(attr);
-            }
-            if let Some(attr) = last_attr {
-                if attr.path().is_ident("components") {
-                    let field_ident = field.ident.clone().unwrap();
-                    let field_ty = field.ty.clone();
-                    components.push(ComponentField {
-                        ident: field_ident,
-                        ty: field_ty,
-                    });
-                } else if attr.path().is_ident("input") {
-                    let field_ident = field.ident.clone().unwrap();
-                    let field_ty = field.ty.clone();
-                    inputs.push(ComponentField {
-                        ident: field_ident,
-                        ty: field_ty,
-                    });
-                } else if attr.path().is_ident("output") {
-                    let field_ident = field.ident.clone().unwrap();
-                    let field_ty = field.ty.clone();
-                    outputs.push(ComponentField {
-                        ident: field_ident,
-                        ty: field_ty,
-                    });
-                } else {
-                    return Err(Error::new_spanned(attr, "Unknown attribute"));
-                }
-            }
+        // Coupled components must not declare state fields.
+        if !state.is_empty() {
+            return Err(Error::new_spanned(
+                &state[0].ident,
+                "Coupled components cannot define #[state] fields",
+            ));
         }
 
         // Check that components is defined
@@ -104,33 +38,23 @@ impl Component {
             return Err(Error::new_spanned(&component, "No components found"));
         }
 
-        // Check for duplicate field names across input, output, and components
-        check_duplicate_fields(&inputs, &outputs, &components)?;
-
-        // Get generics and idents and assign them to each struct accordingly
+        // Build varaibles for generation.
         let generics = component.generics.clone();
-        let input_generics = filter_generics(&inputs, &generics);
-        let output_generics = filter_generics(&outputs, &generics);
         let components_generics = filter_generics(&components, &generics);
-
-        let input_ident = syn::Ident::new(&format!("{}Input", &ident), ident.span());
-        let output_ident = syn::Ident::new(&format!("{}Output", &ident), ident.span());
         let components_ident = syn::Ident::new(&format!("{}Components", &ident), ident.span());
 
-        let inputs = Ports::new(inputs, input_ident, input_generics);
-        let outputs = Ports::new(outputs, output_ident, output_generics);
+        // Generate common component and components
+        let common = CommonComponent::new(
+            ident,
+            generics,
+            inputs,
+            outputs,
+            args,
+            "unknown coupled component argument",
+        )?;
         let components = Components::new(components, components_ident, components_generics);
 
-        Ok(Component {
-            common: CommonComponent {
-                ident,
-                generics,
-                input: inputs,
-                output: outputs,
-                rt_engine,
-            },
-            components,
-        })
+        Ok(Component { common, components })
     }
 
     pub fn quote(&self) -> TokenStream2 {
