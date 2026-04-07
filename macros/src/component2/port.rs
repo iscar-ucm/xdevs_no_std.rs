@@ -1,7 +1,5 @@
-use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::Generics;
-use syn::Type;
+use syn::{Expr, ExprLit, Generics, Ident, Lit, PathArguments, Type};
 
 use super::ComponentField;
 
@@ -20,11 +18,11 @@ impl Ports {
         }
     }
 
-    fn field_idents(&self) -> Vec<&syn::Ident> {
+    fn field_idents(&self) -> Vec<&Ident> {
         self.ports.iter().map(|f| &f.ident).collect()
     }
 
-    fn field_tys(&self) -> Vec<&syn::Type> {
+    fn field_tys(&self) -> Vec<&Type> {
         self.ports.iter().map(|f| &f.ty).collect()
     }
 
@@ -77,8 +75,8 @@ fn extract_new(ty: &Type) -> TokenStream2 {
             let length = &array.len;
 
             // Try to parse length as a literal integer
-            if let syn::Expr::Lit(syn::ExprLit {
-                lit: syn::Lit::Int(lit_int),
+            if let Expr::Lit(ExprLit {
+                lit: Lit::Int(lit_int),
                 ..
             }) = length
             {
@@ -96,7 +94,7 @@ fn extract_new(ty: &Type) -> TokenStream2 {
         Type::Path(path) => {
             let mut path = path.path.clone();
             for segment in &mut path.segments {
-                segment.arguments = syn::PathArguments::None;
+                segment.arguments = PathArguments::None;
             }
             quote::quote! {
                 #path::new()

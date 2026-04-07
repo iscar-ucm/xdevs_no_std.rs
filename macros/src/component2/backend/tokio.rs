@@ -3,7 +3,7 @@ use crate::component2::CommonComponent;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use syn::{
     parse::{Parse, ParseStream},
-    Result,
+    Error, Result,
 };
 
 /// Arguments for the `#[rt_engine]` attribute macro.
@@ -24,11 +24,11 @@ impl Default for RtEngineBackend {
 }
 
 impl Parse for RtEngineBackend {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         let parsed_args: RtEngineArgs = input.parse()?;
 
         if parsed_args.max_out_subs.is_some() {
-            return Err(syn::Error::new(
+            return Err(Error::new(
                 Span::call_site(),
                 "max_out_subs is not supported in the std backend",
             ));

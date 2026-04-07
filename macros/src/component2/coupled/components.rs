@@ -1,5 +1,5 @@
-use proc_macro2::{Ident, TokenStream as TokenStream2};
-use syn::Generics;
+use proc_macro2::TokenStream as TokenStream2;
+use syn::{Generics, Ident, Type};
 
 use super::ComponentField;
 
@@ -18,11 +18,11 @@ impl Components {
         }
     }
 
-    pub fn field_idents(&self) -> Vec<&syn::Ident> {
+    pub fn field_idents(&self) -> Vec<&Ident> {
         self.components.iter().map(|f| &f.ident).collect()
     }
 
-    pub fn field_tys(&self) -> Vec<&syn::Type> {
+    pub fn field_tys(&self) -> Vec<&Type> {
         self.components.iter().map(|f| &f.ty).collect()
     }
 

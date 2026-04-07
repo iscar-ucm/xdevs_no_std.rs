@@ -3,7 +3,7 @@ use crate::component2::CommonComponent;
 use heck::ToShoutySnakeCase;
 use syn::{
     parse::{Parse, ParseStream},
-    Result,
+    Error, Result,
 };
 
 /// Arguments for the `#[rt_engine]` attribute macro.
@@ -27,7 +27,7 @@ impl Default for RtEngineBackend {
 }
 
 impl Parse for RtEngineBackend {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         let parsed_args: RtEngineArgs = input.parse()?;
 
         Ok(RtEngineBackend {
@@ -44,7 +44,7 @@ impl Backend for RtEngineBackend {
         let has_output_generics = !model.output.generics.params.is_empty();
 
         if has_input_generics || has_output_generics {
-            Err(syn::Error::new_spanned(
+            Err(Error::new_spanned(
                 &model.ident,
                 "rt_engine with embassy backend does not support generic input/output types",
             ))

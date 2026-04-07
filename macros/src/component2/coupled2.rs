@@ -6,7 +6,7 @@ use super::CommonComponent;
 use super::ParsedComponentFields;
 use components::Components;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Error, ItemStruct};
+use syn::{parse2, Error, GenericParam, Ident, ItemStruct, Result};
 
 pub struct Component {
     pub common: CommonComponent,
@@ -14,8 +14,8 @@ pub struct Component {
 }
 
 impl Component {
-    pub fn parse(args: TokenStream2, item: TokenStream2) -> syn::Result<Self> {
-        let component: ItemStruct = syn::parse2(item).unwrap();
+    pub fn parse(args: TokenStream2, item: TokenStream2) -> Result<Self> {
+        let component: ItemStruct = parse2(item).unwrap();
 
         let ident = component.ident.clone();
         let ParsedComponentFields {
@@ -41,7 +41,7 @@ impl Component {
         // Build varaibles for generation.
         let generics = component.generics.clone();
         let components_generics = filter_generics(&components, &generics);
-        let components_ident = syn::Ident::new(&format!("{}Components", &ident), ident.span());
+        let components_ident = Ident::new(&format!("{}Components", &ident), ident.span());
 
         // Generate common component and components
         let common = CommonComponent::new(
@@ -61,15 +61,15 @@ impl Component {
         let ident = &self.common.ident;
 
         // Prepare identifiers for code generation
-        let input_ident = syn::Ident::new(
+        let input_ident = Ident::new(
             &format!("{}Input", &self.common.ident),
             self.common.ident.span(),
         );
-        let output_ident = syn::Ident::new(
+        let output_ident = Ident::new(
             &format!("{}Output", &self.common.ident),
             self.common.ident.span(),
         );
-        let components_ident = syn::Ident::new(
+        let components_ident = Ident::new(
             &format!("{}Components", &self.common.ident),
             self.common.ident.span(),
         );
@@ -104,10 +104,9 @@ impl Component {
         // These structs hold references to all inner components' inputs/outputs,
         // allowing them to be passed as a single argument to trait methods without
         // exposing the component's state or internal structure.
-        let component_inputs_ident =
-            syn::Ident::new(&format!("{}ComponentsInput", ident), ident.span());
+        let component_inputs_ident = Ident::new(&format!("{}ComponentsInput", ident), ident.span());
         let component_outputs_ident =
-            syn::Ident::new(&format!("{}ComponentsOutput", ident), ident.span());
+            Ident::new(&format!("{}ComponentsOutput", ident), ident.span());
 
         let component_input_fields: Vec<TokenStream2> = self
             .components
@@ -199,15 +198,15 @@ impl Component {
             .params
             .iter()
             .map(|p| match p {
-                syn::GenericParam::Type(tp) => {
+                GenericParam::Type(tp) => {
                     let ident = &tp.ident;
                     quote::quote! { #ident }
                 }
-                syn::GenericParam::Lifetime(lp) => {
+                GenericParam::Lifetime(lp) => {
                     let lifetime = &lp.lifetime;
                     quote::quote! { #lifetime }
                 }
-                syn::GenericParam::Const(cp) => {
+                GenericParam::Const(cp) => {
                     let ident = &cp.ident;
                     quote::quote! { #ident }
                 }
@@ -222,7 +221,7 @@ impl Component {
             .params
             .iter()
             .filter_map(|p| {
-                if let syn::GenericParam::Lifetime(lp) = p {
+                if let GenericParam::Lifetime(lp) = p {
                     Some(&lp.lifetime)
                 } else {
                     None

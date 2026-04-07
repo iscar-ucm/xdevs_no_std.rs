@@ -3,9 +3,11 @@ use quote::quote;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use syn::{
+    braced,
+    parenthesized,
     parse::{Parse, ParseStream},
-    token::Brace,
-    Error, Ident, Token,
+    token::{Brace, Paren},
+    Error, Ident, Result, Token,
 };
 
 use super::ComponentField;
@@ -228,7 +230,7 @@ impl Coupling {
 }
 
 impl Parse for Coupling {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         // Helper function to check if an identifier is an iterator method
         fn is_iter_method(ident: &Ident) -> bool {
             let name = ident.to_string();
@@ -243,7 +245,7 @@ impl Parse for Coupling {
         fn parse_part(
             input: ParseStream,
             end_condition: impl Fn(&ParseStream) -> bool,
-        ) -> syn::Result<(Ident, TokenStream2, TokenStream2, Option<TokenStream2>)> {
+        ) -> Result<(Ident, TokenStream2, TokenStream2, Option<TokenStream2>)> {
             let mut part_1 = TokenStream2::new();
             let mut part_2 = TokenStream2::new();
             let mut iter_chain = TokenStream2::new();
@@ -259,11 +261,11 @@ impl Parse for Coupling {
                     // Consume the dot
                     input.parse::<Token![.]>()?;
 
-                    if input.peek(syn::Ident) {
+                    if input.peek(Ident) {
                         let ident: Ident = input.parse()?;
 
                         // Check if this identifier is followed by `()`
-                        let has_parens = input.peek(syn::token::Paren);
+                        let has_parens = input.peek(Paren);
 
                         // Check if this is an iter method, if so, start capturing iter_chain
                         if is_iter_method(&ident) && has_parens && !found_iter {
@@ -316,7 +318,7 @@ impl Parse for Coupling {
         }
 
         // Check if source is wrapped in zip(...)
-        let source_is_zipped = input.peek(syn::Ident)
+        let source_is_zipped = input.peek(Ident)
             && input
                 .fork()
                 .parse::<Ident>()
@@ -328,7 +330,7 @@ impl Parse for Coupling {
             input.parse::<Ident>()?;
             // Parse the parenthesized content
             let content;
-            syn::parenthesized!(content in input);
+            parenthesized!(content in input);
             parse_part(&content, |inp| inp.is_empty())?
         } else {
             parse_part(input, |inp| inp.peek(Token![->]))?
@@ -381,9 +383,9 @@ impl Couplings {
 }
 
 impl Parse for Couplings {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         let content;
-        let brace = syn::braced!(content in input);
+        let brace = braced!(content in input);
         let mut couplings = Vec::new();
         let mut cache = HashSet::new();
 

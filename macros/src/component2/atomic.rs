@@ -4,7 +4,7 @@ use super::state::State;
 use super::CommonComponent;
 use super::ParsedComponentFields;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Error, ItemStruct};
+use syn::{parse2, Error, Ident, ItemStruct, Result};
 
 pub struct Component {
     pub common: CommonComponent,
@@ -12,8 +12,8 @@ pub struct Component {
 }
 
 impl Component {
-    pub fn parse(args: TokenStream2, item: TokenStream2) -> syn::Result<Self> {
-        let component: ItemStruct = syn::parse2(item).unwrap();
+    pub fn parse(args: TokenStream2, item: TokenStream2) -> Result<Self> {
+        let component: ItemStruct = parse2(item).unwrap();
 
         let ident = component.ident.clone();
         let ParsedComponentFields {
@@ -39,7 +39,7 @@ impl Component {
         // Build shared component metadata (rt_engine + top-level ports).
         let generics = component.generics.clone();
         let state_generics = filter_generics(&state, &generics);
-        let state_ident = syn::Ident::new(&format!("{ident}State"), ident.span());
+        let state_ident = Ident::new(&format!("{ident}State"), ident.span());
         let common = CommonComponent::new(
             ident,
             generics,

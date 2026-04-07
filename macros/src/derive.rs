@@ -1,17 +1,16 @@
 use heck::ToSnakeCase;
 use heck::ToUpperCamelCase;
-use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Data, DeriveInput, Field, Fields, Type};
+use syn::{Data, DeriveInput, Error, Field, Fields, Ident, Index, Result, Type};
 
-pub fn derive_bag(input: DeriveInput) -> syn::Result<TokenStream2> {
+pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
     let ident = input.ident;
     let generics = input.generics;
 
     let fields = match input.data {
         Data::Struct(data) => data.fields,
         _ => {
-            return Err(syn::Error::new_spanned(
+            return Err(Error::new_spanned(
                 ident,
                 "Bag can only be derived for structs",
             ))
@@ -32,7 +31,7 @@ pub fn derive_bag(input: DeriveInput) -> syn::Result<TokenStream2> {
             .iter()
             .enumerate()
             .map(|(i, _)| {
-                let index = syn::Index::from(i);
+                let index = Index::from(i);
                 quote::quote!(self.#index)
             })
             .collect(),
@@ -66,7 +65,7 @@ pub fn derive_bag(input: DeriveInput) -> syn::Result<TokenStream2> {
     })
 }
 
-pub fn derive_bagmux(input: DeriveInput) -> syn::Result<TokenStream2> {
+pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
     // Prepare the struct fields and generics
     let ident = input.ident;
     let snake_case_ident = Ident::new(&ident.to_string().to_snake_case(), ident.span());
@@ -79,7 +78,7 @@ pub fn derive_bagmux(input: DeriveInput) -> syn::Result<TokenStream2> {
     let fields = match input.data {
         Data::Struct(data) => data.fields,
         _ => {
-            return Err(syn::Error::new_spanned(
+            return Err(Error::new_spanned(
                 ident,
                 "Bag can only be derived for structs",
             ))
@@ -89,7 +88,7 @@ pub fn derive_bagmux(input: DeriveInput) -> syn::Result<TokenStream2> {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     match fields {
-        Fields::Unnamed(_) => Err(syn::Error::new_spanned(
+        Fields::Unnamed(_) => Err(Error::new_spanned(
             ident,
             "BagMux cannot be derived for tuple structs",
         )),
