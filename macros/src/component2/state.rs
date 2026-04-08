@@ -3,6 +3,7 @@ use syn::{Generics, Ident, Type};
 
 use super::ComponentField;
 
+/// Parsed component state fields used to generate the state wrapper type.
 pub struct State {
     pub fields: Vec<ComponentField>,
     pub ident: Ident,

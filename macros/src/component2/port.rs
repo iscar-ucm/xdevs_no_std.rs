@@ -3,6 +3,7 @@ use syn::{Expr, ExprLit, Generics, Ident, Lit, PathArguments, Type};
 
 use super::ComponentField;
 
+/// Parsed collection of component ports used to generate Input/Output structs.
 pub struct Ports {
     pub ports: Vec<ComponentField>,
     pub ident: Ident,

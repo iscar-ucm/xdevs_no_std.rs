@@ -3,6 +3,7 @@ use syn::{Generics, Ident, Type};
 
 use super::ComponentField;
 
+/// Parsed inner component fields for coupled model generation.
 pub struct Components {
     pub components: Vec<ComponentField>,
     pub ident: Ident,

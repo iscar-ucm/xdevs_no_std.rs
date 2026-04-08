@@ -10,19 +10,21 @@ use self::port::Ports;
 use backend::RtEngine;
 use proc_macro2::TokenStream as TokenStream2;
 use std::collections::HashSet;
-use syn::visit::{self, Visit};
 use syn::{
     braced,
     parse::{ParseStream, Parser},
+    visit::{self, Visit},
     Error, Field, GenericParam, Generics, Ident, ItemStruct, Lifetime, Result, Token, Type,
     TypeGenerics, TypePath,
 };
 
+/// Named struct field extracted from a component declaration.
 pub struct ComponentField {
-    ident: Ident,
-    ty: Type,
+    pub ident: Ident,
+    pub ty: Type,
 }
 
+/// Shared metadata used by atomic and coupled component macro expansions.
 pub struct CommonComponent {
     pub ident: Ident,
     pub generics: Generics,
@@ -92,9 +94,10 @@ impl CommonComponent {
 }
 
 #[derive(Default)]
+/// Parsed field groups collected from a user component struct.
 pub struct ParsedComponentFields {
-    pub inputs: Vec<ComponentField>,
-    pub outputs: Vec<ComponentField>,
+    pub input: Vec<ComponentField>,
+    pub output: Vec<ComponentField>,
     pub state: Vec<ComponentField>,
     pub components: Vec<ComponentField>,
 }
@@ -102,14 +105,14 @@ pub struct ParsedComponentFields {
 impl ParsedComponentFields {
     /// Check for duplicate field names across inputs, outputs, and a third field list (state or components).
     fn check_duplicate_fields(
-        inputs: &[ComponentField],
-        outputs: &[ComponentField],
+        input: &[ComponentField],
+        output: &[ComponentField],
         third: &[ComponentField],
     ) -> Result<()> {
-        let output_names: HashSet<String> = outputs.iter().map(|f| f.ident.to_string()).collect();
+        let output_names: HashSet<String> = output.iter().map(|f| f.ident.to_string()).collect();
         let third_names: HashSet<String> = third.iter().map(|f| f.ident.to_string()).collect();
 
-        for input in inputs {
+        for input in input {
             let name = input.ident.to_string();
             if output_names.contains(&name) || third_names.contains(&name) {
                 return Err(Error::new_spanned(
@@ -117,14 +120,8 @@ impl ParsedComponentFields {
                     format!("Duplicate field name '{}': already defined as input", name),
                 ));
             }
-            if third_names.contains(&name) {
-                return Err(Error::new_spanned(
-                    &input.ident,
-                    format!("Duplicate field name '{}': already defined as input", name),
-                ));
-            }
         }
-        for output in outputs {
+        for output in output {
             let name = output.ident.to_string();
             if third_names.contains(&name) {
                 return Err(Error::new_spanned(
@@ -139,7 +136,7 @@ impl ParsedComponentFields {
     /// Parse and classify all recognized component fields by attribute.
     ///
     /// Supported attributes are `#[input]`, `#[output]`, `#[state]`,
-    /// `#[components]`, and `#[component]`.
+    /// and `#[components]`.
     pub fn parse(component: &ItemStruct) -> Result<Self> {
         fn to_component_field(field: &Field) -> Result<ComponentField> {
             let ident = field.ident.clone().ok_or_else(|| {
@@ -166,13 +163,18 @@ impl ParsedComponentFields {
 
             if let Some(attr) = field_attrs.first() {
                 last_attr = Some(attr);
+            } else if last_attr.is_none() {
+                return Err(Error::new_spanned(
+                    field,
+                    "Field requires an attribute (#[input], #[output], #[state], or #[components])",
+                ));
             }
             if let Some(attr) = last_attr {
                 let parsed_field = to_component_field(field)?;
                 if attr.path().is_ident("input") {
-                    parsed.inputs.push(parsed_field);
+                    parsed.input.push(parsed_field);
                 } else if attr.path().is_ident("output") {
-                    parsed.outputs.push(parsed_field);
+                    parsed.output.push(parsed_field);
                 } else if attr.path().is_ident("state") {
                     parsed.state.push(parsed_field);
                 } else if attr.path().is_ident("components") {
@@ -187,16 +189,17 @@ impl ParsedComponentFields {
         // Only run checks for non-empty groups so each macro kind can keep
         // its own semantic constraints (e.g. state vs components) separately.
         if !parsed.state.is_empty() {
-            Self::check_duplicate_fields(&parsed.inputs, &parsed.outputs, &parsed.state)?;
+            Self::check_duplicate_fields(&parsed.input, &parsed.output, &parsed.state)?;
         }
         if !parsed.components.is_empty() {
-            Self::check_duplicate_fields(&parsed.inputs, &parsed.outputs, &parsed.components)?;
+            Self::check_duplicate_fields(&parsed.input, &parsed.output, &parsed.components)?;
         }
 
         Ok(parsed)
     }
 }
 
+/// Internal visitor used to collect generic parameters referenced by fields.
 struct GenericsCollector<'a> {
     type_idents: HashSet<&'a Ident>,
     lifetimes: HashSet<&'a Lifetime>,

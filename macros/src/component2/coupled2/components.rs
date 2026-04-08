@@ -2,6 +2,7 @@ use crate::component2::ComponentField;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{Generics, Ident, Type};
 
+/// Parsed inner component fields for coupled2 model generation.
 pub struct Components {
     pub components: Vec<ComponentField>,
     pub ident: Ident,
