@@ -14,6 +14,7 @@ use syn::{
     parse2, Error, Generics, Ident, ItemStruct, Result, Token,
 };
 
+/// Parsed arguments accepted by the `component2::coupled` macro.
 struct CoupledArgs {
     couplings: Option<Couplings>,
 }
@@ -38,6 +39,7 @@ impl Parse for CoupledArgs {
     }
 }
 
+/// Parsed representation of a coupled component macro input.
 pub struct Component {
     pub ident: Ident,
     pub generics: Generics,
@@ -49,17 +51,17 @@ pub struct Component {
 
 impl Component {
     pub fn parse(args: TokenStream2, item: TokenStream2) -> Result<Self> {
-        let component: ItemStruct = parse2(item).unwrap();
+        let component: ItemStruct = parse2(item)?;
 
         let ident = component.ident.clone();
         let ParsedComponentFields {
-            inputs,
-            outputs,
+            input: inputs,
+            output: outputs,
             state,
             components,
         } = ParsedComponentFields::parse(&component)?;
 
-        // Legacy coupled components cannot declare state fields.
+        // Coupled components cannot declare state fields.
         if !state.is_empty() {
             return Err(Error::new_spanned(
                 &state[0].ident,

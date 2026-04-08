@@ -3,8 +3,7 @@ use quote::quote;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use syn::{
-    braced,
-    parenthesized,
+    braced, parenthesized,
     parse::{Parse, ParseStream},
     token::{Brace, Paren},
     Error, Ident, Result, Token,
@@ -13,6 +12,7 @@ use syn::{
 use super::ComponentField;
 
 #[derive(Clone)]
+/// Parsed coupling rule connecting source and destination ports/components.
 pub struct Coupling {
     pub first_source_ident: Ident,
     pub source_1: TokenStream2,
@@ -356,6 +356,7 @@ impl Parse for Coupling {
     }
 }
 
+/// Container for all coupling rules declared in a coupled component.
 pub struct Couplings {
     pub _brace: Brace,
     pub couplings: Vec<Coupling>,

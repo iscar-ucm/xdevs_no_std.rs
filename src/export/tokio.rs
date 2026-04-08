@@ -34,7 +34,7 @@ impl<T, const N: usize> InputChannel<T, N> {
         Self { sender, receiver }
     }
 }
-unsafe impl<T, const N: usize> RtEngineInputChannel for InputChannel<T, N> {
+impl<T, const N: usize> RtEngineInputChannel for InputChannel<T, N> {
     type Input = T;
     type Sender = Sender<T>;
 
@@ -61,7 +61,7 @@ impl<T: Clone, const N: usize> OutputChannel<T, N> {
         Self { sender, receiver }
     }
 }
-unsafe impl<T: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<T, N> {
+impl<T: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<T, N> {
     type Output = T;
     type Receiver = Receiver<T>;
 

@@ -8,6 +8,7 @@ use components::Components;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{parse2, Error, GenericParam, Ident, ItemStruct, Result};
 
+/// Parsed representation of a coupled2 component macro input.
 pub struct Component {
     pub common: CommonComponent,
     pub components: Components,
@@ -15,12 +16,12 @@ pub struct Component {
 
 impl Component {
     pub fn parse(args: TokenStream2, item: TokenStream2) -> Result<Self> {
-        let component: ItemStruct = parse2(item).unwrap();
+        let component: ItemStruct = parse2(item)?;
 
         let ident = component.ident.clone();
         let ParsedComponentFields {
-            inputs,
-            outputs,
+            input: inputs,
+            output: outputs,
             state,
             components,
         } = ParsedComponentFields::parse(&component)?;
@@ -38,7 +39,7 @@ impl Component {
             return Err(Error::new_spanned(&component, "No components found"));
         }
 
-        // Build varaibles for generation.
+        // Build variables for generation.
         let generics = component.generics.clone();
         let components_generics = filter_generics(&components, &generics);
         let components_ident = Ident::new(&format!("{}Components", &ident), ident.span());

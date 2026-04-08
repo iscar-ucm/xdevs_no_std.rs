@@ -18,12 +18,14 @@ use syn::{
 
 use crate::component2::CommonComponent;
 
+/// Generated token fragments used to construct backend channel code.
 pub struct ChannelTokens {
     pub channel_type: TokenStream2,
     pub channel_call: TokenStream2,
     pub private_channel: TokenStream2,
 }
 
+/// Generic parsed arguments for `rt_engine = { ... }` backend configuration.
 pub struct RtEngineArgs {
     pub in_channel_size: Option<usize>,
     pub out_channel_size: Option<usize>,

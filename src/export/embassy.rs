@@ -53,7 +53,7 @@ impl<'a, I, const N: usize> InputChannel<'a, I, N> {
         Self { channel }
     }
 }
-unsafe impl<'a, I, const N: usize> RtEngineInputChannel for InputChannel<'a, I, N> {
+impl<'a, I, const N: usize> RtEngineInputChannel for InputChannel<'a, I, N> {
     type Input = I;
     type Sender = Sender<'a, I, N>;
 
@@ -83,7 +83,7 @@ impl<'a, O: Clone, const CAP: usize, const SUBS: usize> OutputChannel<'a, O, CAP
         }
     }
 }
-unsafe impl<'a, O: Clone, const CAP: usize, const SUBS: usize> RtEngineOutputChannel
+impl<'a, O: Clone, const CAP: usize, const SUBS: usize> RtEngineOutputChannel
     for OutputChannel<'a, O, CAP, SUBS>
 {
     type Output = O;

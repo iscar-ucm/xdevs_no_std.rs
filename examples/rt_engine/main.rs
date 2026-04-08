@@ -14,7 +14,7 @@ pub struct Transparent {
 
 impl xdevs::Atomic for Transparent {
     fn delta_int(state: &mut Self::State) {
-        state.sigma = f64::INFINITY; // Immediate output
+        state.sigma = f64::INFINITY; // Passive state (wait for external input)
     }
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
@@ -66,12 +66,13 @@ async fn receiver(mut receiver: TransparentReceiver) {
             Ok(TransparentOutputEnum::OutJob(value)) => {
                 println!("[Receiver] got value {}", value);
             }
-            Err(xdevs::rt_engine::RecvError::Lagged(u64)) => {
-                println!("[Receiver] lagged by {} messages", u64);
+            Err(xdevs::rt_engine::RecvError::Lagged(count)) => {
+                println!("[Receiver] lagged by {} messages", count);
             }
             // This error exists only in std
             Err(xdevs::rt_engine::RecvError::Closed) => {
                 println!("[Receiver] receive channel closed");
+                break;
             }
         }
     }

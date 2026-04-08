@@ -187,11 +187,7 @@ pub unsafe trait EjectOutput: Bag {
 }
 
 /// Input channel for the rt_engine macro.
-///
-/// # Safety
-///
-/// This trait is implemented internally. Do not implement it manually.
-pub unsafe trait RtEngineInputChannel: sealed::Sealed {
+pub trait RtEngineInputChannel: sealed::Sealed {
     /// Enum representing the input ports of the model. Each variant corresponds to an input port.
     type Input;
     /// Type of the sender used to send input events to the model.
@@ -205,11 +201,7 @@ pub unsafe trait RtEngineInputChannel: sealed::Sealed {
 }
 
 /// Output channel for the rt_engine macro.
-///
-/// # Safety
-///
-/// This trait is implemented internally. Do not implement it manually.
-pub unsafe trait RtEngineOutputChannel: sealed::Sealed {
+pub trait RtEngineOutputChannel: sealed::Sealed {
     /// Enum representing the output ports of the model. Each variant corresponds to an output port.
     type Output;
 

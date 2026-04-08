@@ -6,6 +6,7 @@ use super::ParsedComponentFields;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{parse2, Error, Ident, ItemStruct, Result};
 
+/// Parsed representation of an atomic component macro input.
 pub struct Component {
     pub common: CommonComponent,
     pub state: State,
@@ -13,12 +14,12 @@ pub struct Component {
 
 impl Component {
     pub fn parse(args: TokenStream2, item: TokenStream2) -> Result<Self> {
-        let component: ItemStruct = parse2(item).unwrap();
+        let component: ItemStruct = parse2(item)?;
 
         let ident = component.ident.clone();
         let ParsedComponentFields {
-            inputs,
-            outputs,
+            input: inputs,
+            output: outputs,
             state,
             components,
         } = ParsedComponentFields::parse(&component)?;
