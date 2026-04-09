@@ -6,7 +6,7 @@ use crate::{
     Duration as eDuration, Instant as eInstant,
 };
 
-use embassy_time::Timer;
+use embassy_time::{with_deadline, Timer};
 
 //use std::time::Duration as StdDuration;
 use std::{thread, time::Duration as stdDuration, time::Instant as stdInstant, time::SystemTime};
@@ -121,10 +121,13 @@ impl<T: Bag> AsyncInput for SleepAsync<T> {
         //no devuelve nada. en el propio simulador se comprueba que se realice en el tiempo correcto
         //let last_rt = self.last_rt.unwrap_or_else(eInstant::now);
         //let next_rt = last_rt + (t_until - Timer::now()) * (config.mult as u32);
-        Timer::at(t_until).await;
+        //Timer::at(t_until).await;
         // Timer::at(next_rt).await;
         // self.last_rt = Some(next_rt);
         //t_until
         //Timer::now() //más preciso que t_until por si ha habido alguna variación
+        let t_next = self.t_until;
+        Timer::at(t_next).await;
+        self.last_rt = Some(Instant::now());
     }
 }

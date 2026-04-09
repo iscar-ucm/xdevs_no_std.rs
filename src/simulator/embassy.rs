@@ -3,7 +3,7 @@ use crate::{
     traits::{AsyncInput, Bag},
 };
 use crate::{Duration, Instant};
-use embassy_time::Timer;
+use embassy_time::{with_deadline, Timer};
 
 /// A simple asynchronous input handler that sleeps until the next state transition of the model.
 #[derive(Default)]
@@ -27,12 +27,17 @@ impl<T: Bag> SleepAsync<T> {
 impl<T: Bag> AsyncInput for SleepAsync<T> {
     type Input = T;
 
-    async fn handle(&mut self, config: &Config, t_until: Instant, _input: &mut Self::Input) {
+    async fn handle(&mut self, _input: &mut Self::Input) {
         // let last_rt = self.last_rt.unwrap_or_else(Instant::now);
         // let duration = (t_until - Instant::now()) * (config.mult as u32);
         // let next_rt = last_rt + duration.try_into().unwrap();
         //Timer::at(next_rt).await;
         //self.last_rt = Some(next_rt);
-        Timer::at(t_until).await;
+        //Timer::at(t_until).await;
+        //implementar función handle de asyncInput que duerma hasta el siguiente evento de transición del modelo
+
+        let t_next = self.t_next();
+        Timer::at(t_next).await;
+        self.last_rt = Some(Instant::now());
     }
 }
