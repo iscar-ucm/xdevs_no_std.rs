@@ -763,258 +763,262 @@ impl Generator {
 // Recursive expansion of coupled2 macro
 // ======================================
 
-// #[derive(Debug, Default)]
-// pub struct ModeloFinalInput {}
+#[derive(Debug, Default)]
+pub struct ModeloFinalInput {}
 
-// impl ModeloFinalInput {
-//     #[inline]
-//     pub const fn new() -> Self {
-//         Self {}
-//     }
-// }
-// unsafe impl xdevs::traits::Bag for ModeloFinalInput {
-//     #[inline]
-//     fn is_empty(&self) -> bool {
-//         true
-//     }
-//     #[inline]
-//     fn clear(&mut self) {}
-// }
-// #[derive(Debug, Default)]
-// pub struct ModeloFinalOutput {}
+impl ModeloFinalInput {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {}
+    }
+}
+unsafe impl xdevs::traits::Bag for ModeloFinalInput {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        true
+    }
+    #[inline]
+    fn clear(&mut self) {}
+}
+#[derive(Debug, Default)]
+pub struct ModeloFinalOutput {}
 
-// impl ModeloFinalOutput {
-//     #[inline]
-//     pub const fn new() -> Self {
-//         Self {}
-//     }
-// }
-// unsafe impl xdevs::traits::Bag for ModeloFinalOutput {
-//     #[inline]
-//     fn is_empty(&self) -> bool {
-//         true
-//     }
-//     #[inline]
-//     fn clear(&mut self) {}
-// }
-// pub struct ModeloFinalComponents<const W: usize> {
-//     generator: Generator,
-//     modelo_li: ModCoupLI<W>,
-// }
-// impl<const W: usize> ModeloFinalComponents<W> {
-//     #[inline]
-//     pub fn new(generator: Generator, modelo_li: ModCoupLI<W>) -> Self {
-//         Self {
-//             generator,
-//             modelo_li,
-//         }
-//     }
-// }
-// #[doc = r" Wrapper struct holding mutable references to all inner components' inputs."]
-// pub struct ModeloFinalComponentsInput<'__xdevs_inner, const W: usize> {
-//     pub generator: <Generator as xdevs::traits::Component>::InputRef<'__xdevs_inner>,
-//     pub modelo_li: <ModCoupLI<W> as xdevs::traits::Component>::InputRef<'__xdevs_inner>,
-// }
-// #[doc = r" Wrapper struct holding references to all inner components' outputs."]
-// pub struct ModeloFinalComponentsOutput<'__xdevs_inner, const W: usize> {
-//     pub generator: <Generator as xdevs::traits::Component>::OutputRef<'__xdevs_inner>,
-//     pub modelo_li: <ModCoupLI<W> as xdevs::traits::Component>::OutputRef<'__xdevs_inner>,
-// }
-// pub struct ModeloFinal<const W: usize> {
-//     pub input: ModeloFinalInput,
-//     pub output: ModeloFinalOutput,
-//     pub t_last: f64,
-//     pub t_next: f64,
-//     pub components: ModeloFinalComponents<W>,
-// }
-// impl<const W: usize> ModeloFinal<W> {
-//     #[inline]
-//     pub fn build(generator: Generator, modelo_li: ModCoupLI<W>) -> Self {
-//         Self {
-//             input: ModeloFinalInput::new(),
-//             output: ModeloFinalOutput::new(),
-//             t_last: 0.0,
-//             t_next: f64::INFINITY,
-//             components: ModeloFinalComponents::new(generator, modelo_li),
-//         }
-//     }
-// }
-// unsafe impl<const W: usize> xdevs::traits::Component for ModeloFinal<W> {
-//     type Input = ModeloFinalInput;
-//     type Output = ModeloFinalOutput;
-//     type InputRef<'__xdevs_ports>
-//         = &'__xdevs_ports mut ModeloFinalInput
-//     where
-//         Self: '__xdevs_ports;
-//     type OutputRef<'__xdevs_ports>
-//         = &'__xdevs_ports ModeloFinalOutput
-//     where
-//         Self: '__xdevs_ports;
-//     #[inline]
-//     fn get_t_last(&self) -> f64 {
-//         self.t_last
-//     }
-//     #[inline]
-//     fn set_t_last(&mut self, t_last: f64) {
-//         self.t_last = t_last;
-//     }
-//     #[inline]
-//     fn get_t_next(&self) -> f64 {
-//         self.t_next
-//     }
-//     #[inline]
-//     fn set_t_next(&mut self, t_next: f64) {
-//         self.t_next = t_next;
-//     }
-//     #[inline]
-//     fn get_input(&self) -> &Self::Input {
-//         &self.input
-//     }
-//     #[inline]
-//     fn get_input_mut(&mut self) -> &mut Self::Input {
-//         &mut self.input
-//     }
-//     #[inline]
-//     fn get_output(&self) -> &Self::Output {
-//         &self.output
-//     }
-//     #[inline]
-//     fn get_output_mut(&mut self) -> &mut Self::Output {
-//         &mut self.output
-//     }
-//     #[inline]
-//     fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
-//         (&mut self.input, &self.output)
-//     }
-//     #[inline]
-//     fn get_out_ports(&self) -> Self::OutputRef<'_> {
-//         &self.output
-//     }
-// }
-// unsafe impl<const W: usize> xdevs::traits::PartialCoupled for ModeloFinal<W> {
-//     type ComponentsInput<'__xdevs_inner>
-//         = ModeloFinalComponentsInput<'__xdevs_inner, W>
-//     where
-//         Self: '__xdevs_inner;
-//     type ComponentsOutput<'__xdevs_inner>
-//         = ModeloFinalComponentsOutput<'__xdevs_inner, W>
-//     where
-//         Self: '__xdevs_inner;
-// }
-// unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for ModeloFinal<W> {
-//     #[inline]
-//     fn start(&mut self, t_start: f64) -> f64 {
-//         xdevs::traits::Component::set_t_last(self, t_start);
-//         let mut t_next = f64::INFINITY;
-//         t_next = f64::min(
-//             t_next,
-//             xdevs::traits::AbstractSimulator::start(&mut self.components.generator, t_start),
-//         );
-//         t_next = f64::min(
-//             t_next,
-//             xdevs::traits::AbstractSimulator::start(&mut self.components.modelo_li, t_start),
-//         );
-//         xdevs::traits::Component::set_t_next(self, t_next);
-//         t_next
-//     }
-//     #[inline]
-//     fn stop(&mut self, t_stop: f64) {
-//         xdevs::traits::AbstractSimulator::stop(&mut self.components.generator, t_stop);
-//         xdevs::traits::AbstractSimulator::stop(&mut self.components.modelo_li, t_stop);
-//         xdevs::traits::Component::set_t_last(self, t_stop);
-//         xdevs::traits::Component::set_t_next(self, f64::INFINITY);
-//     }
-//     #[inline]
-//     fn lambda(&mut self, t: f64) {
-//         if t >= xdevs::traits::Component::get_t_next(self) {
-//             xdevs::traits::AbstractSimulator::lambda(&mut self.components.generator, t);
-//             xdevs::traits::AbstractSimulator::lambda(&mut self.components.modelo_li, t);
-//             let generator_output =
-//                 xdevs::traits::Component::get_out_ports(&self.components.generator);
-//             let modelo_li_output =
-//                 xdevs::traits::Component::get_out_ports(&self.components.modelo_li);
-//             let component_outputs: ModeloFinalComponentsOutput<'_, W> =
-//                 ModeloFinalComponentsOutput {
-//                     generator: generator_output,
-//                     modelo_li: modelo_li_output,
-//                 };
-//             <Self as xdevs::Coupled>::eoc(&component_outputs, &mut self.output);
-//         }
-//     }
-//     #[inline]
-//     fn delta(&mut self, t: f64) -> f64 {
-//         {
-//             let (generator_input, generator_output) =
-//                 xdevs::traits::Component::get_ports(&mut self.components.generator);
-//             let (modelo_li_input, modelo_li_output) =
-//                 xdevs::traits::Component::get_ports(&mut self.components.modelo_li);
-//             let component_outputs: ModeloFinalComponentsOutput<'_, W> =
-//                 ModeloFinalComponentsOutput {
-//                     generator: generator_output,
-//                     modelo_li: modelo_li_output,
-//                 };
-//             let mut component_inputs: ModeloFinalComponentsInput<'_, W> =
-//                 ModeloFinalComponentsInput {
-//                     generator: generator_input,
-//                     modelo_li: modelo_li_input,
-//                 };
-//             <Self as xdevs::Coupled>::eic(&self.input, &mut component_inputs);
-//             <Self as xdevs::Coupled>::ic(&component_outputs, &mut component_inputs);
-//         }
-//         let mut t_next = f64::INFINITY;
-//         t_next = f64::min(
-//             t_next,
-//             xdevs::traits::AbstractSimulator::delta(&mut self.components.generator, t),
-//         );
-//         t_next = f64::min(
-//             t_next,
-//             xdevs::traits::AbstractSimulator::delta(&mut self.components.modelo_li, t),
-//         );
-//         xdevs::traits::Component::clear_output(self);
-//         xdevs::traits::Component::clear_input(self);
-//         xdevs::traits::Component::set_t_last(self, t);
-//         xdevs::traits::Component::set_t_next(self, t_next);
-//         t_next
-//     }
-// }
-
-// impl<const W: usize> xdevs::Coupled for ModeloFinal<W> {
-//     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
-//         // No external input for this model
-//     }
-
-//     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
-//         for value in from.generator.out_job.get_values() {
-//             to.output_port.add_value(*value).unwrap();
-//         }
-//     }
-// }
-
-#[xdevs::coupled(
-    couplings = {generator.out_job -> modelo_li.input_port}
-)
-]
-
-struct ModeloFinal<const W: usize> {
-    #[components]
+impl ModeloFinalOutput {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {}
+    }
+}
+unsafe impl xdevs::traits::Bag for ModeloFinalOutput {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        true
+    }
+    #[inline]
+    fn clear(&mut self) {}
+}
+pub struct ModeloFinalComponents<const W: usize> {
     generator: Generator,
     modelo_li: ModCoupLI<W>,
 }
+impl<const W: usize> ModeloFinalComponents<W> {
+    #[inline]
+    pub fn new(generator: Generator, modelo_li: ModCoupLI<W>) -> Self {
+        Self {
+            generator,
+            modelo_li,
+        }
+    }
+}
+#[doc = r" Wrapper struct holding mutable references to all inner components' inputs."]
+pub struct ModeloFinalComponentsInput<'__xdevs_inner, const W: usize> {
+    pub generator: <Generator as xdevs::traits::Component>::InputRef<'__xdevs_inner>,
+    pub modelo_li: <ModCoupLI<W> as xdevs::traits::Component>::InputRef<'__xdevs_inner>,
+}
+#[doc = r" Wrapper struct holding references to all inner components' outputs."]
+pub struct ModeloFinalComponentsOutput<'__xdevs_inner, const W: usize> {
+    pub generator: <Generator as xdevs::traits::Component>::OutputRef<'__xdevs_inner>,
+    pub modelo_li: <ModCoupLI<W> as xdevs::traits::Component>::OutputRef<'__xdevs_inner>,
+}
+pub struct ModeloFinal<const W: usize> {
+    pub input: ModeloFinalInput,
+    pub output: ModeloFinalOutput,
+    pub t_last: f64,
+    pub t_next: f64,
+    pub components: ModeloFinalComponents<W>,
+}
+impl<const W: usize> ModeloFinal<W> {
+    #[inline]
+    pub fn build(generator: Generator, modelo_li: ModCoupLI<W>) -> Self {
+        Self {
+            input: ModeloFinalInput::new(),
+            output: ModeloFinalOutput::new(),
+            t_last: 0.0,
+            t_next: f64::INFINITY,
+            components: ModeloFinalComponents::new(generator, modelo_li),
+        }
+    }
+}
+unsafe impl<const W: usize> xdevs::traits::Component for ModeloFinal<W> {
+    type Input = ModeloFinalInput;
+    type Output = ModeloFinalOutput;
+    type InputRef<'__xdevs_ports>
+        = &'__xdevs_ports mut ModeloFinalInput
+    where
+        Self: '__xdevs_ports;
+    type OutputRef<'__xdevs_ports>
+        = &'__xdevs_ports ModeloFinalOutput
+    where
+        Self: '__xdevs_ports;
+    #[inline]
+    fn get_t_last(&self) -> f64 {
+        self.t_last
+    }
+    #[inline]
+    fn set_t_last(&mut self, t_last: f64) {
+        self.t_last = t_last;
+    }
+    #[inline]
+    fn get_t_next(&self) -> f64 {
+        self.t_next
+    }
+    #[inline]
+    fn set_t_next(&mut self, t_next: f64) {
+        self.t_next = t_next;
+    }
+    #[inline]
+    fn get_input(&self) -> &Self::Input {
+        &self.input
+    }
+    #[inline]
+    fn get_input_mut(&mut self) -> &mut Self::Input {
+        &mut self.input
+    }
+    #[inline]
+    fn get_output(&self) -> &Self::Output {
+        &self.output
+    }
+    #[inline]
+    fn get_output_mut(&mut self) -> &mut Self::Output {
+        &mut self.output
+    }
+    #[inline]
+    fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
+        (&mut self.input, &self.output)
+    }
+    #[inline]
+    fn get_out_ports(&self) -> Self::OutputRef<'_> {
+        &self.output
+    }
+}
+unsafe impl<const W: usize> xdevs::traits::PartialCoupled for ModeloFinal<W> {
+    type ComponentsInput<'__xdevs_inner>
+        = ModeloFinalComponentsInput<'__xdevs_inner, W>
+    where
+        Self: '__xdevs_inner;
+    type ComponentsOutput<'__xdevs_inner>
+        = ModeloFinalComponentsOutput<'__xdevs_inner, W>
+    where
+        Self: '__xdevs_inner;
+}
+unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for ModeloFinal<W> {
+    #[inline]
+    fn start(&mut self, t_start: f64) -> f64 {
+        xdevs::traits::Component::set_t_last(self, t_start);
+        let mut t_next = f64::INFINITY;
+        t_next = f64::min(
+            t_next,
+            xdevs::traits::AbstractSimulator::start(&mut self.components.generator, t_start),
+        );
+        t_next = f64::min(
+            t_next,
+            xdevs::traits::AbstractSimulator::start(&mut self.components.modelo_li, t_start),
+        );
+        xdevs::traits::Component::set_t_next(self, t_next);
+        t_next
+    }
+    #[inline]
+    fn stop(&mut self, t_stop: f64) {
+        xdevs::traits::AbstractSimulator::stop(&mut self.components.generator, t_stop);
+        xdevs::traits::AbstractSimulator::stop(&mut self.components.modelo_li, t_stop);
+        xdevs::traits::Component::set_t_last(self, t_stop);
+        xdevs::traits::Component::set_t_next(self, f64::INFINITY);
+    }
+    #[inline]
+    fn lambda(&mut self, t: f64) {
+        if t >= xdevs::traits::Component::get_t_next(self) {
+            xdevs::traits::AbstractSimulator::lambda(&mut self.components.generator, t);
+            xdevs::traits::AbstractSimulator::lambda(&mut self.components.modelo_li, t);
+            let generator_output =
+                xdevs::traits::Component::get_out_ports(&self.components.generator);
+            let modelo_li_output =
+                xdevs::traits::Component::get_out_ports(&self.components.modelo_li);
+            let component_outputs: ModeloFinalComponentsOutput<'_, W> =
+                ModeloFinalComponentsOutput {
+                    generator: generator_output,
+                    modelo_li: modelo_li_output,
+                };
+            <Self as xdevs::Coupled>::eoc(&component_outputs, &mut self.output);
+        }
+    }
+    #[inline]
+    fn delta(&mut self, t: f64) -> f64 {
+        {
+            let (generator_input, generator_output) =
+                xdevs::traits::Component::get_ports(&mut self.components.generator);
+            let (modelo_li_input, modelo_li_output) =
+                xdevs::traits::Component::get_ports(&mut self.components.modelo_li);
+            let component_outputs: ModeloFinalComponentsOutput<'_, W> =
+                ModeloFinalComponentsOutput {
+                    generator: generator_output,
+                    modelo_li: modelo_li_output,
+                };
+            let mut component_inputs: ModeloFinalComponentsInput<'_, W> =
+                ModeloFinalComponentsInput {
+                    generator: generator_input,
+                    modelo_li: modelo_li_input,
+                };
+            <Self as xdevs::Coupled>::eic(&self.input, &mut component_inputs);
+            <Self as xdevs::Coupled>::ic(&component_outputs, &mut component_inputs);
+        }
+        let mut t_next = f64::INFINITY;
+        t_next = f64::min(
+            t_next,
+            xdevs::traits::AbstractSimulator::delta(&mut self.components.generator, t),
+        );
+        t_next = f64::min(
+            t_next,
+            xdevs::traits::AbstractSimulator::delta(&mut self.components.modelo_li, t),
+        );
+        xdevs::traits::Component::clear_output(self);
+        xdevs::traits::Component::clear_input(self);
+        xdevs::traits::Component::set_t_last(self, t);
+        xdevs::traits::Component::set_t_next(self, t_next);
+        t_next
+    }
+}
+
+impl<const W: usize> xdevs::Coupled for ModeloFinal<W> {
+    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
+        for value in from.generator.out_job.get_values() {
+            to.modelo_li.input_port.add_value(*value).unwrap();
+        }
+    }
+}
+
+// #[xdevs::coupled(
+//     couplings = {generator.out_job -> modelo_li.input_port}
+// )
+// ]
+
+// struct ModeloFinal<const W: usize> {
+//     #[components]
+//     generator: Generator,
+//     modelo_li: ModCoupLI<W>,
+// }
 
 fn main() {
-    //Creación de modelo LI con W = 4 (según el modelo teórico sería W = 5, con W-1 atómicos cada acoplado)
+    const WIDTH: usize = 3; //a lo mejor me toca sacar WIDTH y DEPTH del main y hacerlas globales para que los tests puedan usarlas
+    const DEPTH: usize = 5;
+    const W: usize = WIDTH - 1;
+    //Creación de modelo LI con W = 2 (según el modelo teórico sería W = 3, con W-1 atómicos cada acoplado)
     let period = 10.0;
     let atom = CoupAtom::new(period); //Modelo atómico que va dentro del acoplado (es el acoplado más interno del modelo LI, es CoupD)
     let coup_atom_d = Coup::CoupD(atom);
-    let modelo_li = ModCoupLI::build([Atom::new(period); 2], Box::new(coup_atom_d));
-    let modelo_li_2: ModCoupLI<2> =
-        ModCoupLI::build([Atom::new(period); 2], Box::new(Coup::RestoCoup(modelo_li)));
-    let modelo_li_3 = ModCoupLI::build(
-        [Atom::new(period); 2],
+    let modelo_li: ModCoupLI<W> = ModCoupLI::build(
+        core::array::from_fn(|_| Atom::new(period)),
+        Box::new(coup_atom_d),
+    );
+    let modelo_li_2: ModCoupLI<W> = ModCoupLI::build(
+        core::array::from_fn(|_| Atom::new(period)),
+        Box::new(Coup::RestoCoup(modelo_li)),
+    );
+    let modelo_li_3: ModCoupLI<W> = ModCoupLI::build(
+        core::array::from_fn(|_| Atom::new(period)),
         Box::new(Coup::RestoCoup(modelo_li_2)),
     );
-    let modelo_li_4 = ModCoupLI::build(
-        [Atom::new(period); 2],
+    let modelo_li_4: ModCoupLI<W> = ModCoupLI::build(
+        core::array::from_fn(|_| Atom::new(period)),
         Box::new(Coup::RestoCoup(modelo_li_3)),
     );
 
@@ -1022,7 +1026,7 @@ fn main() {
     let generator = Generator::new(5);
 
     //Creación del modelo final (modelo LI + atómico generador que mete datos en el puerto del LI)
-    let modelo_final = ModeloFinal::build(generator, modelo_li);
+    let modelo_final = ModeloFinal::build(generator, modelo_li_4);
 
     let mut simulator = xdevs::simulator::Simulator::new(modelo_final);
     let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);
