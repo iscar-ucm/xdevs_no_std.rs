@@ -35,9 +35,6 @@ impl<T: Bag> AsyncInput for SleepAsync<T> {
         //self.last_rt = Some(next_rt);
         //Timer::at(t_until).await;
         //implementar función handle de asyncInput que duerma hasta el siguiente evento de transición del modelo
-
-        let t_next = self.t_next();
-        Timer::at(t_next).await;
-        self.last_rt = Some(Instant::now());
+        core::future::pending::<()>().await; //<()> significa que no devuelve nada
     }
 }

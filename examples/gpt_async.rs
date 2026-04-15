@@ -238,7 +238,7 @@ xdevs::component!(
 #[tokio::main]
 async fn main() {
     let period = eDuration::from_millis(1000); //1.0
-    let proc_time = eDuration::from_millis(1000); //1.0
+    let proc_time = eDuration::from_millis(1100); //1.1
     let obs_time = eDuration::from_millis(10000); //1.0
 
     let generator = generator::Generator::new(generator::GeneratorState::new(period));
