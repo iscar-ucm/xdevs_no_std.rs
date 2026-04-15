@@ -126,8 +126,6 @@ impl<T: Bag> AsyncInput for SleepAsync<T> {
         // self.last_rt = Some(next_rt);
         //t_until
         //Timer::now() //más preciso que t_until por si ha habido alguna variación
-        let t_next = self.t_until;
-        Timer::at(t_next).await;
-        self.last_rt = Some(Instant::now());
+        core::future::pending::<()>().await; //<()> significa que no devuelve nada
     }
 }

@@ -135,7 +135,7 @@ impl<M: AbstractSimulator> Simulator<M> {
         while t < config.t_stop {
             let t_until = Instant::min(t_next_internal, config.t_stop);
             let future = input_handler.handle(self.model.get_input_mut()); //como ahora input_handler no devuelve nada no modifica t
-            with_deadline(t_until, future).await;
+            let _ = with_deadline(t_until, future).await; //como siempre va a hacer lo mismo independientemente de si es ok() o si es Error(), ponemos el "let _ ="" para ignorar el warning
             t = Instant::now(); //ahora comprobamos que se ha hecho en el tiempo que debería, no nos fiamos del valor que da. En simulate_vt hay que comprobar los tiempos en los que se realizan
             if t >= t_next_internal {
                 // TODO check jitter
