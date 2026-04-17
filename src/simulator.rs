@@ -112,7 +112,20 @@ impl<M: AbstractSimulator> Simulator<M> {
     /// It uses a virtual clock (i.e., no real time is used).
     #[inline]
     pub fn simulate_vt(&mut self, config: &Config) {
-        self.simulate_rt(config, |t_until, _| t_until, |_| {}); //t_until a secas porque no hay eventos externos en el virtual
+        let mut t = config.t_start;
+        let mut t_next_internal = self.model.start(t);
+        while t < config.t_stop {
+            let t_until = Instant::min(t_next_internal, config.t_stop);
+            t = t_until; //"Engañamos" a toda la simulación, no solo a la lambda como hacemos en el rt_async
+            if t >= t_next_internal {
+                t = t_next_internal; // Ensure that we are exactly at the internal transition time
+                self.model.lambda(t);
+            } else if self.model.get_input().is_empty() {
+                continue; // avoid spurious external transitions
+            }
+            t_next_internal = self.model.delta(t);
+        }
+        self.model.stop(config.t_stop);
     }
 
     /// Asynchronous version of the `simulate_rt` method.
@@ -134,6 +147,16 @@ impl<M: AbstractSimulator> Simulator<M> {
             t = Instant::now(); //ahora comprobamos que se ha hecho en el tiempo que debería, no nos fiamos del valor que da. En simulate_vt hay que comprobar los tiempos en los que se realizan
             if t >= t_next_internal {
                 // TODO check jitter
+                if let Some(max_jitter) = config.max_jitter {
+                    //t nunca va a ser menor que t_next_internal por la condición del if, que ya estamos en t >= t_next_internal
+                    let jitter = t.duration_since(t_next_internal);
+                    if jitter > max_jitter {
+                        panic!(
+                            "Simulation jitter exceeded maximum allowed: {:?} > {:?}",
+                            jitter, max_jitter
+                        );
+                    }
+                }
                 t = t_next_internal; // Ensure that we are exactly at the internal transition time
                 self.model.lambda(t);
                 propagate_output(self.model.get_output());
