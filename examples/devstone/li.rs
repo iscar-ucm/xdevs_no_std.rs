@@ -1,72 +1,11 @@
-use core::f64;
-
-use xdevs::traits::{AbstractSimulator, Component};
-
-static mut N_EIC: usize = 0;
-static mut N_EOC: usize = 0;
-// static mut N_IC: usize = 0;
-
-//Atomic model
-
-#[xdevs::atomic]
-pub struct Atom {
-    #[input]
-    input_port: xdevs::port::Port<usize, 1>,
-    #[output]
-    output_port: xdevs::port::Port<usize, 1>,
-    #[state]
-    sigma: f64,
-    period: f64,
-    n_internals: usize,
-    n_externals: usize, //debería ser igual que n_internals
-    n_events: usize,    //número de eventos que llegan al puerto acumulador
-}
-
-impl xdevs::Atomic for Atom {
-    fn delta_int(state: &mut Self::State) {
-        state.sigma = f64::INFINITY;
-        state.n_internals += 1;
-        println!("Número de deltas internas: {}", state.n_internals);
-    }
-
-    fn lambda(state: &Self::State, output: &mut Self::Output) {
-        output.output_port.add_value(state.n_events).unwrap();
-    }
-
-    fn ta(state: &Self::State) -> f64 {
-        state.sigma
-    }
-
-    fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
-        // state.sigma -= elapsed;
-        state.sigma = 0.0;
-        state.n_externals += 1;
-        state.n_events += input.input_port.get_values().len();
-        println!("Número de deltas externas: {}", state.n_externals);
-    }
-}
-
-impl Atom {
-    pub fn new(period: f64) -> Self {
-        Self::build(f64::INFINITY, period, 0, 0, 0)
-    }
-
-    pub fn get_count(&self) -> usize {
-        self.state.n_internals
-    }
-}
-//Fin atomic model
+use crate::common::*;
 
 /*ENUM: hay 2 opciones
 - Opción 1: acoplado con un único atomic
 - Opción 2: acoplado con un atomic y un acoplado, y el acoplado a su vez con un atomic y un acoplado, etc. (estructura recursiva)
 */
 
-//Inicio modelo acoplado CoupAtom que contiene un único atómico
-// pub struct CoupAtom {
-//     coup_atomic: Atom,
-// }
-
+//Inicio del modelo acoplado CoupAtom que contiene un único atómico
 // #[xdevs::coupled2]
 // pub struct CoupAtom {
 //     #[input]
@@ -236,12 +175,20 @@ unsafe impl xdevs::traits::AbstractSimulator for CoupAtom {
 }
 
 impl CoupAtom {
-    pub fn new(period: f64) -> Self {
-        Self::build(Atom::new(period))
+    pub fn new() -> Self {
+        Self::build(Atom::new())
     }
 
-    pub fn get_count(&self) -> usize {
-        self.components.coup_atomic.get_count()
+    pub fn get_n_internals(&self) -> usize {
+        self.components.coup_atomic.get_n_internals()
+    }
+
+    pub fn get_n_externals(&self) -> usize {
+        self.components.coup_atomic.get_n_externals()
+    }
+
+    pub fn get_n_events(&self) -> usize {
+        self.components.coup_atomic.get_n_events()
     }
 }
 
@@ -274,71 +221,175 @@ impl xdevs::Coupled for CoupAtom {
 
 //Fin modelo acoplado CoupAtom que contiene un único atómico
 
-//Inicio modelo acoplado Coup
-// pub enum Coup<const W: usize> {
-//     CoupD(Atom), //en vez de Atom, Coup (como no es recursivo no hace falta pasarlo por referencia)
-//     RestoCoup(Box<Self>), //RestoCoup(Box<Coup<W>>),
-// }
-
+/*
+Enum con las opciones que puede haber en el modelo:
+- Acoplado que contiene un único atómico (CoupD(CoupAtom))
+- Acoplado que contiene un array de atómicos y otro acoplado del mismo tipo (RestoCoup(ModCoupLI<W>))
+*/
 pub enum Coup<const W: usize> {
     CoupD(CoupAtom),
     RestoCoup(ModCoupLI<W>),
 }
 
 impl<const W: usize> Coup<W> {
-    pub fn get_count(&self) -> usize {
+    pub fn get_n_internals(&self) -> usize {
         match self {
-            Coup::CoupD(coup_atom) => coup_atom.get_count(),
-            Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_count(),
+            Coup::CoupD(coup_atom) => coup_atom.get_n_internals(),
+            Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_n_internals(),
+        }
+    }
+
+    pub fn get_n_externals(&self) -> usize {
+        match self {
+            Coup::CoupD(coup_atom) => coup_atom.get_n_externals(),
+            Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_n_externals(),
+        }
+    }
+
+    pub fn get_n_events(&self) -> usize {
+        match self {
+            Coup::CoupD(coup_atom) => coup_atom.get_n_events(),
+            Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_n_events(),
+        }
+    }
+
+    pub fn get_n_eic(&self) -> usize {
+        unsafe { N_EIC }
+    }
+
+    pub fn get_n_eoc(&self) -> usize {
+        unsafe { N_EOC }
+    }
+
+    pub fn get_n_ic(&self) -> usize {
+        unsafe { N_IC }
+    }
+}
+
+//Implementación manual de AbstracSimulator para Coup (la macro no lo implementa)
+unsafe impl<const W: usize> AbstractSimulator for Coup<W> {
+    fn start(&mut self, t_start: f64) -> f64 {
+        match self {
+            Coup::CoupD(d) => d.start(t_start),
+            Coup::RestoCoup(r) => r.start(t_start),
+        }
+    }
+
+    fn stop(&mut self, t_stop: f64) {
+        match self {
+            Coup::CoupD(d) => d.stop(t_stop),
+            Coup::RestoCoup(r) => r.stop(t_stop),
+        }
+    }
+
+    fn lambda(&mut self, t: f64) {
+        match self {
+            Coup::CoupD(d) => d.lambda(t),
+            Coup::RestoCoup(r) => r.lambda(t),
+        }
+    }
+
+    fn delta(&mut self, t: f64) -> f64 {
+        match self {
+            Coup::CoupD(d) => d.delta(t),
+            Coup::RestoCoup(r) => r.delta(t),
         }
     }
 }
 
-//REVISAR
-// impl<const W: usize> Coup<W> {
-//     fn new(&self, period: f64) -> Self {
-//         match self {
-//             Coup::CoupD(coup_atom) => Coup::CoupD(CoupAtom::new(period)),
-//             Coup::RestoCoup(coup) => Coup::RestoCoup(Box::new(Coup::new(coup, period))),
-//         }
-//     }
-// }
-//Fin modelo acoplado Coup
+//Implementación manual de Component para Coup (porque AbstractSimulator requiere component)
+unsafe impl<const W: usize> Component for Coup<W> {
+    type Input = ModCoupLIInput; //si lo ponemos así el compilador se raya por los genéricos. Como sabemos qué tipo es, poner directamente
+    type Output = ModCoupLIOutput;
 
-//"Interfaz" de los inputs y outputs del modelo acoplado, para poder usarlo con el simulador
-// pub fn interfaz_puertos(
-//     atom_input: &atom::ModCoupLIInput,
-//     atom_output: &atom::ModCoupLIOutput,
-// ) -> (ModCoupLIInput, ModCoupLIOutput) {
-//     let mut atom_modcoup_input = ModCoupLIInput::new();
-//     let mut atom_modcoup_output = ModCoupLIOutput::new();
-//     //Conecto los puertos del atomic con los del acoplado
-//     if let Some(&value) = atom_input.input_port.get_values().last() {
-//         atom_modcoup_input.input_port.add_value(value).unwrap()
-//     }
-//     if let Some(&value) = atom_output.output_port.get_values().last() {
-//         atom_modcoup_output.output_port.add_value(value).unwrap()
-//     }
-//     (atom_modcoup_input, atom_modcoup_output)
-// }
+    type InputRef<'a>
+        = &'a mut Self::Input
+    where
+        Self: 'a;
+    type OutputRef<'a>
+        = &'a Self::Output
+    where
+        Self: 'a;
 
-// pub fn interfaz_puerto_input(atom: &atom::ModCoupLIInput) -> (ModCoupLIInput) {
-//     let mut atom_modcoup_input = ModCoupLIInput::new();
-//     if let Some(&value) = atom.input_port.get_values().last() {
-//         atom_modcoup_input.input_port.add_value(value).unwrap()
-//     }
-//     atom_modcoup_input
-// }
+    fn get_t_last(&self) -> f64 {
+        match self {
+            Coup::CoupD(d) => d.get_t_last(),
+            Coup::RestoCoup(r) => r.get_t_last(),
+        }
+    }
 
-// pub fn interfaz_puerto_output(atom: &atom::ModCoupLIOutput) -> (ModCoupLIOutput) {
-//     let mut atom_modcoup_output = ModCoupLIOutput::new();
-//     if let Some(&value) = atom.output_port.get_values().last() {
-//         atom_modcoup_output.output_port.add_value(value).unwrap()
-//     }
-//     atom_modcoup_output
-// }
+    fn set_t_last(&mut self, _t_last: f64) {
+        match self {
+            Coup::CoupD(d) => d.set_t_last(_t_last),
+            Coup::RestoCoup(r) => r.set_t_last(_t_last),
+        }
+    }
 
-//Inicio modelo LI CoupModLI
+    fn get_t_next(&self) -> f64 {
+        match self {
+            Coup::CoupD(d) => d.get_t_next(),
+            Coup::RestoCoup(r) => r.get_t_next(),
+        }
+    }
+
+    fn set_t_next(&mut self, _t_next: f64) {
+        match self {
+            Coup::CoupD(d) => d.set_t_next(_t_next),
+            Coup::RestoCoup(r) => r.set_t_next(_t_next),
+        }
+    }
+
+    fn get_input(&self) -> &Self::Input {
+        match self {
+            //Coup::CoupD(d) => interfaz_puerto_input(d.get_input()),
+            Coup::CoupD(d) => d.get_input(),
+            Coup::RestoCoup(r) => r.get_input(),
+        }
+    }
+
+    fn get_input_mut(&mut self) -> &mut Self::Input {
+        match self {
+            //Coup::CoupD(d) => interfaz_puerto_input(d.get_input_mut()),
+            Coup::CoupD(d) => d.get_input_mut(),
+            Coup::RestoCoup(r) => r.get_input_mut(),
+        }
+    }
+
+    fn get_output(&self) -> &Self::Output {
+        match self {
+            Coup::CoupD(d) => d.get_output(),
+            //Coup::CoupD(d) => interfaz_puerto_output(d.get_output()),
+            Coup::RestoCoup(r) => r.get_output(),
+        }
+    }
+
+    fn get_output_mut(&mut self) -> &mut Self::Output {
+        match self {
+            Coup::CoupD(d) => d.get_output_mut(),
+            //Coup::CoupD(d) => interfaz_puerto_output(d.get_output_mut()),
+            Coup::RestoCoup(r) => r.get_output_mut(),
+        }
+    }
+
+    fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
+        match self {
+            Coup::CoupD(d) => d.get_ports(),
+            //Coup::CoupD(d) => interfaz_puertos(d.get_ports()),
+            Coup::RestoCoup(r) => r.get_ports(),
+        }
+    }
+
+    fn get_out_ports(&self) -> Self::OutputRef<'_> {
+        match self {
+            Coup::CoupD(d) => d.get_out_ports(),
+            //Coup::CoupD(d) => interfaz_puerto_output(d.get_out_ports()),
+            Coup::RestoCoup(r) => r.get_out_ports(),
+        }
+    }
+}
+//Fin enum
+
+//Inicio del acoplado con un array de atómicos y otro acoplado igual
 // #[xdevs::coupled2]
 // pub struct ModCoupLI<const W: usize> {
 //     #[input]
@@ -577,211 +628,29 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for ModCoupLI<W> {
 }
 
 impl<const W: usize> ModCoupLI<W> {
-    pub fn get_count(&self) -> usize {
-        let mut sum = self.components.comp_coupled.get_count(); //implementar también para el enum
+    pub fn get_n_internals(&self) -> usize {
+        let mut sum_int = self.components.comp_coupled.get_n_internals(); //implementar también para el enum
         for atomic in self.components.comp_atomic.iter() {
-            //inmuable como self
-            sum += atomic.get_count();
+            //inmutable como self
+            sum_int += atomic.get_n_internals();
         }
-        sum
-    }
-}
-//Fin modelo LI CoupModLI
-
-//Implementación manual de AbstracSimulator para CoupAtom
-// unsafe impl AbstractSimulator for CoupAtom {
-//     fn start(&mut self, t_start: f64) -> f64 {
-//         self.coup_atomic.start(t_start)
-//     }
-
-//     fn stop(&mut self, t_stop: f64) {
-//         self.coup_atomic.stop(t_stop)
-//     }
-
-//     fn lambda(&mut self, t: f64) {
-//         self.coup_atomic.lambda(t)
-//     }
-
-//     fn delta(&mut self, t: f64) -> f64 {
-//         self.coup_atomic.delta(t)
-//     }
-// }
-//Implementación manual de AbstracSimulator para Coup (la macro no lo implementa)
-unsafe impl<const W: usize> AbstractSimulator for Coup<W> {
-    fn start(&mut self, t_start: f64) -> f64 {
-        match self {
-            Coup::CoupD(d) => d.start(t_start),
-            Coup::RestoCoup(r) => r.start(t_start),
-        }
+        sum_int
     }
 
-    fn stop(&mut self, t_stop: f64) {
-        match self {
-            Coup::CoupD(d) => d.stop(t_stop),
-            Coup::RestoCoup(r) => r.stop(t_stop),
+    pub fn get_n_externals(&self) -> usize {
+        let mut sum_ext = self.components.comp_coupled.get_n_externals();
+        for atomic in self.components.comp_atomic.iter() {
+            sum_ext += atomic.get_n_externals();
         }
+        sum_ext
     }
 
-    fn lambda(&mut self, t: f64) {
-        match self {
-            Coup::CoupD(d) => d.lambda(t),
-            Coup::RestoCoup(r) => r.lambda(t),
+    pub fn get_n_events(&self) -> usize {
+        let mut sum_ev = self.components.comp_coupled.get_n_events();
+        for atomic in self.components.comp_atomic.iter() {
+            sum_ev += atomic.get_n_events();
         }
-    }
-
-    fn delta(&mut self, t: f64) -> f64 {
-        match self {
-            Coup::CoupD(d) => d.delta(t),
-            Coup::RestoCoup(r) => r.delta(t),
-        }
-    }
-}
-
-//Implementación manual de Component para CoupAtom
-// unsafe impl Component for CoupAtom {
-//     type Input = ModCoupLIInput;
-
-//     type Output = ModCoupLIOutput;
-
-//     type InputRef<'a>
-//         = &'a mut Self::Input
-//     where
-//         Self: 'a;
-
-//     type OutputRef<'a>
-//         = &'a Self::Output
-//     where
-//         Self: 'a;
-
-//     fn get_t_last(&self) -> f64 {
-//         self.coup_atomic.get_t_last()
-//     }
-
-//     fn set_t_last(&mut self, t_last: f64) {
-//         self.coup_atomic.set_t_last(t_last);
-//     }
-
-//     fn get_t_next(&self) -> f64 {
-//         self.coup_atomic.get_t_next()
-//     }
-
-//     fn set_t_next(&mut self, t_next: f64) {
-//         self.coup_atomic.set_t_next(t_next)
-//     }
-
-//     fn get_input(&self) -> &Self::Input {
-//         self.coup_atomic.get_input()
-//     }
-
-//     fn get_input_mut(&mut self) -> &mut Self::Input {
-//         self.coup_atomic.get_input_mut()
-//     }
-
-//     fn get_output(&self) -> &Self::Output {
-//         self.coup_atomic.get_output()
-//     }
-
-//     fn get_output_mut(&mut self) -> &mut Self::Output {
-//         self.coup_atomic.get_output_mut()
-//     }
-
-//     fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
-//         self.coup_atomic.get_ports()
-//     }
-
-//     fn get_out_ports(&self) -> Self::OutputRef<'_> {
-//         self.coup_atomic.get_out_ports()
-//     }
-// }
-
-//Implementación manual de Component para Coup (porque AbstractSimulator requiere component)
-unsafe impl<const W: usize> Component for Coup<W> {
-    type Input = ModCoupLIInput; //si lo ponemos así el compilador se raya por los genéricos. Como sabemos qué tipo es, poner directamente
-    type Output = ModCoupLIOutput;
-
-    type InputRef<'a>
-        = &'a mut Self::Input
-    where
-        Self: 'a;
-    type OutputRef<'a>
-        = &'a Self::Output
-    where
-        Self: 'a;
-
-    fn get_t_last(&self) -> f64 {
-        match self {
-            Coup::CoupD(d) => d.get_t_last(),
-            Coup::RestoCoup(r) => r.get_t_last(),
-        }
-    }
-
-    fn set_t_last(&mut self, _t_last: f64) {
-        match self {
-            Coup::CoupD(d) => d.set_t_last(_t_last),
-            Coup::RestoCoup(r) => r.set_t_last(_t_last),
-        }
-    }
-
-    fn get_t_next(&self) -> f64 {
-        match self {
-            Coup::CoupD(d) => d.get_t_next(),
-            Coup::RestoCoup(r) => r.get_t_next(),
-        }
-    }
-
-    fn set_t_next(&mut self, _t_next: f64) {
-        match self {
-            Coup::CoupD(d) => d.set_t_next(_t_next),
-            Coup::RestoCoup(r) => r.set_t_next(_t_next),
-        }
-    }
-
-    fn get_input(&self) -> &Self::Input {
-        match self {
-            //Coup::CoupD(d) => interfaz_puerto_input(d.get_input()),
-            Coup::CoupD(d) => d.get_input(),
-            Coup::RestoCoup(r) => r.get_input(),
-        }
-    }
-
-    fn get_input_mut(&mut self) -> &mut Self::Input {
-        match self {
-            //Coup::CoupD(d) => interfaz_puerto_input(d.get_input_mut()),
-            Coup::CoupD(d) => d.get_input_mut(),
-            Coup::RestoCoup(r) => r.get_input_mut(),
-        }
-    }
-
-    fn get_output(&self) -> &Self::Output {
-        match self {
-            Coup::CoupD(d) => d.get_output(),
-            //Coup::CoupD(d) => interfaz_puerto_output(d.get_output()),
-            Coup::RestoCoup(r) => r.get_output(),
-        }
-    }
-
-    fn get_output_mut(&mut self) -> &mut Self::Output {
-        match self {
-            Coup::CoupD(d) => d.get_output_mut(),
-            //Coup::CoupD(d) => interfaz_puerto_output(d.get_output_mut()),
-            Coup::RestoCoup(r) => r.get_output_mut(),
-        }
-    }
-
-    fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
-        match self {
-            Coup::CoupD(d) => d.get_ports(),
-            //Coup::CoupD(d) => interfaz_puertos(d.get_ports()),
-            Coup::RestoCoup(r) => r.get_ports(),
-        }
-    }
-
-    fn get_out_ports(&self) -> Self::OutputRef<'_> {
-        match self {
-            Coup::CoupD(d) => d.get_out_ports(),
-            //Coup::CoupD(d) => interfaz_puerto_output(d.get_out_ports()),
-            Coup::RestoCoup(r) => r.get_out_ports(),
-        }
+        sum_ev
     }
 }
 
@@ -840,42 +709,9 @@ impl<const W: usize> xdevs::Coupled for ModCoupLI<W> {
         // }
     }
 }
+//Fin del acoplado con un array de atómicos y otro acoplado igual
 
-//Inicio modelo atómico sencillo que mete datos en el puerto de entrada del modelo LI
-#[xdevs::atomic]
-pub struct Generator {
-    #[output]
-    out_job: xdevs::port::Port<usize, 1>,
-    #[state]
-    sigma: f64,
-    count: usize,
-}
-
-impl xdevs::Atomic for Generator {
-    fn delta_int(state: &mut Self::State) {
-        state.sigma = f64::INFINITY;
-    }
-
-    fn lambda(state: &Self::State, output: &mut Self::Output) {
-        output.out_job.add_value(state.count).unwrap();
-        println!("Generador ha generado el valor: {}", state.count);
-    }
-
-    fn ta(state: &Self::State) -> f64 {
-        state.sigma
-    }
-
-    fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {}
-}
-
-impl Generator {
-    pub fn new(val_count: usize) -> Self {
-        Self::build(0.0, val_count)
-    }
-}
-//Fin modelo atómico sencillo que mete datos en el puerto de entrada del modelo LI
-
-//Modelo acoplado ModeloFinal que recibe los datos de Generator y los introduce en el puerto de entrada del modelo LI
+//Inicio modelo acoplado ModeloFinal que recibe los datos de Generator y los introduce en el puerto de entrada del modelo LI
 // #[xdevs::coupled2]
 // pub struct ModeloFinal<const W: usize> {
 //     #[components]
@@ -961,7 +797,35 @@ impl<const W: usize> ModeloFinal<W> {
             components: ModeloFinalComponents::new(generator, modelo_li),
         }
     }
+
+    pub fn get_n_eic(&self) -> usize {
+        unsafe { N_EIC }
+        // self.components.modelo_li.get_n_eic()
+    }
+
+    pub fn get_n_eoc(&self) -> usize {
+        unsafe { N_EOC }
+        // self.components.modelo_li.get_n_eoc()
+    }
+
+    pub fn get_n_ic(&self) -> usize {
+        unsafe { N_IC }
+        // self.components.modelo_li.get_n_ic()
+    }
+
+    pub fn get_n_internals(&self) -> usize {
+        self.components.modelo_li.get_n_internals()
+    }
+
+    pub fn get_n_externals(&self) -> usize {
+        self.components.modelo_li.get_n_externals()
+    }
+
+    pub fn get_n_events(&self) -> usize {
+        self.components.modelo_li.get_n_events()
+    }
 }
+
 unsafe impl<const W: usize> xdevs::traits::Component for ModeloFinal<W> {
     type Input = ModeloFinalInput;
     type Output = ModeloFinalOutput;
@@ -1110,50 +974,4 @@ impl<const W: usize> xdevs::Coupled for ModeloFinal<W> {
             .unwrap();
     }
 }
-
-// #[xdevs::coupled(
-//     couplings = {generator.out_job -> modelo_li.input_port}
-// )
-// ]
-
-// struct ModeloFinal<const W: usize> {
-//     #[components]
-//     generator: Generator,
-//     modelo_li: ModCoupLI<W>,
-// }
-
-fn main() {
-    const WIDTH: usize = 1; //a lo mejor me toca sacar WIDTH y DEPTH del main y hacerlas globales para que los tests puedan usarlas
-    const DEPTH: usize = 2;
-    const W: usize = WIDTH - 1;
-    //Creación de modelo LI con W = 2 (según el modelo teórico sería W = 3, con W-1 atómicos cada acoplado)
-    let period = 10.0;
-    let atom = CoupAtom::new(period); //Modelo atómico que va dentro del acoplado (es el acoplado más interno del modelo LI, es CoupD)
-    let coup_atom_d: Coup<W> = Coup::CoupD(atom);
-    let modelo_li: ModCoupLI<W> = ModCoupLI::build(
-        core::array::from_fn(|_| Atom::new(period)),
-        Box::new(coup_atom_d),
-    );
-    // let modelo_li_2: ModCoupLI<W> = ModCoupLI::build(
-    //     core::array::from_fn(|_| Atom::new(period)),
-    //     Box::new(Coup::RestoCoup(modelo_li)),
-    // );
-    // let modelo_li_3: ModCoupLI<W> = ModCoupLI::build(
-    //     core::array::from_fn(|_| Atom::new(period)),
-    //     Box::new(Coup::RestoCoup(modelo_li_2)),
-    // );
-    // let modelo_li_4: ModCoupLI<W> = ModCoupLI::build(
-    //     core::array::from_fn(|_| Atom::new(period)),
-    //     Box::new(Coup::RestoCoup(modelo_li_3)),
-    // );
-
-    //Creación del modelo atómico generador (mete datos en el modelo LI)
-    let generator = Generator::new(5);
-
-    //Creación del modelo final (modelo LI + atómico generador que mete datos en el puerto del LI)
-    let modelo_final = ModeloFinal::build(generator, Coup::RestoCoup(modelo_li));
-
-    let mut simulator = xdevs::simulator::Simulator::new(modelo_final);
-    let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);
-    simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
-}
+//Fin modelo acoplado ModeloFinal que recibe los datos de Generator y los introduce en el puerto de entrada del modelo LI

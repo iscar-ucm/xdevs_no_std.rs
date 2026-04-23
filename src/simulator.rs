@@ -64,6 +64,11 @@ impl<M: AbstractSimulator> Simulator<M> {
         Self { model }
     }
 
+    /// Returns a reference to the inner DEVS model.
+    pub fn get_model(&self) -> &M {
+        &self.model
+    }
+
     /// It executes the simulation of the inner DEVS model from `t_start` to `t_stop`.
     /// It provides support for real time execution via the following arguments:
     ///
