@@ -1,4 +1,4 @@
-pub use xdevs::traits::{AbstractSimulator, Component};
+use xdevs::traits::{AbstractSimulator, Component};
 
 pub static mut N_EIC: usize = 0;
 pub static mut N_EOC: usize = 0;
@@ -33,7 +33,6 @@ impl xdevs::Atomic for Generator {
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
         output.out_job.add_value(state.count).unwrap();
-        println!("Generador ha generado el valor: {}", state.count);
     }
 
     fn ta(state: &Self::State) -> f64 {
@@ -68,7 +67,6 @@ impl xdevs::Atomic for Atom {
     fn delta_int(state: &mut Self::State) {
         state.sigma = f64::INFINITY;
         state.n_internals += 1;
-        println!("Número de deltas internas: {}", state.n_internals);
     }
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
@@ -84,7 +82,6 @@ impl xdevs::Atomic for Atom {
         state.sigma = 0.0;
         state.n_externals += 1;
         state.n_events += input.input_port.get_values().len();
-        println!("Número de deltas externas: {}", state.n_externals);
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::common::*;
+use xdevs::traits::{AbstractSimulator, Component};
 
 /*ENUM: hay 2 opciones
 - Opción 1: acoplado con un único atomic
@@ -200,7 +201,6 @@ impl xdevs::Coupled for CoupAtom {
         if !port.is_empty() {
             unsafe {
                 N_EIC += 1;
-                println!("Número de eventos EIC: {}", N_EIC);
             }
         }
     }
@@ -208,13 +208,11 @@ impl xdevs::Coupled for CoupAtom {
         from.coup_atomic.output_port.couple(&mut to.output_port);
         unsafe {
             N_EOC += 1;
-            println!("Número de eventos EOC: {}", N_EOC);
         }
     }
     fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
         // unsafe {
         //     // N_IC += 1;
-        //     println!("Número de eventos IC: {}", N_IC);
         // }
     }
 }
@@ -672,7 +670,6 @@ impl<const W: usize> xdevs::Coupled for ModCoupLI<W> {
         if !port.is_empty() {
             unsafe {
                 N_EIC += 1;
-                println!("Número de eventos EIC: {}", N_EIC);
             }
         }
     }
@@ -689,15 +686,9 @@ impl<const W: usize> xdevs::Coupled for ModCoupLI<W> {
             .unwrap();
         let port = &from.comp_coupled.output_port;
         if port.is_empty() {
-            println!("Puerto de salida del coupled está vacío");
         } else {
-            println!(
-                "Puerto de salida del coupled tiene valores: {:?}",
-                port.get_values()
-            );
             unsafe {
                 N_EOC += 1;
-                println!("Número de eventos EOC: {}", N_EOC);
             }
         }
     }
@@ -705,7 +696,6 @@ impl<const W: usize> xdevs::Coupled for ModCoupLI<W> {
     fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
         // unsafe {
         //     N_IC += 1;
-        //     println!("Número de eventos IC: {}", N_IC);
         // }
     }
 }

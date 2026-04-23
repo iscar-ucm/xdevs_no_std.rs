@@ -1,9 +1,7 @@
 use core::f64;
 
-mod LI;
-use LI::*;
-mod common;
-use common::*;
+use xdevs_devstone::common::*;
+use xdevs_devstone::li::*;
 
 fn main() {
     const WIDTH: usize = 1; //a lo mejor me toca sacar WIDTH y DEPTH del main y hacerlas globales para que los tests puedan usarlas
