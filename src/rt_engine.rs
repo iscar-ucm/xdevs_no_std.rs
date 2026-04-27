@@ -37,8 +37,7 @@ where
         let input_handler = RtEngineInputHandler::<M>::new(&mut self.input_channel);
         self.simulator
             .simulate_rt_async(config, input_handler, |output| {
-                // SAFETY: map_output implementation via macro.
-                unsafe { output.map_output(&mut self.output_channel) };
+                output.map_output(&mut self.output_channel);
             })
             .await;
     }
@@ -116,8 +115,7 @@ where
         let next_rt = last_rt + Duration::from_nanos(time_duration);
 
         let future = async {
-            // SAFETY: map_input implementation via macro.
-            unsafe { input.map_input(&mut self.input_channel) }.await;
+            input.map_input(&mut self.input_channel).await;
         };
 
         if let Err(_) = embassy_time::with_deadline(next_rt.into(), future).await {

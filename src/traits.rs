@@ -164,13 +164,13 @@ pub unsafe trait AbstractSimulator: Component {
 /// # Safety
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
+#[cfg(any(feature = "embassy", feature = "std"))]
 pub unsafe trait InjectInput: Bag {
     /// Input channel for the rt_engine macro.
     type InputChannel;
 
     /// Maps the input enum to the corresponding input port
-    unsafe fn map_input(&mut self, in_channel: &mut Self::InputChannel)
-        -> impl Future<Output = ()>;
+    fn map_input(&mut self, in_channel: &mut Self::InputChannel) -> impl Future<Output = ()>;
 }
 
 /// Output port interface for DEVS models that can be simulated in real-time using the `RtEngine`.
@@ -178,15 +178,17 @@ pub unsafe trait InjectInput: Bag {
 /// # Safety
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
+#[cfg(any(feature = "embassy", feature = "std"))]
 pub unsafe trait EjectOutput: Bag {
     /// Output channel for the rt_engine macro.
     type OutputChannel;
 
     /// Maps the output enum to the corresponding output port
-    unsafe fn map_output(&self, out_channel: &Self::OutputChannel);
+    fn map_output(&self, out_channel: &Self::OutputChannel);
 }
 
 /// Input channel for the rt_engine macro.
+#[cfg(any(feature = "embassy", feature = "std"))]
 pub trait RtEngineInputChannel: sealed::Sealed {
     /// Enum representing the input ports of the model. Each variant corresponds to an input port.
     type Input;
@@ -201,6 +203,7 @@ pub trait RtEngineInputChannel: sealed::Sealed {
 }
 
 /// Output channel for the rt_engine macro.
+#[cfg(any(feature = "embassy", feature = "std"))]
 pub trait RtEngineOutputChannel: sealed::Sealed {
     /// Enum representing the output ports of the model. Each variant corresponds to an output port.
     type Output;

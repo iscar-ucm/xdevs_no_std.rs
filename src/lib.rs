@@ -5,6 +5,7 @@ pub use xdevs_no_std_macros::*;
 pub mod export;
 mod impls;
 pub mod port;
+#[cfg(any(feature = "embassy", feature = "std"))]
 pub mod rt_engine;
 pub mod simulator;
 pub mod traits;

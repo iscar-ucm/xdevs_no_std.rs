@@ -16,7 +16,7 @@ pub enum SubscribeError {
     MaximumSubscribersReached,
 }
 
-// Simplified Senders/Subscribers with 'static hardcoded
+// Simplified Senders/Subscribers
 #[repr(transparent)]
 pub struct Sender<'a, I, const N: usize> {
     sender: embassy_sync::channel::Sender<'a, Mutex, I, N>,

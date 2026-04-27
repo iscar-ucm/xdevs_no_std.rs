@@ -10,6 +10,12 @@ mod tokio;
 #[cfg(feature = "std-backend")]
 pub use tokio::RtEngineBackend as RtEngine;
 
+#[cfg(not(any(feature = "embassy-backend", feature = "std-backend")))]
+mod no_backend;
+
+#[cfg(not(any(feature = "embassy-backend", feature = "std-backend")))]
+pub use no_backend::RtEngineBackend as RtEngine;
+
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{
     parse::{Parse, ParseStream},

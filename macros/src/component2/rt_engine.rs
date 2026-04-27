@@ -123,7 +123,7 @@ impl CommonComponent {
                 unsafe impl #input_impl_generics ::xdevs::traits::InjectInput for #input_ident #input_ty_generics #input_where_clause {
                     type InputChannel = #input_channel_type;
                     
-                    async unsafe fn map_input(
+                    async fn map_input(
                         &mut self,
                         in_channel: &mut Self::InputChannel,
                     ) {
@@ -135,7 +135,7 @@ impl CommonComponent {
                 unsafe impl #output_impl_generics ::xdevs::traits::EjectOutput for #output_ident #output_ty_generics #output_where_clause {
                     type OutputChannel = #output_channel_type;
 
-                    unsafe fn map_output(
+                    fn map_output(
                         &self,
                         out_channel: &Self::OutputChannel,
                     ) {
