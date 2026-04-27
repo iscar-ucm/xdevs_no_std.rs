@@ -92,7 +92,7 @@ impl Atom {
 
     pub fn get_n_internals(&self) -> usize {
         let n_internals_atom = self.state.n_internals;
-        print!(
+        println!(
             "Número de eventos internos del atómico: {}",
             n_internals_atom
         );
@@ -101,7 +101,7 @@ impl Atom {
 
     pub fn get_n_externals(&self) -> usize {
         let n_externals_atom = self.state.n_externals;
-        print!(
+        println!(
             "Número de eventos externos del atómico: {}",
             n_externals_atom
         );
@@ -110,8 +110,14 @@ impl Atom {
 
     pub fn get_n_events(&self) -> usize {
         let n_events_atom = self.state.n_events;
-        print!("Número de eventos del atómico: {}", n_events_atom);
+        println!("Número de eventos del atómico: {}", n_events_atom);
         n_events_atom
+    }
+
+    pub fn get_n_atomics(&self) -> usize {
+        let n_atomics_atom = 1;
+        println!("Número de atómicos: {}", n_atomics_atom);
+        n_atomics_atom
     }
 }
 //Fin atomic model

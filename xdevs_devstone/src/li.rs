@@ -191,6 +191,22 @@ impl CoupAtom {
     pub fn get_n_events(&self) -> usize {
         self.components.coup_atomic.get_n_events()
     }
+
+    pub fn get_n_atomics(&self) -> usize {
+        self.components.coup_atomic.get_n_atomics()
+    }
+
+    // pub fn get_n_eic(&self) -> usize {
+    //     unsafe { N_EIC }
+    // }
+
+    // pub fn get_n_eoc(&self) -> usize {
+    //     get_n_eoc()
+    // }
+
+    // pub fn get_n_ic(&self) -> usize {
+    //     unsafe { N_IC }
+    // }
 }
 
 impl xdevs::Coupled for CoupAtom {
@@ -252,15 +268,41 @@ impl<const W: usize> Coup<W> {
     }
 
     pub fn get_n_eic(&self) -> usize {
-        unsafe { N_EIC }
+        match self {
+            //Coup::CoupD(coup_atom) => coup_atom.get_n_eic(),
+            // Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_n_eic(),
+            Coup::CoupD(coup_atom) => get_n_eic(),
+            Coup::RestoCoup(mod_coup_li) => get_n_eic(),
+        }
+        // unsafe { N_EIC }
     }
 
     pub fn get_n_eoc(&self) -> usize {
-        unsafe { N_EOC }
+        match self {
+            // Coup::CoupD(coup_atom) => coup_atom.get_n_eoc(),
+            // Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_n_eoc(),
+            Coup::CoupD(coup_atom) => get_n_eoc(),
+            Coup::RestoCoup(mod_coup_li) => get_n_eoc(),
+        }
+        // unsafe { N_EOC }
     }
 
     pub fn get_n_ic(&self) -> usize {
-        unsafe { N_IC }
+        match self {
+            // Coup::CoupD(coup_atom) => coup_atom.get_n_ic(),
+            // Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_n_ic(),
+            Coup::CoupD(coup_atom) => get_n_ic(),
+            Coup::RestoCoup(mod_coup_li) => get_n_ic(),
+        }
+        // unsafe { N_IC }
+    }
+
+    pub fn get_n_atomics(&self) -> usize {
+        match self {
+            Coup::CoupD(coup_atom) => coup_atom.get_n_atomics(),
+            Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_n_atomics(),
+        }
+        // unsafe { N_ATOMIC }
     }
 }
 
@@ -650,6 +692,27 @@ impl<const W: usize> ModCoupLI<W> {
         }
         sum_ev
     }
+
+    pub fn get_n_atomics(&self) -> usize {
+        let mut sum_atomic = self.components.comp_coupled.get_n_atomics();
+        println!("Número de atómicos en el acoplado interno: {}", sum_atomic);
+        for atomic in self.components.comp_atomic.iter() {
+            sum_atomic += 1;
+        }
+        sum_atomic
+    }
+
+    // pub fn get_n_eic(&self) -> usize {
+    //     unsafe { N_EIC }
+    // }
+
+    // pub fn get_n_eoc(&self) -> usize {
+    //     unsafe { N_EOC }
+    // }
+
+    // pub fn get_n_ic(&self) -> usize {
+    //     unsafe { N_IC }
+    // }
 }
 
 //Implementación manual de Coupled para ModCoupLI porque la macro no lo implementa
@@ -659,14 +722,20 @@ impl<const W: usize> xdevs::Coupled for ModCoupLI<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
         for atom_ports in to.comp_atomic.iter_mut() {
             from.input_port.couple(&mut atom_ports.input_port).unwrap();
+            //Incremento el número de EIC que haya por cada atómico en el acoplado
+            let port = &from.input_port;
+            if !port.is_empty() {
+                unsafe {
+                    N_EIC += 1;
+                }
+            }
         }
 
         from.input_port //Conexión con el coupled
             .couple(&mut to.comp_coupled.input_port)
             .unwrap();
-
+        //Incremento el número de EIC que haya por la conexión con el coupled
         let port = &from.input_port;
-
         if !port.is_empty() {
             unsafe {
                 N_EIC += 1;
@@ -676,10 +745,6 @@ impl<const W: usize> xdevs::Coupled for ModCoupLI<W> {
 
     // External Output Coupling. Propagates output events from inner components to the coupled model's output.
     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
-        // from.comp_coupled
-        //     .output_port
-        //     .couple(&mut to.output_port)
-        //     .unwrap();
         from.comp_coupled
             .output_port
             .couple(&mut to.output_port)
@@ -789,17 +854,20 @@ impl<const W: usize> ModeloFinal<W> {
     }
 
     pub fn get_n_eic(&self) -> usize {
-        unsafe { N_EIC }
+        get_n_eic()
+        // unsafe { N_EIC }
         // self.components.modelo_li.get_n_eic()
     }
 
     pub fn get_n_eoc(&self) -> usize {
-        unsafe { N_EOC }
+        get_n_eoc()
+        // unsafe { N_EOC }
         // self.components.modelo_li.get_n_eoc()
     }
 
     pub fn get_n_ic(&self) -> usize {
-        unsafe { N_IC }
+        get_n_ic()
+        // unsafe { N_IC }
         // self.components.modelo_li.get_n_ic()
     }
 
@@ -813,6 +881,10 @@ impl<const W: usize> ModeloFinal<W> {
 
     pub fn get_n_events(&self) -> usize {
         self.components.modelo_li.get_n_events()
+    }
+
+    pub fn get_n_atomics(&self) -> usize {
+        self.components.modelo_li.get_n_atomics()
     }
 }
 

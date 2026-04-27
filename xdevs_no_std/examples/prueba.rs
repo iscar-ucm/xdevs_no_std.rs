@@ -769,20 +769,28 @@ impl<const W: usize> xdevs::Coupled for ModCoupLI<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
         for atom_ports in to.comp_atomic.iter_mut() {
             from.input_port.couple(&mut atom_ports.input_port).unwrap();
+            unsafe {
+                N_EIC += 1; //Incremento el número de EIC que haya por cada atómico en el acoplado
+                println!("Número de eventos EIC: {}", N_EIC);
+            }
         }
 
         from.input_port //Conexión con el coupled
             .couple(&mut to.comp_coupled.input_port)
             .unwrap();
-
-        let port = &from.input_port;
-
-        if !port.is_empty() {
-            unsafe {
-                N_EIC += 1;
-                println!("Número de eventos EIC: {}", N_EIC);
-            }
+        unsafe {
+            N_EIC += 1; //Incremento el número de EIC que haya por la conexión con el coupled
+            println!("Número de eventos EIC: {}", N_EIC);
         }
+
+        // let port = &from.input_port;
+
+        // if !port.is_empty() {
+        //     unsafe {
+        //         N_EIC += 1;
+        //         println!("Número de eventos EIC: {}", N_EIC);
+        //     }
+        // }
     }
 
     // External Output Coupling. Propagates output events from inner components to the coupled model's output.
