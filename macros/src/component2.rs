@@ -1,6 +1,5 @@
 pub mod atomic;
 mod backend;
-pub mod coupled;
 pub mod coupled2;
 mod port;
 mod rt_engine;
