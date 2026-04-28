@@ -1,4 +1,4 @@
-use crate::component2::ComponentField;
+use crate::component::ComponentField;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{Generics, Ident, Type};
 

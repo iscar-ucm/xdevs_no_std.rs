@@ -1,5 +1,5 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
-use crate::component2::CommonComponent;
+use crate::component::CommonComponent;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{
     parse::{Parse, ParseStream},
