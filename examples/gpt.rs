@@ -1,30 +1,16 @@
+/// A simple DEVS GPT model
 mod generator {
-    pub struct GeneratorState {
+    #[xdevs::atomic]
+    struct Generator {
+        #[input]
+        in_stop: xdevs::port::Port<bool, 1>,
+        #[output]
+        out_job: xdevs::port::Port<usize, 1>,
+        #[state]
         sigma: f64,
         period: f64,
         count: usize,
     }
-
-    impl GeneratorState {
-        pub fn new(period: f64) -> Self {
-            Self {
-                sigma: 0.0,
-                period,
-                count: 0,
-            }
-        }
-    }
-
-    xdevs::component!(
-        ident = Generator,
-        input = {
-            in_stop<bool>,
-        },
-        output = {
-            out_job<usize>,
-        },
-        state = GeneratorState,
-    );
 
     impl xdevs::Atomic for Generator {
         fn delta_int(state: &mut Self::State) {
@@ -51,35 +37,26 @@ mod generator {
             }
         }
     }
+
+    impl Generator {
+        pub fn new(period: f64) -> Self {
+            Self::build(0.0, period, 0)
+        }
+    }
 }
 
 mod processor {
-    pub struct ProcessorState {
+    #[xdevs::atomic]
+    struct Processor {
+        #[input]
+        in_job: xdevs::port::Port<usize, 1>,
+        #[output]
+        out_job: xdevs::port::Port<usize, 1>,
+        #[state]
         sigma: f64,
         time: f64,
         job: Option<usize>,
     }
-
-    impl ProcessorState {
-        pub fn new(time: f64) -> Self {
-            Self {
-                sigma: 0.0,
-                time,
-                job: None,
-            }
-        }
-    }
-
-    xdevs::component!(
-        ident = Processor,
-        input = {
-            in_job<usize, 1>
-        },
-        output = {
-            out_job<usize>
-        },
-        state = ProcessorState,
-    );
 
     impl xdevs::Atomic for Processor {
         fn delta_int(state: &mut Self::State) {
@@ -114,38 +91,28 @@ mod processor {
             }
         }
     }
+
+    impl Processor {
+        pub fn new(time: f64) -> Self {
+            Self::build(0.0, time, None)
+        }
+    }
 }
 
 mod transducer {
-    pub struct TransducerState {
+    #[xdevs::atomic]
+    struct Transducer {
+        #[input]
+        in_generator: xdevs::port::Port<usize, 1>,
+        in_processor: xdevs::port::Port<usize, 1>,
+        #[output]
+        out_stop: xdevs::port::Port<bool, 1>,
+        #[state]
         sigma: f64,
         clock: f64,
         n_generated: usize,
         n_processed: usize,
     }
-
-    impl TransducerState {
-        pub fn new(obs_time: f64) -> Self {
-            Self {
-                sigma: obs_time,
-                clock: 0.0,
-                n_generated: 0,
-                n_processed: 0,
-            }
-        }
-    }
-
-    xdevs::component!(
-        ident = Transducer,
-        input = {
-            in_generator<usize, 1>,
-            in_processor<usize, 1>,
-        },
-        output = {
-            out_stop<bool>
-        },
-        state = TransducerState,
-    );
 
     impl xdevs::Atomic for Transducer {
         fn delta_int(state: &mut Self::State) {
@@ -180,66 +147,109 @@ mod transducer {
             state.n_processed += input.in_processor.get_values().len();
         }
     }
+
+    impl Transducer {
+        pub fn new(obs_time: f64) -> Self {
+            Self::build(obs_time, 0.0, 0, 0)
+        }
+    }
 }
 
-xdevs::component!(
-    ident = GPT,
-    components = {
-        generator: generator::Generator,
-        processor: processor::Processor,
-        transducer: transducer::Transducer,
-    },
-    couplings = {
-        generator.out_job -> processor.in_job,
-        processor.out_job -> transducer.in_processor,
-        generator.out_job -> transducer.in_generator,
-        transducer.out_stop -> generator.in_stop,
-    }
-);
+#[xdevs::coupled]
+struct GPT {
+    #[components]
+    generator: generator::Generator,
+    processor: processor::Processor,
+    transducer: transducer::Transducer,
+}
 
-xdevs::component!(
-    ident = EF,
-    input = {
-        in_processor<usize, 1>,
-    },
-    output = {
-        out_generator<usize, 1>,
-    },
-    components = {
-        generator: generator::Generator,
-        transducer: transducer::Transducer,
-    },
-    couplings = {
-        in_processor -> transducer.in_processor,
-        generator.out_job -> transducer.in_generator,
-        transducer.out_stop -> generator.in_stop,
-        generator.out_job -> out_generator,
+impl xdevs::Coupled for GPT {
+    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
+        from.generator
+            .out_job
+            .couple(&mut to.processor.in_job)
+            .unwrap();
+        from.processor
+            .out_job
+            .couple(&mut to.transducer.in_processor)
+            .unwrap();
+        from.generator
+            .out_job
+            .couple(&mut to.transducer.in_generator)
+            .unwrap();
+        from.transducer
+            .out_stop
+            .couple(&mut to.generator.in_stop)
+            .unwrap();
     }
-);
+}
 
-xdevs::component!(
-    ident = EFP,
-    components = {
-        ef: EF,
-        processor: processor::Processor,
-    },
-    couplings = {
-        ef.out_generator -> processor.in_job,
-        processor.out_job -> ef.in_processor,
+#[xdevs::coupled]
+struct EF {
+    #[input]
+    in_processor: xdevs::port::Port<usize, 1>,
+    #[output]
+    out_generator: xdevs::port::Port<usize, 1>,
+    #[components]
+    generator: generator::Generator,
+    transducer: transducer::Transducer,
+}
+
+impl xdevs::Coupled for EF {
+    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
+        from.generator
+            .out_job
+            .couple(&mut to.transducer.in_generator)
+            .unwrap();
+        from.transducer
+            .out_stop
+            .couple(&mut to.generator.in_stop)
+            .unwrap();
     }
-);
+    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
+        from.in_processor
+            .couple(&mut to.transducer.in_processor)
+            .unwrap();
+    }
+    fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
+        from.generator
+            .out_job
+            .couple(&mut to.out_generator)
+            .unwrap();
+    }
+}
+
+#[xdevs::coupled]
+struct EFP {
+    #[components]
+    ef: EF,
+    processor: processor::Processor,
+}
+
+impl xdevs::Coupled for EFP {
+    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
+        from.ef
+            .out_generator
+            .couple(&mut to.processor.in_job)
+            .unwrap();
+        from.processor
+            .out_job
+            .couple(&mut to.ef.in_processor)
+            .unwrap();
+    }
+}
 
 fn main() {
     let period = 1.;
     let proc_time = 1.1;
     let obs_time = 10.;
 
-    let generator = generator::Generator::new(generator::GeneratorState::new(period));
-    let processor = processor::Processor::new(processor::ProcessorState::new(proc_time));
-    let transducer = transducer::Transducer::new(transducer::TransducerState::new(obs_time));
+    let generator = generator::Generator::new(period);
+    let processor = processor::Processor::new(proc_time);
+    let transducer = transducer::Transducer::new(obs_time);
 
-    let ef = EF::new(generator, transducer);
-    let efp = EFP::new(ef, processor);
+    let ef = EF::build(generator, transducer);
+    let efp = EFP::build(ef, processor);
 
     let mut simulator = xdevs::simulator::Simulator::new(efp);
     let config = xdevs::simulator::Config::new(0.0, 14.0, 1.0, None);
