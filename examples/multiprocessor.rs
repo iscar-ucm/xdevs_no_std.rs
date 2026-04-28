@@ -1,6 +1,5 @@
-/// Example demonstrating multiple models with port arrays for coupling.
+/// Example demonstrating multiple models with port and component arrays for coupling.
 /// This example shows a load balancer that distributes jobs to multiple processors.
-
 mod processor {
     use xdevs::port::Port;
 
@@ -198,21 +197,39 @@ mod collector {
 
 /// Coupled model with multiple processors.
 /// The load balancer distributes jobs to processors, and the collector gathers results.
-#[xdevs::coupled(
-    couplings = {
-        generator.out_job -> load_balancer.in_job,
-        // Connect load balancer outputs to each processor (1-to-1 zipped)
-        zip(load_balancer.out_jobs.iter()) -> processor.iter_mut().map(|p| &mut p.input.in_job),
-        // Connect all processor outputs to the single collector input
-        processor.iter().map(|p| &p.output.out_job) -> collector.in_jobs,
-    }
-)]
+#[xdevs::coupled]
 struct MultiProcessor {
     #[components]
     generator: generator::Generator,
     load_balancer: load_balancer::LoadBalancer,
     processor: [processor::Processor; 3],
     collector: collector::Collector,
+}
+
+impl xdevs::Coupled for MultiProcessor {
+    fn eic(_from: &Self::Input, _to: &mut Self::ComponentsInput<'_>) {
+        // No external input coupling needed, this implementation could be omitted
+    }
+    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
+        from.generator
+            .out_job
+            .couple(&mut to.load_balancer.in_job)
+            .unwrap();
+        for (lb_port, proc_port) in from
+            .load_balancer
+            .out_jobs
+            .iter()
+            .zip(to.processor.iter_mut().map(|p| &mut p.in_job))
+        {
+            lb_port.couple(proc_port).unwrap();
+        }
+        for proc_port in from.processor.iter().map(|p| &p.out_job) {
+            proc_port.couple(&mut to.collector.in_jobs).unwrap();
+        }
+    }
+    fn eoc(_from: &Self::ComponentsOutput<'_>, _to: &mut Self::Output) {
+        // No external output coupling needed, this implementation could be omitted
+    }
 }
 
 fn main() {

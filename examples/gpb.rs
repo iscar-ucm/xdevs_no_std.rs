@@ -1,3 +1,6 @@
+/// A simple GPB (Generator-Processor-Buffer) model using xDEVS
+/// This example shows how to apply Rust's resources for structs
+/// (like generics and lifetimes) in DEVS models
 mod generator {
     #[xdevs::atomic]
     pub struct Generator {
@@ -151,17 +154,25 @@ mod buffer {
     }
 }
 
-#[xdevs::coupled(
-    couplings = {
-        generator.out_job -> buffer.in_item,
-        buffer.out_item -> processor.in_job,
-    }
-)]
+#[xdevs::coupled]
 struct GPB<'a> {
     #[components]
     generator: generator::Generator,
     buffer: buffer::Buffer<'a, usize>,
     processor: processor::Processor,
+}
+
+impl xdevs::Coupled for GPB<'_> {
+    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
+        from.generator
+            .out_job
+            .couple(&mut to.buffer.in_item)
+            .unwrap();
+        from.buffer
+            .out_item
+            .couple(&mut to.processor.in_job)
+            .unwrap();
+    }
 }
 
 fn main() {

@@ -1,3 +1,5 @@
+/// This example demonstrates how the rt_engine can be used to simplify the DEVS simulation
+/// interaction with other tasks
 use xdevs::port::Port;
 
 #[xdevs::atomic(rt_engine = {in_channel_size = 3, out_channel_size = 1})]
