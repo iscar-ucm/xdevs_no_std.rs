@@ -2,11 +2,17 @@
 
 pub use xdevs_no_std_macros::*;
 
+pub mod export;
 mod impls;
 pub mod port;
+#[cfg(any(feature = "embassy", feature = "std"))]
+pub mod rt_engine;
 pub mod simulator;
 pub mod traits;
 
+pub use port::Port;
+pub use simulator::{Config, Simulator};
+pub use {embassy_time::Duration, embassy_time::Instant};
 /// Interface for DEVS atomic models. All DEVS atomic models must implement this trait.
 pub trait Atomic: traits::PartialAtomic {
     /// Method for performing any operation before simulating. By default, it does nothing.

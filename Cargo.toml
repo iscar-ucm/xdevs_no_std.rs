@@ -19,15 +19,21 @@ path = "src/lib.rs"
 [dependencies]
 heapless = "0.9"
 xdevs-no-std-macros = { path = "macros", version = "0.2.0" }
-tokio = { version = "1.0", optional = true }
-embassy-time = { version = "0.5.0", optional = true }
+tokio = { version = "1.0", optional = true, features = ["sync"] }
+embassy-time = { version = "0.5.0" }
+embassy-sync = { version = "0.7.2", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [features]
-embassy = ["embassy-time"]
-std = ["tokio/time"]
+embassy = ["embassy-sync", "xdevs-no-std-macros/embassy-backend"]
+std = [
+    "tokio/time",
+    "xdevs-no-std-macros/std-backend",
+    "embassy-time/std",
+    "embassy-time/generic-queue-8",
+]
 alloc = []
 
 [package.metadata.docs.rs]

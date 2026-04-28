@@ -1,41 +1,41 @@
-use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::Generics;
-use syn::TypeGenerics;
+use syn::{Generics, Ident, Type};
 
-use super::Field;
+use super::ComponentField;
 
+/// Parsed component state fields used to generate the state wrapper type.
 pub struct State {
-    pub fields: Vec<Field>,
+    pub fields: Vec<ComponentField>,
+    pub ident: Ident,
     pub generics: Generics,
 }
 
 impl State {
-    pub fn new(fields: Vec<Field>, generics: Generics) -> Self {
-        State { fields, generics }
+    pub fn new(fields: Vec<ComponentField>, ident: Ident, generics: Generics) -> Self {
+        State {
+            fields,
+            ident,
+            generics,
+        }
     }
 
-    pub fn field_idents(&self) -> Vec<&syn::Ident> {
+    pub fn field_idents(&self) -> Vec<&Ident> {
         self.fields.iter().map(|f| &f.ident).collect()
     }
 
-    pub fn field_tys(&self) -> Vec<&syn::Type> {
+    pub fn field_tys(&self) -> Vec<&Type> {
         self.fields.iter().map(|f| &f.ty).collect()
     }
 
-    pub fn get_generics(&self) -> TypeGenerics<'_> {
-        let (_, ty_generics, _) = self.generics.split_for_impl();
-        ty_generics
-    }
-
-    pub fn quote(&self, ident: &Ident) -> TokenStream2 {
+    pub fn quote(&self) -> TokenStream2 {
+        let ident = &self.ident;
         let fields_ident = self.field_idents();
         let fields_ty = self.field_tys();
-        let (impl_generics, ty_generics, _) = self.generics.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
 
         quote::quote! {
             #[derive(Debug)]
-            pub struct #ident #impl_generics {
+            pub struct #ident #impl_generics #where_clause {
                 #(#fields_ident: #fields_ty,)*
             }
             impl #impl_generics #ident #ty_generics{

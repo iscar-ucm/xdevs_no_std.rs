@@ -1,35 +1,33 @@
-use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::Generics;
-use syn::Type;
-use syn::TypeGenerics;
+use syn::{Expr, ExprLit, Generics, Ident, Lit, PathArguments, Type};
 
-use super::Field;
+use super::ComponentField;
 
+/// Parsed collection of component ports used to generate Input/Output structs.
 pub struct Ports {
-    pub ports: Vec<Field>,
+    pub ports: Vec<ComponentField>,
+    pub ident: Ident,
     pub generics: Generics,
 }
 
 impl Ports {
-    pub fn new(ports: Vec<Field>, generics: Generics) -> Self {
-        Ports { ports, generics }
+    pub fn new(ports: Vec<ComponentField>, ident: Ident, generics: Generics) -> Self {
+        Ports {
+            ports,
+            ident,
+            generics,
+        }
     }
 
-    pub fn field_idents(&self) -> Vec<&syn::Ident> {
+    fn field_idents(&self) -> Vec<&Ident> {
         self.ports.iter().map(|f| &f.ident).collect()
     }
 
-    pub fn field_tys(&self) -> Vec<&syn::Type> {
+    fn field_tys(&self) -> Vec<&Type> {
         self.ports.iter().map(|f| &f.ty).collect()
     }
 
-    pub fn get_generics(&self) -> TypeGenerics<'_> {
-        let (_, ty_generics, _) = self.generics.split_for_impl();
-        ty_generics
-    }
-
-    fn generate_news(&self, ports: &Vec<Field>) -> Vec<TokenStream2> {
+    fn generate_news(&self, ports: &Vec<ComponentField>) -> Vec<TokenStream2> {
         let mut news: Vec<TokenStream2> = Vec::new();
         for port in ports {
             let port_ident = &port.ident;
@@ -42,31 +40,29 @@ impl Ports {
         news
     }
 
-    pub fn quote(&self, ident: &Ident) -> TokenStream2 {
+    pub fn quote(&self, is_bagmux: bool) -> TokenStream2 {
+        let ident = &self.ident;
         let ports_ident = self.field_idents();
         let ports_ty = self.field_tys();
-        let (impl_generics, ty_generics, _) = self.generics.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
         let new_fn = self.generate_news(&self.ports);
+        let bagmux = if is_bagmux {
+            quote::quote! {
+                , ::xdevs::BagMux
+            }
+        } else {
+            TokenStream2::new()
+        };
 
         quote::quote! {
-            #[derive(Debug, Default)]
-            pub struct #ident #impl_generics {
+            #[derive(Debug, Default, ::xdevs::Bag #bagmux)]
+            pub struct #ident #impl_generics #where_clause {
                 #(pub #ports_ident: #ports_ty,)*
             }
             impl #impl_generics #ident #ty_generics {
                 #[inline]
                 pub const fn new() -> Self {
                     Self { #(#new_fn),* }
-                }
-            }
-            unsafe impl #impl_generics xdevs::traits::Bag for #ident #ty_generics{
-                #[inline]
-                fn is_empty(&self) -> bool {
-                    true #( && self.#ports_ident.is_empty() )*
-                }
-                #[inline]
-                fn clear(&mut self) {
-                    #( self.#ports_ident.clear(); )*
                 }
             }
         }
@@ -76,12 +72,12 @@ impl Ports {
 fn extract_new(ty: &Type) -> TokenStream2 {
     let token: TokenStream2 = match ty {
         Type::Array(array) => {
-            let token = extract_new(&*array.elem);
+            let token = extract_new(&array.elem);
             let length = &array.len;
 
             // Try to parse length as a literal integer
-            if let syn::Expr::Lit(syn::ExprLit {
-                lit: syn::Lit::Int(lit_int),
+            if let Expr::Lit(ExprLit {
+                lit: Lit::Int(lit_int),
                 ..
             }) = length
             {
@@ -99,7 +95,7 @@ fn extract_new(ty: &Type) -> TokenStream2 {
         Type::Path(path) => {
             let mut path = path.path.clone();
             for segment in &mut path.segments {
-                segment.arguments = syn::PathArguments::None;
+                segment.arguments = PathArguments::None;
             }
             quote::quote! {
                 #path::new()

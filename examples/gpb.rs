@@ -168,7 +168,6 @@ fn main() {
     let generator = generator::Generator::new(1.0);
     let buffer = buffer::Buffer::new(8, Some("FIFO buffer"));
     let processor = processor::Processor::new(1.5);
-
     let gpb = GPB::build(generator, buffer, processor);
 
     let mut simulator = xdevs::simulator::Simulator::new(gpb);

@@ -3,14 +3,16 @@ use quote::quote;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use syn::{
+    braced, parenthesized,
     parse::{Parse, ParseStream},
-    token::Brace,
-    Error, Ident, Token,
+    token::{Brace, Paren},
+    Error, Ident, Result, Token,
 };
 
-use super::Field;
+use super::ComponentField;
 
 #[derive(Clone)]
+/// Parsed coupling rule connecting source and destination ports/components.
 pub struct Coupling {
     pub first_source_ident: Ident,
     pub source_1: TokenStream2,
@@ -62,12 +64,16 @@ impl Hash for Coupling {
 }
 
 impl Coupling {
-    pub fn is_eoc(&self, outputs: &[Field]) -> bool {
+    pub fn is_eoc(&self, outputs: &[ComponentField]) -> bool {
         outputs.iter().any(|f| f.ident == self.first_dest_ident)
     }
 
     /// Build the base path for source access
-    fn build_source_base(&self, inputs: &[Field], components: &[Field]) -> TokenStream2 {
+    fn build_source_base(
+        &self,
+        inputs: &[ComponentField],
+        components: &[ComponentField],
+    ) -> TokenStream2 {
         let first_source = &self.first_source_ident;
         let source_1 = &self.source_1;
         let source_2 = &self.source_2;
@@ -91,7 +97,11 @@ impl Coupling {
     }
 
     /// Build the base path for destination access
-    fn build_dest_base(&self, outputs: &[Field], components: &[Field]) -> TokenStream2 {
+    fn build_dest_base(
+        &self,
+        outputs: &[ComponentField],
+        components: &[ComponentField],
+    ) -> TokenStream2 {
         let first_dest = &self.first_dest_ident;
         let destination_1 = &self.destination_1;
         let destination_2 = &self.destination_2;
@@ -114,7 +124,12 @@ impl Coupling {
         }
     }
 
-    pub fn quote(&self, inputs: &[Field], outputs: &[Field], components: &[Field]) -> TokenStream2 {
+    pub fn quote(
+        &self,
+        inputs: &[ComponentField],
+        outputs: &[ComponentField],
+        components: &[ComponentField],
+    ) -> TokenStream2 {
         let first_source = &self.first_source_ident;
         let first_dest = &self.first_dest_ident;
 
@@ -215,7 +230,7 @@ impl Coupling {
 }
 
 impl Parse for Coupling {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         // Helper function to check if an identifier is an iterator method
         fn is_iter_method(ident: &Ident) -> bool {
             let name = ident.to_string();
@@ -230,7 +245,7 @@ impl Parse for Coupling {
         fn parse_part(
             input: ParseStream,
             end_condition: impl Fn(&ParseStream) -> bool,
-        ) -> syn::Result<(Ident, TokenStream2, TokenStream2, Option<TokenStream2>)> {
+        ) -> Result<(Ident, TokenStream2, TokenStream2, Option<TokenStream2>)> {
             let mut part_1 = TokenStream2::new();
             let mut part_2 = TokenStream2::new();
             let mut iter_chain = TokenStream2::new();
@@ -246,11 +261,11 @@ impl Parse for Coupling {
                     // Consume the dot
                     input.parse::<Token![.]>()?;
 
-                    if input.peek(syn::Ident) {
+                    if input.peek(Ident) {
                         let ident: Ident = input.parse()?;
 
                         // Check if this identifier is followed by `()`
-                        let has_parens = input.peek(syn::token::Paren);
+                        let has_parens = input.peek(Paren);
 
                         // Check if this is an iter method, if so, start capturing iter_chain
                         if is_iter_method(&ident) && has_parens && !found_iter {
@@ -303,7 +318,7 @@ impl Parse for Coupling {
         }
 
         // Check if source is wrapped in zip(...)
-        let source_is_zipped = input.peek(syn::Ident)
+        let source_is_zipped = input.peek(Ident)
             && input
                 .fork()
                 .parse::<Ident>()
@@ -315,7 +330,7 @@ impl Parse for Coupling {
             input.parse::<Ident>()?;
             // Parse the parenthesized content
             let content;
-            syn::parenthesized!(content in input);
+            parenthesized!(content in input);
             parse_part(&content, |inp| inp.is_empty())?
         } else {
             parse_part(input, |inp| inp.peek(Token![->]))?
@@ -341,6 +356,7 @@ impl Parse for Coupling {
     }
 }
 
+/// Container for all coupling rules declared in a coupled component.
 pub struct Couplings {
     pub _brace: Brace,
     pub couplings: Vec<Coupling>,
@@ -349,9 +365,9 @@ pub struct Couplings {
 impl Couplings {
     pub fn quote(
         &self,
-        inputs: &[Field],
-        outputs: &[Field],
-        components: &[Field],
+        inputs: &[ComponentField],
+        outputs: &[ComponentField],
+        components: &[ComponentField],
     ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
         let mut eoc = Vec::new();
         let mut xic = Vec::new();
@@ -368,9 +384,9 @@ impl Couplings {
 }
 
 impl Parse for Couplings {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
+    fn parse(input: ParseStream) -> Result<Self> {
         let content;
-        let brace = syn::braced!(content in input);
+        let brace = braced!(content in input);
         let mut couplings = Vec::new();
         let mut cache = HashSet::new();
 
