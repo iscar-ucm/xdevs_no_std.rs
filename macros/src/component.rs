@@ -10,11 +10,12 @@ use backend::RtEngine;
 use proc_macro2::TokenStream as TokenStream2;
 use std::collections::HashSet;
 use syn::{
-    braced,
+    parenthesized,
     parse::{ParseStream, Parser},
+    token::Paren,
     visit::{self, Visit},
-    Error, Field, GenericParam, Generics, Ident, ItemStruct, Lifetime, Result, Token, Type,
-    TypeGenerics, TypePath,
+    Error, Field, GenericParam, Generics, Ident, ItemStruct, Lifetime, Result, Type, TypeGenerics,
+    TypePath,
 };
 
 /// Named struct field extracted from a component declaration.
@@ -44,19 +45,15 @@ impl CommonComponent {
                     let ident: Ident = input.parse()?;
                     if ident == "rt_engine" {
                         // Accept both `rt_engine` and `rt_engine = { ... }`.
-                        if input.peek(Token![=]) {
-                            input.parse::<Token![=]>()?;
+                        if input.peek(Paren) {
                             let content;
-                            braced!(content in input);
+                            parenthesized!(content in input);
                             rt_engine = Some(content.parse::<RtEngine>()?);
                         } else {
                             rt_engine = Some(RtEngine::default());
                         }
                     } else {
                         return Err(Error::new(ident.span(), unknown_arg_error));
-                    }
-                    if !input.is_empty() {
-                        input.parse::<Token![,]>()?;
                     }
                 }
                 Ok(())
