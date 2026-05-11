@@ -1,0 +1,1 @@
+rustflags = ["-C", "link-arg=/STACK:671086400"] #64 MB

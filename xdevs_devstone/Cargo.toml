@@ -6,3 +6,6 @@ edition = "2024"
 [dependencies]
 xdevs-no-std = { path = "../xdevs_no_std" , features = ["std"]}
 
+[dev-dependencies] 
+xdevs_devstone_macros = {path = "../xdevs_devstone_macros"}
+

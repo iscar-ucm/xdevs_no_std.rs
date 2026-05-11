@@ -1,240 +1,6 @@
 use crate::common::*;
 use xdevs::traits::{AbstractSimulator, Component};
 
-/*ENUM: hay 2 opciones
-- Opción 1: acoplado con un único atomic
-- Opción 2: acoplado con un atomic y un acoplado, y el acoplado a su vez con un atomic y un acoplado, etc. (estructura recursiva)
-*/
-
-//Inicio del modelo acoplado CoupAtom que contiene un único atómico
-// #[xdevs::coupled2]
-// pub struct CoupAtom {
-//     #[input]
-//     input_port: xdevs::port::Port<usize, 1>,
-//     #[output]
-//     output_port: xdevs::port::Port<usize, 1>,
-//     #[components]
-//     coup_atomic: Atom,
-// }
-
-// Recursive expansion of coupled2 macro
-// ======================================
-
-pub struct CoupAtomComponents {
-    coup_atomic: Atom,
-}
-impl CoupAtomComponents {
-    #[inline]
-    pub fn new(coup_atomic: Atom) -> Self {
-        Self { coup_atomic }
-    }
-}
-#[doc = r" Wrapper struct holding mutable references to all inner components' inputs."]
-pub struct CoupAtomComponentsInput<'__xdevs_inner> {
-    pub coup_atomic: <Atom as xdevs::traits::Component>::InputRef<'__xdevs_inner>,
-}
-#[doc = r" Wrapper struct holding references to all inner components' outputs."]
-pub struct CoupAtomComponentsOutput<'__xdevs_inner> {
-    pub coup_atomic: <Atom as xdevs::traits::Component>::OutputRef<'__xdevs_inner>,
-}
-pub struct CoupAtom {
-    pub input: ModCoupLIInput,
-    pub output: ModCoupLIOutput,
-    pub t_last: f64,
-    pub t_next: f64,
-    pub components: CoupAtomComponents,
-}
-impl CoupAtom {
-    #[inline]
-    pub fn build(coup_atomic: Atom) -> Self {
-        Self {
-            input: ModCoupLIInput::new(),
-            output: ModCoupLIOutput::new(),
-            t_last: 0.0,
-            t_next: f64::INFINITY,
-            components: CoupAtomComponents::new(coup_atomic),
-        }
-    }
-}
-unsafe impl xdevs::traits::Component for CoupAtom {
-    type Input = ModCoupLIInput;
-    type Output = ModCoupLIOutput;
-    type InputRef<'__xdevs_ports>
-        = &'__xdevs_ports mut ModCoupLIInput
-    where
-        Self: '__xdevs_ports;
-    type OutputRef<'__xdevs_ports>
-        = &'__xdevs_ports ModCoupLIOutput
-    where
-        Self: '__xdevs_ports;
-    #[inline]
-    fn get_t_last(&self) -> f64 {
-        self.t_last
-    }
-    #[inline]
-    fn set_t_last(&mut self, t_last: f64) {
-        self.t_last = t_last;
-    }
-    #[inline]
-    fn get_t_next(&self) -> f64 {
-        self.t_next
-    }
-    #[inline]
-    fn set_t_next(&mut self, t_next: f64) {
-        self.t_next = t_next;
-    }
-    #[inline]
-    fn get_input(&self) -> &Self::Input {
-        &self.input
-    }
-    #[inline]
-    fn get_input_mut(&mut self) -> &mut Self::Input {
-        &mut self.input
-    }
-    #[inline]
-    fn get_output(&self) -> &Self::Output {
-        &self.output
-    }
-    #[inline]
-    fn get_output_mut(&mut self) -> &mut Self::Output {
-        &mut self.output
-    }
-    #[inline]
-    fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
-        (&mut self.input, &self.output)
-    }
-    #[inline]
-    fn get_out_ports(&self) -> Self::OutputRef<'_> {
-        &self.output
-    }
-}
-unsafe impl xdevs::traits::PartialCoupled for CoupAtom {
-    type ComponentsInput<'__xdevs_inner>
-        = CoupAtomComponentsInput<'__xdevs_inner>
-    where
-        Self: '__xdevs_inner;
-    type ComponentsOutput<'__xdevs_inner>
-        = CoupAtomComponentsOutput<'__xdevs_inner>
-    where
-        Self: '__xdevs_inner;
-}
-unsafe impl xdevs::traits::AbstractSimulator for CoupAtom {
-    #[inline]
-    fn start(&mut self, t_start: f64) -> f64 {
-        xdevs::traits::Component::set_t_last(self, t_start);
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
-            t_next,
-            xdevs::traits::AbstractSimulator::start(&mut self.components.coup_atomic, t_start),
-        );
-        xdevs::traits::Component::set_t_next(self, t_next);
-        t_next
-    }
-    #[inline]
-    fn stop(&mut self, t_stop: f64) {
-        xdevs::traits::AbstractSimulator::stop(&mut self.components.coup_atomic, t_stop);
-        xdevs::traits::Component::set_t_last(self, t_stop);
-        xdevs::traits::Component::set_t_next(self, f64::INFINITY);
-    }
-    #[inline]
-    fn lambda(&mut self, t: f64) {
-        if t >= xdevs::traits::Component::get_t_next(self) {
-            xdevs::traits::AbstractSimulator::lambda(&mut self.components.coup_atomic, t);
-            let coup_atomic_output =
-                xdevs::traits::Component::get_out_ports(&self.components.coup_atomic);
-            let component_outputs: CoupAtomComponentsOutput<'_> = CoupAtomComponentsOutput {
-                coup_atomic: coup_atomic_output,
-            };
-            <Self as xdevs::Coupled>::eoc(&component_outputs, &mut self.output);
-        }
-    }
-    #[inline]
-    fn delta(&mut self, t: f64) -> f64 {
-        {
-            let (coup_atomic_input, coup_atomic_output) =
-                xdevs::traits::Component::get_ports(&mut self.components.coup_atomic);
-            let component_outputs: CoupAtomComponentsOutput<'_> = CoupAtomComponentsOutput {
-                coup_atomic: coup_atomic_output,
-            };
-            let mut component_inputs: CoupAtomComponentsInput<'_> = CoupAtomComponentsInput {
-                coup_atomic: coup_atomic_input,
-            };
-            <Self as xdevs::Coupled>::eic(&self.input, &mut component_inputs);
-            <Self as xdevs::Coupled>::ic(&component_outputs, &mut component_inputs);
-        }
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
-            t_next,
-            xdevs::traits::AbstractSimulator::delta(&mut self.components.coup_atomic, t),
-        );
-        xdevs::traits::Component::clear_output(self);
-        xdevs::traits::Component::clear_input(self);
-        xdevs::traits::Component::set_t_last(self, t);
-        xdevs::traits::Component::set_t_next(self, t_next);
-        t_next
-    }
-}
-
-impl CoupAtom {
-    pub fn new() -> Self {
-        Self::build(Atom::new())
-    }
-
-    pub fn get_n_internals(&self) -> usize {
-        self.components.coup_atomic.get_n_internals()
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        self.components.coup_atomic.get_n_externals()
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        self.components.coup_atomic.get_n_events()
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        self.components.coup_atomic.get_n_atomics()
-    }
-
-    // pub fn get_n_eic(&self) -> usize {
-    //     unsafe { N_EIC }
-    // }
-
-    // pub fn get_n_eoc(&self) -> usize {
-    //     get_n_eoc()
-    // }
-
-    // pub fn get_n_ic(&self) -> usize {
-    //     unsafe { N_IC }
-    // }
-}
-
-impl xdevs::Coupled for CoupAtom {
-    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
-        from.input_port.couple(&mut to.coup_atomic.input_port);
-        let port = &from.input_port;
-
-        if !port.is_empty() {
-            unsafe {
-                N_EIC += 1;
-            }
-        }
-    }
-    fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
-        from.coup_atomic.output_port.couple(&mut to.output_port);
-        unsafe {
-            N_EOC += 1;
-        }
-    }
-    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
-        // unsafe {
-        //     // N_IC += 1;
-        // }
-    }
-}
-
-//Fin modelo acoplado CoupAtom que contiene un único atómico
-
 /*
 Enum con las opciones que puede haber en el modelo:
 - Acoplado que contiene un único atómico (CoupD(CoupAtom))
@@ -269,8 +35,8 @@ impl<const W: usize> Coup<W> {
 
     pub fn get_n_eic(&self) -> usize {
         match self {
-            //Coup::CoupD(coup_atom) => coup_atom.get_n_eic(),
-            // Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_n_eic(),
+            //Coup::CoupD(coup_atom) => coup_atom.get_n_eic_li(),
+            // Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_n_eic_li(),
             Coup::CoupD(coup_atom) => get_n_eic(),
             Coup::RestoCoup(mod_coup_li) => get_n_eic(),
         }
@@ -339,8 +105,8 @@ unsafe impl<const W: usize> AbstractSimulator for Coup<W> {
 
 //Implementación manual de Component para Coup (porque AbstractSimulator requiere component)
 unsafe impl<const W: usize> Component for Coup<W> {
-    type Input = ModCoupLIInput; //si lo ponemos así el compilador se raya por los genéricos. Como sabemos qué tipo es, poner directamente
-    type Output = ModCoupLIOutput;
+    type Input = CoupInputPort; //si lo ponemos así el compilador se raya por los genéricos. Como sabemos qué tipo es, poner directamente
+    type Output = CoupOutputPort;
 
     type InputRef<'a>
         = &'a mut Self::Input
@@ -444,51 +210,6 @@ unsafe impl<const W: usize> Component for Coup<W> {
 
 // Recursive expansion of coupled2 macro
 // ======================================
-
-#[derive(Debug, Default)]
-pub struct ModCoupLIInput {
-    pub input_port: xdevs::port::Port<usize, 1>,
-}
-impl ModCoupLIInput {
-    #[inline]
-    pub const fn new() -> Self {
-        Self {
-            input_port: xdevs::port::Port::new(),
-        }
-    }
-}
-unsafe impl xdevs::traits::Bag for ModCoupLIInput {
-    #[inline]
-    fn is_empty(&self) -> bool {
-        true && self.input_port.is_empty()
-    }
-    #[inline]
-    fn clear(&mut self) {
-        self.input_port.clear();
-    }
-}
-#[derive(Debug, Default)]
-pub struct ModCoupLIOutput {
-    pub output_port: xdevs::port::Port<usize, 1>,
-}
-impl ModCoupLIOutput {
-    #[inline]
-    pub const fn new() -> Self {
-        Self {
-            output_port: xdevs::port::Port::new(),
-        }
-    }
-}
-unsafe impl xdevs::traits::Bag for ModCoupLIOutput {
-    #[inline]
-    fn is_empty(&self) -> bool {
-        true && self.output_port.is_empty()
-    }
-    #[inline]
-    fn clear(&mut self) {
-        self.output_port.clear();
-    }
-}
 pub struct ModCoupLIComponents<const W: usize> {
     comp_atomic: [Atom; W],
     comp_coupled: Box<Coup<W>>,
@@ -513,8 +234,8 @@ pub struct ModCoupLIComponentsOutput<'__xdevs_inner, const W: usize> {
     pub comp_coupled: <Box<Coup<W>> as xdevs::traits::Component>::OutputRef<'__xdevs_inner>,
 }
 pub struct ModCoupLI<const W: usize> {
-    pub input: ModCoupLIInput,
-    pub output: ModCoupLIOutput,
+    pub input: CoupInputPort,
+    pub output: CoupOutputPort,
     pub t_last: f64,
     pub t_next: f64,
     pub components: ModCoupLIComponents<W>,
@@ -523,8 +244,8 @@ impl<const W: usize> ModCoupLI<W> {
     #[inline]
     pub fn build(comp_atomic: [Atom; W], comp_coupled: Box<Coup<W>>) -> Self {
         Self {
-            input: ModCoupLIInput::new(),
-            output: ModCoupLIOutput::new(),
+            input: CoupInputPort::new(),
+            output: CoupOutputPort::new(),
             t_last: 0.0,
             t_next: f64::INFINITY,
             components: ModCoupLIComponents::new(comp_atomic, comp_coupled),
@@ -532,14 +253,14 @@ impl<const W: usize> ModCoupLI<W> {
     }
 }
 unsafe impl<const W: usize> xdevs::traits::Component for ModCoupLI<W> {
-    type Input = ModCoupLIInput;
-    type Output = ModCoupLIOutput;
+    type Input = CoupInputPort;
+    type Output = CoupOutputPort;
     type InputRef<'__xdevs_ports>
-        = &'__xdevs_ports mut ModCoupLIInput
+        = &'__xdevs_ports mut CoupInputPort
     where
         Self: '__xdevs_ports;
     type OutputRef<'__xdevs_ports>
-        = &'__xdevs_ports ModCoupLIOutput
+        = &'__xdevs_ports CoupOutputPort
     where
         Self: '__xdevs_ports;
     #[inline]
@@ -668,6 +389,10 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for ModCoupLI<W> {
 }
 
 impl<const W: usize> ModCoupLI<W> {
+    pub fn new(coup: Box<Coup<W>>) -> Self {
+        Self::build(core::array::from_fn(|_| Atom::new()), coup)
+    }
+
     pub fn get_n_internals(&self) -> usize {
         let mut sum_int = self.components.comp_coupled.get_n_internals(); //implementar también para el enum
         for atomic in self.components.comp_atomic.iter() {
@@ -695,7 +420,7 @@ impl<const W: usize> ModCoupLI<W> {
 
     pub fn get_n_atomics(&self) -> usize {
         let mut sum_atomic = self.components.comp_coupled.get_n_atomics();
-        println!("Número de atómicos en el acoplado interno: {}", sum_atomic);
+        // println!("Número de atómicos en el acoplado interno: {}", sum_atomic);
         for atomic in self.components.comp_atomic.iter() {
             sum_atomic += 1;
         }
@@ -722,25 +447,11 @@ impl<const W: usize> xdevs::Coupled for ModCoupLI<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
         for atom_ports in to.comp_atomic.iter_mut() {
             from.input_port.couple(&mut atom_ports.input_port).unwrap();
-            //Incremento el número de EIC que haya por cada atómico en el acoplado
-            let port = &from.input_port;
-            if !port.is_empty() {
-                unsafe {
-                    N_EIC += 1;
-                }
-            }
         }
 
         from.input_port //Conexión con el coupled
             .couple(&mut to.comp_coupled.input_port)
             .unwrap();
-        //Incremento el número de EIC que haya por la conexión con el coupled
-        let port = &from.input_port;
-        if !port.is_empty() {
-            unsafe {
-                N_EIC += 1;
-            }
-        }
     }
 
     // External Output Coupling. Propagates output events from inner components to the coupled model's output.
@@ -749,19 +460,6 @@ impl<const W: usize> xdevs::Coupled for ModCoupLI<W> {
             .output_port
             .couple(&mut to.output_port)
             .unwrap();
-        let port = &from.comp_coupled.output_port;
-        if port.is_empty() {
-        } else {
-            unsafe {
-                N_EOC += 1;
-            }
-        }
-    }
-
-    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
-        // unsafe {
-        //     N_IC += 1;
-        // }
     }
 }
 //Fin del acoplado con un array de atómicos y otro acoplado igual
