@@ -1,9 +1,9 @@
-use crate::{common::*, li::Coup};
+use crate::{common::*, li::LI};
 use xdevs::traits::{AbstractSimulator, Component};
 
 //CAMBIOS RESPECTO A LI:
 /*
-- Enum Cuop<W> --> LI<W> (en este caso HI<W>)
+- Enum Coup<W> --> LI<W> (en este caso HI<W>)
 - ModCoupLI<w> --> CoupLI<W> (en este caso CoupHI<W>)
 */
 

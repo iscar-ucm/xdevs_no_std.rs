@@ -26,15 +26,15 @@ pub(crate) fn expand_li(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
     for val in 1..(depth_val + 1) {
         if val == 1 {
             // token.extend(quote! {
-            //     let model_1 = Coup::CoupD(CoupAtom::new());
+            //     let model_1 = LI::CoupD(CoupAtom::new());
             // });
             if val != depth_val {
                 token.extend(quote! {
-                    let model_1 = ::std::boxed::Box::new(Coup::CoupD(CoupAtom::new()));
+                    let model_1 = ::std::boxed::Box::new(LI::CoupD(CoupAtom::new()));
                 })
             } else {
                 token.extend(quote! {
-                    let model_1 = Coup::CoupD(CoupAtom::new());
+                    let model_1 = LI::CoupD(CoupAtom::new());
                 });
             }
         } else {
@@ -43,11 +43,11 @@ pub(crate) fn expand_li(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
             let prev_model = format_ident!("model_{}", val_minus_one);
             if val != depth_val {
                 token.extend(quote! {
-                    let #model_name = ::std::boxed::Box::new(Coup::RestoCoup(ModCoupLI::<#width_minus_one>::new(#prev_model)));
+                    let #model_name = ::std::boxed::Box::new(LI::RestoCoup(CoupLI::<#width_minus_one>::new(#prev_model)));
                 });
             } else {
                 token.extend(quote! {
-                    let #model_name = Coup::RestoCoup(ModCoupLI::<#width_minus_one>::new(#prev_model));
+                    let #model_name = LI::RestoCoup(CoupLI::<#width_minus_one>::new(#prev_model));
                 });
             }
 
@@ -59,7 +59,7 @@ pub(crate) fn expand_li(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
             // };
             // let prev_model_ref = format_ident!("model_{}_ref", val_minus_one);
             // token.extend(quote! {
-            //     let #model_ref = ::std::boxed::Box::new(Coup::RestoCoup(ModCoupLI::<#width_minus_one>::new(#prev_model_ref)));
+            //     let #model_ref = ::std::boxed::Box::new(LI::RestoCoup(CoupLI::<#width_minus_one>::new(#prev_model_ref)));
             // });
 
             // if val != depth_val {
