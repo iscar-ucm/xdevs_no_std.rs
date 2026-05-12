@@ -279,7 +279,7 @@ impl Component {
             }
             impl #impl_generics #ident #ty_generics #where_clause {
                 #[inline]
-                pub fn build(#(#components_fields: #components_tys),*) -> Self {
+                pub const fn build(#(#components_fields: #components_tys),*) -> Self {
                     Self {
                         input: #input_ident::new(),
                         output: #output_ident::new(),
