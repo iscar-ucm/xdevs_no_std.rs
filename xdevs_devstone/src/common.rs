@@ -14,7 +14,7 @@ impl xdevs::Atomic for Generator {
     }
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
-        output.out_job.add_value(state.count).unwrap();
+        output.out_job.add_value(state.count);
     }
 
     fn ta(state: &Self::State) -> f64 {
@@ -52,7 +52,7 @@ impl xdevs::Atomic for Atom {
     }
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
-        output.output_port.add_value(state.n_events).unwrap();
+        output.output_port.add_value(state.n_events);
     }
 
     fn ta(state: &Self::State) -> f64 {
@@ -356,7 +356,7 @@ impl xdevs::Atomic for AtomInputSize2 {
     }
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
-        output.output_port.add_value(state.n_events).unwrap();
+        output.output_port.add_value(state.n_events);
     }
 
     fn ta(state: &Self::State) -> f64 {
@@ -416,8 +416,8 @@ impl xdevs::Atomic for Atom2Inputs2Outputs {
     }
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
-        output.output_port_1.add_value(state.n_events).unwrap();
-        output.output_port_2.add_value(state.n_events).unwrap();
+        output.output_port_1.add_value(state.n_events);
+        output.output_port_2.add_value(state.n_events);
     }
 
     fn ta(state: &Self::State) -> f64 {

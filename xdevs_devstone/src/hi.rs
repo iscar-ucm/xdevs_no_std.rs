@@ -389,19 +389,14 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for CoupHI<W> {
 impl<const W: usize> xdevs::Coupled for CoupHI<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
         for atom_ports in to.comp_atomic.iter_mut() {
-            from.input_port.couple(&mut atom_ports.input_port).unwrap();
+            from.input_port.couple(&mut atom_ports.input_port);
         }
 
-        from.input_port
-            .couple(&mut to.comp_coupled.input_port)
-            .unwrap();
+        from.input_port.couple(&mut to.comp_coupled.input_port);
     }
 
     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
-        from.comp_coupled
-            .output_port
-            .couple(&mut to.output_port)
-            .unwrap();
+        from.comp_coupled.output_port.couple(&mut to.output_port);
     }
 
     fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
@@ -409,8 +404,7 @@ impl<const W: usize> xdevs::Coupled for CoupHI<W> {
             for i in 0..(W - 1) {
                 from.comp_atomic[i]
                     .output_port
-                    .couple(&mut to.comp_atomic[i + 1].input_port)
-                    .unwrap();
+                    .couple(&mut to.comp_atomic[i + 1].input_port);
             }
         }
     }
@@ -677,10 +671,7 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for ModeloFinal<W> 
 //Implementación manual del trato Coupled para ModeloFinal
 impl<const W: usize> xdevs::Coupled for ModeloFinal<W> {
     fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
-        from.generator
-            .out_job
-            .couple(&mut to.modelo_hi.input_port)
-            .unwrap();
+        from.generator.out_job.couple(&mut to.modelo_hi.input_port);
     }
 }
 //Fin acoplado ModeloFinal que recibe los datos de Generator y los introduce en el puerto de entrada del modelo HI

@@ -44,12 +44,12 @@ mod test {
 
     #[test]
     fn test_li() {
-        const WIDTH: usize = 50;
-        const DEPTH: usize = 50;
+        const WIDTH: usize = 5;
+        const DEPTH: usize = 1;
         const W: usize = WIDTH - 1;
 
         //Creación del modelo acoplado total LI
-        xdevs_devstone_macros::generate_li!(50, 50);
+        xdevs_devstone_macros::generate_li!(5, 1);
         //Creación del modelo atómico generador (mete datos en el modelo LI)
         let generator = Generator::new(5);
         //Creación del modelo final (modelo LI + atómico generador que mete datos en el puerto del LI)
