@@ -59,7 +59,7 @@ impl Ports {
             pub struct #ident #impl_generics #where_clause {
                 #(pub #ports_ident: #ports_ty,)*
             }
-            impl #impl_generics #ident #ty_generics {
+            impl #impl_generics #ident #ty_generics #where_clause {
                 #[inline]
                 pub const fn new() -> Self {
                     Self { #(#new_fn),* }
