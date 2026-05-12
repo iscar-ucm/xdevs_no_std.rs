@@ -1,5 +1,3 @@
-// use xdevs::traits::{AbstractSimulator, Component};
-
 //Inicio modelo atómico sencillo que mete datos en el puerto de entrada del modelo LI
 #[xdevs::atomic]
 pub struct Generator {

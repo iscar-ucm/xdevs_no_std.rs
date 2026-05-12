@@ -1,18 +1,7 @@
-use crate::{common::*, li::LI};
+use crate::common::*;
 use xdevs::traits::{AbstractSimulator, Component};
 
-//CAMBIOS RESPECTO A LI:
-/*
-- Enum Coup<W> --> LI<W> (en este caso HI<W>)
-- ModCoupLI<w> --> CoupLI<W> (en este caso CoupHI<W>)
-*/
-
 //Inicio enum con las opciones que puede haber en el modelo HI
-/*
-Enum con las opciones que puede haber en el modelo:
-- Acoplado que contiene un único atómico (CoupD(CoupAtom))
-- Acoplado que contiene un array de atómicos y otro acoplado del mismo tipo (RestoCoup(CoupHI<W>))
-*/
 pub enum HI<const W: usize> {
     CoupD(CoupAtom),
     RestoCoup(CoupHI<W>),
@@ -223,6 +212,10 @@ impl<const W: usize> CoupHI<W> {
         }
     }
 
+    pub fn new(coup: Box<HI<W>>) -> Self {
+        Self::build(core::array::from_fn(|_| AtomInputSize2::new()), coup)
+    }
+
     pub fn get_n_internals(&self) -> usize {
         let mut sum_int = self.components.comp_coupled.get_n_internals();
         for atomic in self.components.comp_atomic.iter() {
@@ -249,8 +242,7 @@ impl<const W: usize> CoupHI<W> {
 
     pub fn get_n_atomics(&self) -> usize {
         let mut sum_atomic = self.components.comp_coupled.get_n_atomics();
-        println!("Número de atómicos en el acoplado interno: {}", sum_atomic);
-        for atomic in self.components.comp_atomic.iter() {
+        for _atomic in self.components.comp_atomic.iter() {
             sum_atomic += 1;
         }
         sum_atomic
@@ -413,15 +405,14 @@ impl<const W: usize> xdevs::Coupled for CoupHI<W> {
     }
 
     fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
-        // if W > 2 {
-        //porque W = WIDTH-1
-        for i in 0..=(W - 2) {
-            from.comp_atomic[i]
-                .output_port
-                .couple(&mut to.comp_atomic[i + 1].input_port)
-                .unwrap();
+        if W > 1 {
+            for i in 0..(W - 1) {
+                from.comp_atomic[i]
+                    .output_port
+                    .couple(&mut to.comp_atomic[i + 1].input_port)
+                    .unwrap();
+            }
         }
-        // }
     }
 }
 //Fin del acoplado con con un array de atómicos con puerto input tamaño 2, un atómico con un input y otro acoplado igual

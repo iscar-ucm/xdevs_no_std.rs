@@ -1,4 +1,3 @@
-// use core::f64;
 use std::time::Instant;
 
 use xdevs_devstone::common::*;
@@ -24,7 +23,6 @@ fn main() {
     let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);
     let duration = start.elapsed();
     println!("Simulator creation time: {:?}", duration);
-    //simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
     let start = Instant::now();
     simulator.simulate_vt(&config);
     let duration = start.elapsed();
