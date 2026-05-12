@@ -104,7 +104,7 @@ impl Component {
             }
             impl #impl_generics #ident #ty_generics #where_clause {
                 #[inline]
-                pub fn build(#(#state_fields: #state_tys),*) -> Self {
+                pub const fn build(#(#state_fields: #state_tys),*) -> Self {
                     Self {
                         input: #input_ident::new(),
                         output: #output_ident::new(),
