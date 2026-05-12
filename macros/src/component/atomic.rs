@@ -65,7 +65,7 @@ impl Component {
         let state_tys = self.state.field_tys();
 
         // Extract generics for impl
-        let (impl_generics, ty_generics, _) = self.common.generics.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = self.common.generics.split_for_impl();
         let (_, input_generics, _) = &self.common.input.generics.split_for_impl();
         let (_, output_generics, _) = &self.common.output.generics.split_for_impl();
         let (_, state_generics, _) = &self.state.generics.split_for_impl();
@@ -95,14 +95,14 @@ impl Component {
             #output_struct
             #state_struct
             #rt_engine_impl
-            pub struct #ident #impl_generics{
+            pub struct #ident #impl_generics #where_clause {
                 pub input: #input_ident #input_generics,
                 pub output: #output_ident #output_generics,
                 pub t_last: f64,
                 pub t_next: f64,
                 pub state: #state_ident #state_generics,
             }
-            impl #impl_generics #ident #ty_generics {
+            impl #impl_generics #ident #ty_generics #where_clause {
                 #[inline]
                 pub fn build(#(#state_fields: #state_tys),*) -> Self {
                     Self {
@@ -115,10 +115,10 @@ impl Component {
                 }
             }
             #component_impl
-            unsafe impl #impl_generics ::xdevs::traits::PartialAtomic for #ident #ty_generics{
+            unsafe impl #impl_generics ::xdevs::traits::PartialAtomic for #ident #ty_generics #where_clause {
                 type State = #state_ident #state_generics;
             }
-            unsafe impl #impl_generics ::xdevs::traits::AbstractSimulator for #ident #ty_generics{
+            unsafe impl #impl_generics ::xdevs::traits::AbstractSimulator for #ident #ty_generics #where_clause {
                 #[inline]
                 fn start(&mut self, t_start: f64) -> f64 {
                     // set t_last to t_start

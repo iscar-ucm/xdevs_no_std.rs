@@ -78,7 +78,7 @@ impl Component {
         let components_tys = self.components.field_tys();
 
         // Extract generics for impl
-        let (impl_generics, ty_generics, _) = self.common.generics.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = self.common.generics.split_for_impl();
         let (_, input_generics, _) = &self.common.input.generics.split_for_impl();
         let (_, output_generics, _) = &self.common.output.generics.split_for_impl();
         let (_, components_generics, _) = &self.components.generics.split_for_impl();
@@ -270,14 +270,14 @@ impl Component {
                 #(#component_output_fields),*
             }
 
-            pub struct #ident #impl_generics {
+            pub struct #ident #impl_generics #where_clause {
                 pub input: #input_ident #input_generics,
                 pub output: #output_ident #output_generics,
                 pub t_last: f64,
                 pub t_next: f64,
                 pub components: #components_ident #components_generics,
             }
-            impl #impl_generics #ident #ty_generics {
+            impl #impl_generics #ident #ty_generics #where_clause {
                 #[inline]
                 pub fn build(#(#components_fields: #components_tys),*) -> Self {
                     Self {
@@ -290,11 +290,11 @@ impl Component {
                 }
             }
             #component_impl
-            unsafe impl #impl_generics ::xdevs::traits::PartialCoupled for #ident #ty_generics{
+            unsafe impl #impl_generics ::xdevs::traits::PartialCoupled for #ident #ty_generics #where_clause {
                 type ComponentsInput<'__xdevs_inner> = #component_inputs_ident #wrapper_trait_generics where Self: '__xdevs_inner;
                 type ComponentsOutput<'__xdevs_inner> = #component_outputs_ident #wrapper_trait_generics where Self: '__xdevs_inner;
             }
-            unsafe impl #impl_generics ::xdevs::traits::AbstractSimulator for #ident #ty_generics{
+            unsafe impl #impl_generics ::xdevs::traits::AbstractSimulator for #ident #ty_generics #where_clause {
                 #[inline]
                 fn start(&mut self, t_start: f64) -> f64 {
                     // set t_last to t_start
