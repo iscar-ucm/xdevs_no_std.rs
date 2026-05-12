@@ -1,11 +1,6 @@
 use crate::common::*;
 use xdevs::traits::{AbstractSimulator, Component};
 
-/*
-Enum con las opciones que puede haber en el modelo:
-- Acoplado que contiene un único atómico (CoupD(CoupAtom))
-- Acoplado que contiene un array de atómicos y otro acoplado del mismo tipo (RestoCoup(ModCoupLI<W>))
-*/
 pub enum Coup<const W: usize> {
     CoupD(CoupAtom),
     RestoCoup(ModCoupLI<W>),
@@ -33,42 +28,11 @@ impl<const W: usize> Coup<W> {
         }
     }
 
-    pub fn get_n_eic(&self) -> usize {
-        match self {
-            //Coup::CoupD(coup_atom) => coup_atom.get_n_eic_li(),
-            // Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_n_eic_li(),
-            Coup::CoupD(coup_atom) => get_n_eic(),
-            Coup::RestoCoup(mod_coup_li) => get_n_eic(),
-        }
-        // unsafe { N_EIC }
-    }
-
-    pub fn get_n_eoc(&self) -> usize {
-        match self {
-            // Coup::CoupD(coup_atom) => coup_atom.get_n_eoc(),
-            // Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_n_eoc(),
-            Coup::CoupD(coup_atom) => get_n_eoc(),
-            Coup::RestoCoup(mod_coup_li) => get_n_eoc(),
-        }
-        // unsafe { N_EOC }
-    }
-
-    pub fn get_n_ic(&self) -> usize {
-        match self {
-            // Coup::CoupD(coup_atom) => coup_atom.get_n_ic(),
-            // Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_n_ic(),
-            Coup::CoupD(coup_atom) => get_n_ic(),
-            Coup::RestoCoup(mod_coup_li) => get_n_ic(),
-        }
-        // unsafe { N_IC }
-    }
-
     pub fn get_n_atomics(&self) -> usize {
         match self {
             Coup::CoupD(coup_atom) => coup_atom.get_n_atomics(),
             Coup::RestoCoup(mod_coup_li) => mod_coup_li.get_n_atomics(),
         }
-        // unsafe { N_ATOMIC }
     }
 }
 
@@ -420,30 +384,15 @@ impl<const W: usize> ModCoupLI<W> {
 
     pub fn get_n_atomics(&self) -> usize {
         let mut sum_atomic = self.components.comp_coupled.get_n_atomics();
-        // println!("Número de atómicos en el acoplado interno: {}", sum_atomic);
-        for atomic in self.components.comp_atomic.iter() {
+        for _atomic in self.components.comp_atomic.iter() {
             sum_atomic += 1;
         }
         sum_atomic
     }
-
-    // pub fn get_n_eic(&self) -> usize {
-    //     unsafe { N_EIC }
-    // }
-
-    // pub fn get_n_eoc(&self) -> usize {
-    //     unsafe { N_EOC }
-    // }
-
-    // pub fn get_n_ic(&self) -> usize {
-    //     unsafe { N_IC }
-    // }
 }
 
 //Implementación manual de Coupled para ModCoupLI porque la macro no lo implementa
 impl<const W: usize> xdevs::Coupled for ModCoupLI<W> {
-    /// External Input Coupling. Propagates input events from the coupled model to its inner components.
-    // Iteración para la conexión con los atómicos
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
         for atom_ports in to.comp_atomic.iter_mut() {
             from.input_port.couple(&mut atom_ports.input_port).unwrap();
@@ -454,7 +403,6 @@ impl<const W: usize> xdevs::Coupled for ModCoupLI<W> {
             .unwrap();
     }
 
-    // External Output Coupling. Propagates output events from inner components to the coupled model's output.
     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
         from.comp_coupled
             .output_port
@@ -549,24 +497,6 @@ impl<const W: usize> ModeloFinal<W> {
             t_next: f64::INFINITY,
             components: ModeloFinalComponents::new(generator, modelo_li),
         }
-    }
-
-    pub fn get_n_eic(&self) -> usize {
-        get_n_eic()
-        // unsafe { N_EIC }
-        // self.components.modelo_li.get_n_eic()
-    }
-
-    pub fn get_n_eoc(&self) -> usize {
-        get_n_eoc()
-        // unsafe { N_EOC }
-        // self.components.modelo_li.get_n_eoc()
-    }
-
-    pub fn get_n_ic(&self) -> usize {
-        get_n_ic()
-        // unsafe { N_IC }
-        // self.components.modelo_li.get_n_ic()
     }
 
     pub fn get_n_internals(&self) -> usize {

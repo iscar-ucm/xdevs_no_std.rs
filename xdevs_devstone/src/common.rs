@@ -1,20 +1,4 @@
-use xdevs::traits::{AbstractSimulator, Component};
-
-pub static mut N_EIC: usize = 0;
-pub static mut N_EOC: usize = 0;
-pub static mut N_IC: usize = 0;
-
-pub fn get_n_eic() -> usize {
-    unsafe { N_EIC }
-}
-
-pub fn get_n_eoc() -> usize {
-    unsafe { N_EOC }
-}
-
-pub fn get_n_ic() -> usize {
-    unsafe { N_IC }
-}
+// use xdevs::traits::{AbstractSimulator, Component};
 
 //Inicio modelo atómico sencillo que mete datos en el puerto de entrada del modelo LI
 #[xdevs::atomic]
@@ -39,7 +23,7 @@ impl xdevs::Atomic for Generator {
         state.sigma
     }
 
-    fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {}
+    fn delta_ext(_state: &mut Self::State, _elapsed: f64, _input: &Self::Input) {}
 }
 
 impl Generator {
@@ -77,7 +61,7 @@ impl xdevs::Atomic for Atom {
         state.sigma
     }
 
-    fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+    fn delta_ext(state: &mut Self::State, _elapsed: f64, input: &Self::Input) {
         // state.sigma -= elapsed;
         state.sigma = 0.0;
         state.n_externals += 1;
@@ -91,33 +75,19 @@ impl Atom {
     }
 
     pub fn get_n_internals(&self) -> usize {
-        let n_internals_atom = self.state.n_internals;
-        // println!(
-        //     "Número de eventos internos del atómico: {}",
-        //     n_internals_atom
-        // );
-        n_internals_atom
+        self.state.n_internals
     }
 
     pub fn get_n_externals(&self) -> usize {
-        let n_externals_atom = self.state.n_externals;
-        // println!(
-        //     "Número de eventos externos del atómico: {}",
-        //     n_externals_atom
-        // );
-        n_externals_atom
+        self.state.n_externals
     }
 
     pub fn get_n_events(&self) -> usize {
-        let n_events_atom = self.state.n_events;
-        // println!("Número de eventos del atómico: {}", n_events_atom);
-        n_events_atom
+        self.state.n_events
     }
 
     pub fn get_n_atomics(&self) -> usize {
-        let n_atomics_atom = 1;
-        // println!("Número de atómicos: {}", n_atomics_atom);
-        n_atomics_atom
+        1
     }
 }
 //Fin del modelo atómico que va dentro de los acoplados en un array de atómicos
@@ -355,43 +325,14 @@ impl CoupAtom {
     pub fn get_n_atomics(&self) -> usize {
         self.components.coup_atomic.get_n_atomics()
     }
-
-    // pub fn get_n_eic(&self) -> usize {
-    //     unsafe { N_EIC }
-    // }
-
-    // pub fn get_n_eoc(&self) -> usize {
-    //     get_n_eoc()
-    // }
-
-    // pub fn get_n_ic(&self) -> usize {
-    //     unsafe { N_IC }
-    // }
 }
 
 impl xdevs::Coupled for CoupAtom {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
         from.input_port.couple(&mut to.coup_atomic.input_port);
-        let port = &from.input_port;
-        if !port.is_empty() {
-            unsafe {
-                N_EIC += 1;
-            }
-        }
     }
     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
         from.coup_atomic.output_port.couple(&mut to.output_port);
-        let port = &from.coup_atomic.output_port;
-        if !port.is_empty() {
-            unsafe {
-                N_EOC += 1;
-            }
-        }
-    }
-    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
-        // unsafe {
-        //     // N_IC += 1;
-        // }
     }
 }
 //Fin modelo acoplado CoupAtom que contiene un único atómico
@@ -418,14 +359,13 @@ impl xdevs::Atomic for AtomInputSize2 {
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
         output.output_port.add_value(state.n_events).unwrap();
-        println!("Ejecución lambda");
     }
 
     fn ta(state: &Self::State) -> f64 {
         state.sigma
     }
 
-    fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+    fn delta_ext(state: &mut Self::State, _elapsed: f64, input: &Self::Input) {
         state.sigma = 0.0;
         state.n_externals += 1;
         state.n_events += input.input_port.get_values().len();
@@ -438,33 +378,19 @@ impl AtomInputSize2 {
     }
 
     pub fn get_n_internals(&self) -> usize {
-        let n_internals_atom = self.state.n_internals;
-        // println!(
-        //     "Número de eventos internos del atómico: {}",
-        //     n_internals_atom
-        // );
-        n_internals_atom
+        self.state.n_internals
     }
 
     pub fn get_n_externals(&self) -> usize {
-        let n_externals_atom = self.state.n_externals;
-        // println!(
-        //     "Número de eventos externos del atómico: {}",
-        //     n_externals_atom
-        // );
-        n_externals_atom
+        self.state.n_externals
     }
 
     pub fn get_n_events(&self) -> usize {
-        let n_events_atom = self.state.n_events;
-        // println!("Número de eventos del atómico: {}", n_events_atom);
-        n_events_atom
+        self.state.n_events
     }
 
     pub fn get_n_atomics(&self) -> usize {
-        let n_atomics_atom = 1;
-        // println!("Número de atómicos: {}", n_atomics_atom);
-        n_atomics_atom
+        1
     }
 }
 //Fin atómico con puerto de entrada de tamaño 2 y 1 de salida
@@ -500,7 +426,7 @@ impl xdevs::Atomic for Atom2Inputs2Outputs {
         state.sigma
     }
 
-    fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+    fn delta_ext(state: &mut Self::State, _elapsed: f64, input: &Self::Input) {
         state.sigma = 0.0;
         state.n_externals += 1;
         state.n_events +=
@@ -514,33 +440,19 @@ impl Atom2Inputs2Outputs {
     }
 
     pub fn get_n_internals(&self) -> usize {
-        let n_internals_atom = self.state.n_internals;
-        // println!(
-        //     "Número de eventos internos del atómico: {}",
-        //     n_internals_atom
-        // );
-        n_internals_atom
+        self.state.n_internals
     }
 
     pub fn get_n_externals(&self) -> usize {
-        let n_externals_atom = self.state.n_externals;
-        // println!(
-        //     "Número de eventos externos del atómico: {}",
-        //     n_externals_atom
-        // );
-        n_externals_atom
+        self.state.n_externals
     }
 
     pub fn get_n_events(&self) -> usize {
-        let n_events_atom = self.state.n_events;
-        // println!("Número de eventos del atómico: {}", n_events_atom);
-        n_events_atom
+        self.state.n_events
     }
 
     pub fn get_n_atomics(&self) -> usize {
-        let n_atomics_atom = 1;
-        // println!("Número de atómicos: {}", n_atomics_atom);
-        n_atomics_atom
+        1
     }
 }
 //Fin atómico con 2 puertos de entrada y 2 de salida

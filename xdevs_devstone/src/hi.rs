@@ -158,27 +158,6 @@ impl<const W: usize> HI<W> {
         }
     }
 
-    pub fn get_n_eic(&self) -> usize {
-        match self {
-            HI::CoupD(coup_atom) => get_n_eic(),
-            HI::RestoCoup(coup_hi) => get_n_eic(),
-        }
-    }
-
-    pub fn get_n_eoc(&self) -> usize {
-        match self {
-            HI::CoupD(coup_atom) => get_n_eoc(),
-            HI::RestoCoup(coup_hi) => get_n_eoc(),
-        }
-    }
-
-    pub fn get_n_ic(&self) -> usize {
-        match self {
-            HI::CoupD(coup_atom) => get_n_ic(),
-            HI::RestoCoup(coup_hi) => get_n_ic(),
-        }
-    }
-
     pub fn get_n_atomics(&self) -> usize {
         match self {
             HI::CoupD(coup_atom) => coup_atom.get_n_atomics(),
@@ -419,23 +398,11 @@ impl<const W: usize> xdevs::Coupled for CoupHI<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
         for atom_ports in to.comp_atomic.iter_mut() {
             from.input_port.couple(&mut atom_ports.input_port).unwrap();
-            let port = &from.input_port;
-            if !port.is_empty() {
-                unsafe {
-                    N_EIC += 1;
-                }
-            }
         }
 
         from.input_port
             .couple(&mut to.comp_coupled.input_port)
             .unwrap();
-        let port = &from.input_port;
-        if !port.is_empty() {
-            unsafe {
-                N_EIC += 1;
-            }
-        }
     }
 
     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
@@ -443,12 +410,6 @@ impl<const W: usize> xdevs::Coupled for CoupHI<W> {
             .output_port
             .couple(&mut to.output_port)
             .unwrap();
-        let port = &from.comp_coupled.output_port;
-        if !port.is_empty() {
-            unsafe {
-                N_EOC += 1;
-            }
-        }
     }
 
     fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
@@ -459,13 +420,6 @@ impl<const W: usize> xdevs::Coupled for CoupHI<W> {
                 .output_port
                 .couple(&mut to.comp_atomic[i + 1].input_port)
                 .unwrap();
-            let port = &from.comp_atomic[i].output_port;
-            if !port.is_empty() {
-                unsafe {
-                    println!("IC llamado: i={}", i);
-                    N_IC += 1;
-                }
-            }
         }
         // }
     }
@@ -571,18 +525,6 @@ impl<const W: usize> ModeloFinal<W> {
             t_next: f64::INFINITY,
             components: ModeloFinalComponents::new(generator, modelo_hi),
         }
-    }
-
-    pub fn get_n_eic(&self) -> usize {
-        get_n_eic()
-    }
-
-    pub fn get_n_eoc(&self) -> usize {
-        get_n_eoc()
-    }
-
-    pub fn get_n_ic(&self) -> usize {
-        get_n_ic()
     }
 
     pub fn get_n_internals(&self) -> usize {
