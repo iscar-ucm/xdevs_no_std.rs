@@ -1,4 +1,4 @@
-use crate::traits::{Bag, sealed};
+use crate::traits::{sealed, Bag};
 use core::future::Future;
 
 /// Input port interface for DEVS models that can be simulated in real-time using the `RtEngine`.
@@ -11,7 +11,8 @@ pub unsafe trait InjectInput: Bag {
     type InputChannel;
 
     /// Maps the input enum to the corresponding input port
-    fn map_input(&mut self, in_channel: &mut Self::InputChannel) -> impl Future<Output = ()>;
+    fn map_input(&mut self, in_channel: &mut Self::InputChannel)
+        -> impl Future<Output = ()> + Send;
 }
 
 /// Output port interface for DEVS models that can be simulated in real-time using the `RtEngine`.
@@ -37,8 +38,7 @@ pub trait RtEngineInputChannel: sealed::Sealed {
     /// Returns a sender to the channel. The sender can be used to send input events to the model.
     fn sender(&self) -> Self::Sender;
 
-    /// Receives from the channel and maps the received input event to the model's input ports.
-    fn recv(&mut self) -> impl Future<Output = Self::Input>;
+    fn recv(&mut self) -> impl Future<Output = Self::Input> + Send;
 }
 
 /// Output channel for the rt_engine macro.

@@ -81,7 +81,14 @@ fn extract_new(ty: &Type) -> TokenStream2 {
                 ..
             }) = length
             {
-                let n: usize = lit_int.base10_parse().unwrap();
+                let n: usize = match lit_int.base10_parse() {
+                    Ok(n) => n,
+                    Err(_) => {
+                        return quote::quote! {
+                            compile_error!("Array length is too large");
+                        };
+                    }
+                };
                 let repeated: Vec<_> = (0..n).map(|_| quote::quote! { #token }).collect();
                 quote::quote! {
                     [ #( #repeated ),* ]
@@ -101,7 +108,9 @@ fn extract_new(ty: &Type) -> TokenStream2 {
                 #path::new()
             }
         }
-        &_ => unimplemented!(),
+        _ => quote::quote! {
+            compile_error!("Unsupported type for port initialization; only arrays and path types are supported");
+        },
     };
     token
 }
