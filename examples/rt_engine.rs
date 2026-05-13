@@ -1,6 +1,9 @@
+/// This example demonstrates how the rt_engine can be used to simplify the DEVS simulation
+/// interaction with other tasks. An array is used for the input to showcase how the input enum
+/// would look like for an input array.
 use xdevs::port::Port;
 
-#[xdevs::atomic(rt_engine = {in_channel_size = 3, out_channel_size = 1})]
+#[xdevs::atomic(rt_engine(in_channel_size = 3, out_channel_size = 1))]
 pub struct Transparent {
     #[input]
     pub in_job: [Port<usize, 1>; 3],
@@ -18,7 +21,10 @@ impl xdevs::Atomic for Transparent {
     }
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
-        println!("[T] forwarding job from processor {}", state.next_processor);
+        println!(
+            "[Model] forwarding job from processor {}",
+            state.next_processor
+        );
         output.out_job.add_value(state.next_value).unwrap();
     }
 
@@ -30,10 +36,11 @@ impl xdevs::Atomic for Transparent {
         state.sigma -= elapsed;
         for i in 0..3 {
             if !input.in_job[i].is_empty() {
-                println!("[T] received job from processor {}", i);
+                println!("[Model] received job from processor {}", i);
                 state.next_processor = i;
                 state.next_value = *input.in_job[i].get_values().last().unwrap();
                 state.sigma = 0.0; // Immediate output
+                break;
             }
         }
     }
@@ -49,13 +56,13 @@ async fn sender(sender: TransparentSender) {
     let mut input = 0;
     let mut index = 0;
     loop {
+        println!("[Sender] sending value {} to processor {}", input, index);
         sender
             .send(TransparentInputEnum::InJob((index, input)))
             .await
             .unwrap();
         input += 1;
         index = (index + 1) % 3;
-        //index += 1;
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 }

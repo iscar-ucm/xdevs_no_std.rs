@@ -1,4 +1,5 @@
 pub use crate::export::{RecvError, SubscribeError};
+pub mod traits;
 use crate::traits::{
     AbstractSimulator, EjectOutput, InjectInput, RtEngineInputChannel, RtEngineOutputChannel,
 };

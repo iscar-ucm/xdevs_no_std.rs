@@ -22,7 +22,7 @@ use syn::{
     Error, Ident, LitInt, Result, Token,
 };
 
-use crate::component2::CommonComponent;
+use crate::component::CommonComponent;
 
 /// Generated token fragments used to construct backend channel code.
 pub struct ChannelTokens {
@@ -83,7 +83,7 @@ impl Parse for RtEngineArgs {
                 }
             }
 
-            // Optional trailing comma
+            // Require comma separator; allow optional trailing comma
             if !input.is_empty() {
                 input.parse::<Token![,]>()?;
             }

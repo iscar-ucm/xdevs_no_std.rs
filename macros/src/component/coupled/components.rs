@@ -1,83 +1,47 @@
+use crate::component::ComponentField;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
-use std::collections::HashSet;
-use syn::{
-    parse::{Parse, ParseStream},
-    token::Brace,
-    Error, Ident, Result, Token, Type,
-};
+use syn::{Generics, Ident, Type};
 
-pub struct Component {
-    pub ident: Ident,
-    pub _colon: Token![:],
-    pub ty: Type,
-}
-
-impl Parse for Component {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let ident = input.parse()?;
-        let colon = input.parse()?;
-        let ty = input.parse()?;
-        Ok(Self {
-            ident,
-            _colon: colon,
-            ty,
-        })
-    }
-}
-
+/// Parsed inner component fields for coupled2 model generation.
 pub struct Components {
-    pub _brace: Brace,
-    pub components: Vec<Component>,
+    pub components: Vec<ComponentField>,
+    pub ident: Ident,
+    pub generics: Generics,
 }
 
 impl Components {
-    pub fn ident(&self) -> Vec<TokenStream2> {
-        let mut res = Vec::new();
-        for component in self.components.iter() {
-            let ident = &component.ident;
-            res.push(quote!(#ident));
-        }
-        res
-    }
-
-    pub fn ty(&self) -> Vec<TokenStream2> {
-        let mut res = Vec::new();
-        for component in self.components.iter() {
-            let ident = &component.ident;
-            let ty = &component.ty;
-            res.push(quote!(#ident: #ty));
-        }
-        res
-    }
-}
-
-impl Parse for Components {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let content;
-        let brace = syn::braced!(content in input);
-        let mut components = Vec::new();
-
-        let mut cache = HashSet::new();
-        while !content.is_empty() {
-            let component = content.parse::<Component>()?;
-            if cache.contains(&component.ident) {
-                return Err(Error::new(
-                    component.ident.span(),
-                    "duplicate component ident",
-                ));
-            }
-            cache.insert(component.ident.clone());
-
-            components.push(component);
-            if !content.is_empty() {
-                content.parse::<Token![,]>()?; // comma between components
-            }
-        }
-
-        Ok(Self {
-            _brace: brace,
+    pub fn new(components: Vec<ComponentField>, ident: Ident, generics: Generics) -> Self {
+        Components {
             components,
-        })
+            ident,
+            generics,
+        }
+    }
+
+    pub fn field_idents(&self) -> Vec<&Ident> {
+        self.components.iter().map(|f| &f.ident).collect()
+    }
+
+    pub fn field_tys(&self) -> Vec<&Type> {
+        self.components.iter().map(|f| &f.ty).collect()
+    }
+
+    pub fn quote(&self) -> TokenStream2 {
+        let ident = &self.ident;
+        let fields_ident = self.field_idents();
+        let fields_ty = self.field_tys();
+        let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
+
+        quote::quote! {
+            pub struct #ident #impl_generics #where_clause{
+                #(#fields_ident: #fields_ty,)*
+            }
+            impl #impl_generics #ident #ty_generics #where_clause {
+                #[inline]
+                pub const fn new(#(#fields_ident: #fields_ty),*) -> Self {
+                    Self { #(#fields_ident),* }
+                }
+            }
+        }
     }
 }

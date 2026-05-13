@@ -38,9 +38,9 @@ impl State {
             pub struct #ident #impl_generics #where_clause {
                 #(#fields_ident: #fields_ty,)*
             }
-            impl #impl_generics #ident #ty_generics{
+            impl #impl_generics #ident #ty_generics #where_clause {
                 #[inline]
-                pub fn new(#(#fields_ident: #fields_ty),*) -> Self {
+                pub const fn new(#(#fields_ident: #fields_ty),*) -> Self {
                     Self { #(#fields_ident),* }
                 }
             }
