@@ -52,7 +52,7 @@ pub fn generate_hi(input: TokenStream) -> TokenStream {
 pub fn generate_ho(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as GenerateArgs);
 
-    match expand_hi(args) {
+    match expand_ho(args) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }

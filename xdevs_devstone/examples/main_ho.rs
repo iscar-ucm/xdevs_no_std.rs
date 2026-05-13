@@ -1,8 +1,7 @@
-use core::f64;
 use std::time::Instant;
 
 use xdevs_devstone::common::*;
-use xdevs_devstone::ho::*;
+use xdevs_devstone::ho_no::*;
 
 fn main() {
     const WIDTH: usize = 2;
@@ -37,25 +36,21 @@ mod test {
 
     fn expected_n_atomic(width: usize, profundidad: usize) -> usize {
         //puede comprobarse antes de simulate_vt
-        let n_atomic_expected = (width - 1 + ((width - 1) * width) / 2) * (profundidad - 1) + 1;
-        println!("Número de atómicos esperados: {}", n_atomic_expected);
-        n_atomic_expected
+        (width - 1) * (profundidad - 1) + 1
     }
 
     //CAMBIAR ESTA ECUACIÓN
     fn expected_n_events(width: usize, profundidad: usize) -> usize {
-        let n_events_expected = 1 + (profundidad - 1) * ((width - 1) * width) / 2;
-        println!("Número de eventos esperados: {}", n_events_expected);
-        n_events_expected
+        1 + (profundidad - 1) * ((width - 1) * width) / 2
     }
 
     #[test]
     fn test_ho() {
-        const WIDTH: usize = 2;
-        const DEPTH: usize = 5;
+        const WIDTH: usize = 200;
+        const DEPTH: usize = 20;
         const W: usize = WIDTH - 1;
 
-        xdevs_devstone_macros::generate_ho!(2, 5);
+        xdevs_devstone_macros::generate_ho!(200, 20);
 
         //Creación del modelo atómico generador (mete datos en el modelo HO)
         let generator = Generator::new(5);
