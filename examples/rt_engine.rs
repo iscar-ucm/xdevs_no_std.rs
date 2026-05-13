@@ -40,6 +40,7 @@ impl xdevs::Atomic for Transparent {
                 state.next_processor = i;
                 state.next_value = *input.in_job[i].get_values().last().unwrap();
                 state.sigma = 0.0; // Immediate output
+                break;
             }
         }
     }
@@ -62,7 +63,6 @@ async fn sender(sender: TransparentSender) {
             .unwrap();
         input += 1;
         index = (index + 1) % 3;
-        //index += 1;
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 }

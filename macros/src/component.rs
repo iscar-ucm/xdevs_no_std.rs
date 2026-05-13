@@ -44,7 +44,7 @@ impl CommonComponent {
                 while !input.is_empty() {
                     let ident: Ident = input.parse()?;
                     if ident == "rt_engine" {
-                        // Accept both `rt_engine` and `rt_engine = { ... }`.
+                        // Accept both `rt_engine` and `rt_engine(...)`.
                         if input.peek(Paren) {
                             let content;
                             parenthesized!(content in input);

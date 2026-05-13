@@ -83,7 +83,7 @@ impl Parse for RtEngineArgs {
                 }
             }
 
-            // Optional trailing comma
+            // Require comma separator; allow optional trailing comma
             if !input.is_empty() {
                 input.parse::<Token![,]>()?;
             }
