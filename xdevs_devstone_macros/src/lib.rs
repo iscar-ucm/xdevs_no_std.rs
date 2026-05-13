@@ -47,3 +47,13 @@ pub fn generate_hi(input: TokenStream) -> TokenStream {
         Err(err) => err.to_compile_error().into(),
     }
 }
+
+#[proc_macro]
+pub fn generate_ho(input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(input as GenerateArgs);
+
+    match expand_hi(args) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}

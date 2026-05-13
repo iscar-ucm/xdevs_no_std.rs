@@ -107,3 +107,56 @@ pub(crate) fn expand_hi(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
     token.extend(quote! {let model_hi = #model_name ;});
     Ok(token)
 }
+
+pub(crate) fn expand_ho(args: GenerateArgs) -> Result<proc_macro2::TokenStream> {
+    let width_val: usize = args.width.base10_parse()?;
+    let depth_val: usize = args.depth.base10_parse()?;
+
+    if width_val < 1 {
+        return Err(syn::Error::new(
+            args.width.span(),
+            "width must be at least 1",
+        ));
+    }
+    if depth_val < 1 {
+        return Err(syn::Error::new(
+            args.depth.span(),
+            "depth must be at least 1",
+        ));
+    }
+
+    let width_minus_one = syn::LitInt::new(&(width_val - 1).to_string(), args.width.span());
+
+    let mut token = proc_macro2::TokenStream::new();
+
+    for val in 1..(depth_val + 1) {
+        if val == 1 {
+            if val != depth_val {
+                token.extend(quote! {
+                    let model_1 = ::std::boxed::Box::new(HO::CoupD(CoupAtom::new()));
+                })
+            } else {
+                token.extend(quote! {
+                    let model_1 = HO::CoupD(CoupAtom::new());
+                });
+            }
+        } else {
+            let val_minus_one = val - 1;
+            let model_name = format_ident!("model_{}", val);
+            let prev_model = format_ident!("model_{}", val_minus_one);
+            if val != depth_val {
+                token.extend(quote! {
+                    let #model_name = ::std::boxed::Box::new(HO::RestoCoup(CoupHO::<#width_minus_one>::new(#prev_model)));
+                });
+            } else {
+                token.extend(quote! {
+                    let #model_name = HO::RestoCoup(CoupHO::<#width_minus_one>::new(#prev_model));
+                });
+            }
+        }
+    }
+
+    let model_name = format_ident!("model_{}", depth_val);
+    token.extend(quote! {let model_ho = #model_name ;});
+    Ok(token)
+}

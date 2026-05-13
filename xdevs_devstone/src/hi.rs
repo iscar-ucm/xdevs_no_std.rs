@@ -156,7 +156,8 @@ impl<const W: usize> HI<W> {
 }
 //Fin enum con las opciones que puede haber en el modelo HI
 
-//Inicio del acoplado con con un array de atómicos con puerto input tamaño 2, un atómico con un input y otro acoplado igual
+//Inicio del acoplado con con un array de atómicos con puerto input tamaño 2 y otro acoplado igual (components)
+//1 puerto de entrada y 1 puerto de salida del modelo total
 // #[xdevs::coupled2]
 // pub struct CoupHI<const W: usize> {
 //     #[input]
@@ -409,7 +410,7 @@ impl<const W: usize> xdevs::Coupled for CoupHI<W> {
         }
     }
 }
-//Fin del acoplado con con un array de atómicos con puerto input tamaño 2, un atómico con un input y otro acoplado igual
+//Fin del acoplado con con un array de atómicos con puerto input tamaño 2 y otro acoplado igual
 
 //Inicio acoplado ModeloFinal que recibe los datos de Generator y los introduce en el puerto de entrada del modelo HI
 // #[xdevs::coupled2]
