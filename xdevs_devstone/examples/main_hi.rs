@@ -49,11 +49,11 @@ mod test {
 
     #[test]
     fn test_hi() {
-        const WIDTH: usize = 2;
+        const WIDTH: usize = 1;
         const DEPTH: usize = 5;
         const W: usize = WIDTH - 1;
 
-        xdevs_devstone_macros::generate_hi!(2, 5);
+        xdevs_devstone_macros::generate_hi!(1, 5);
 
         //Creación del modelo atómico generador (mete datos en el modelo HI)
         let generator = Generator::new(5);

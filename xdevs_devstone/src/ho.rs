@@ -3,11 +3,11 @@ use xdevs::traits::{AbstractSimulator, Component};
 
 //Inicio del modelo acoplado CoupAtom que contiene un único atómico
 // #[xdevs::coupled2]
-// pub struct CoupAtomHO {
+// pub struct CoupAtomHO<const W: usize> {
 //     #[input]
 //     input_port: xdevs::port::Port<usize, 1>,
 //     #[output]
-//     output_port: xdevs::port::Port<usize, 1>,
+//     output_port: xdevs::port::Port<usize, W>,
 //     #[components]
 //     coup_atomic: Atom,
 // }
@@ -15,50 +15,50 @@ use xdevs::traits::{AbstractSimulator, Component};
 // Recursive expansion of coupled2 macro
 // ======================================
 
-#[derive(Debug, Default)]
-pub struct CoupInputPortHO {
-    pub input_port: xdevs::port::Port<usize, 1>,
-}
-impl CoupInputPortHO {
-    #[inline]
-    pub const fn new() -> Self {
-        Self {
-            input_port: xdevs::port::Port::new(),
-        }
-    }
-}
-unsafe impl xdevs::traits::Bag for CoupInputPortHO {
-    #[inline]
-    fn is_empty(&self) -> bool {
-        true && self.input_port.is_empty()
-    }
-    #[inline]
-    fn clear(&mut self) {
-        self.input_port.clear();
-    }
-}
-#[derive(Debug, Default)]
-pub struct CoupOutputPortHO {
-    pub output_port: xdevs::port::Port<usize, 1>,
-}
-impl CoupOutputPortHO {
-    #[inline]
-    pub const fn new() -> Self {
-        Self {
-            output_port: xdevs::port::Port::new(),
-        }
-    }
-}
-unsafe impl xdevs::traits::Bag for CoupOutputPortHO {
-    #[inline]
-    fn is_empty(&self) -> bool {
-        true && self.output_port.is_empty()
-    }
-    #[inline]
-    fn clear(&mut self) {
-        self.output_port.clear();
-    }
-}
+// #[derive(Debug, Default)]
+// pub struct CoupInputPortHO {
+//     pub input_port: xdevs::port::Port<usize, 1>,
+// }
+// impl CoupInputPortHO {
+//     #[inline]
+//     pub const fn new() -> Self {
+//         Self {
+//             input_port: xdevs::port::Port::new(),
+//         }
+//     }
+// }
+// unsafe impl xdevs::traits::Bag for CoupInputPortHO {
+//     #[inline]
+//     fn is_empty(&self) -> bool {
+//         true && self.input_port.is_empty()
+//     }
+//     #[inline]
+//     fn clear(&mut self) {
+//         self.input_port.clear();
+//     }
+// }
+// #[derive(Debug, Default)]
+// pub struct CoupOutputPortHO<const W: usize> {
+//     pub output_port: xdevs::port::Port<usize, W>,
+// }
+// impl<const W: usize> CoupOutputPortHO<W> {
+//     #[inline]
+//     pub const fn new() -> Self {
+//         Self {
+//             output_port: xdevs::port::Port::new(),
+//         }
+//     }
+// }
+// unsafe impl<const W: usize> xdevs::traits::Bag for CoupOutputPortHO<W> {
+//     #[inline]
+//     fn is_empty(&self) -> bool {
+//         true && self.output_port.is_empty()
+//     }
+//     #[inline]
+//     fn clear(&mut self) {
+//         self.output_port.clear();
+//     }
+// }
 pub struct CoupAtomHOComponents {
     coup_atomic: Atom,
 }
@@ -76,14 +76,14 @@ pub struct CoupAtomHOComponentsInput<'__xdevs_inner> {
 pub struct CoupAtomHOComponentsOutput<'__xdevs_inner> {
     pub coup_atomic: <Atom as xdevs::traits::Component>::OutputRef<'__xdevs_inner>,
 }
-pub struct CoupAtomHO {
+pub struct CoupAtomHO<const W: usize> {
     pub input: CoupInputPortHO,
-    pub output: CoupOutputPortHO,
+    pub output: CoupOutputPortHO<W>,
     pub t_last: f64,
     pub t_next: f64,
     pub components: CoupAtomHOComponents,
 }
-impl CoupAtomHO {
+impl<const W: usize> CoupAtomHO<W> {
     #[inline]
     pub fn build(coup_atomic: Atom) -> Self {
         Self {
@@ -95,15 +95,15 @@ impl CoupAtomHO {
         }
     }
 }
-unsafe impl xdevs::traits::Component for CoupAtomHO {
+unsafe impl<const W: usize> xdevs::traits::Component for CoupAtomHO<W> {
     type Input = CoupInputPortHO;
-    type Output = CoupOutputPortHO;
+    type Output = CoupOutputPortHO<W>;
     type InputRef<'__xdevs_ports>
         = &'__xdevs_ports mut CoupInputPortHO
     where
         Self: '__xdevs_ports;
     type OutputRef<'__xdevs_ports>
-        = &'__xdevs_ports CoupOutputPortHO
+        = &'__xdevs_ports CoupOutputPortHO<W>
     where
         Self: '__xdevs_ports;
     #[inline]
@@ -147,7 +147,7 @@ unsafe impl xdevs::traits::Component for CoupAtomHO {
         &self.output
     }
 }
-unsafe impl xdevs::traits::PartialCoupled for CoupAtomHO {
+unsafe impl<const W: usize> xdevs::traits::PartialCoupled for CoupAtomHO<W> {
     type ComponentsInput<'__xdevs_inner>
         = CoupAtomHOComponentsInput<'__xdevs_inner>
     where
@@ -157,7 +157,7 @@ unsafe impl xdevs::traits::PartialCoupled for CoupAtomHO {
     where
         Self: '__xdevs_inner;
 }
-unsafe impl xdevs::traits::AbstractSimulator for CoupAtomHO {
+unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for CoupAtomHO<W> {
     #[inline]
     fn start(&mut self, t_start: f64) -> f64 {
         xdevs::traits::Component::set_t_last(self, t_start);
@@ -214,7 +214,7 @@ unsafe impl xdevs::traits::AbstractSimulator for CoupAtomHO {
     }
 }
 
-impl CoupAtomHO {
+impl<const W: usize> CoupAtomHO<W> {
     pub fn new() -> Self {
         Self::build(Atom::new())
     }
@@ -236,19 +236,19 @@ impl CoupAtomHO {
     }
 }
 
-impl xdevs::Coupled for CoupAtomHO {
+impl<const W: usize> xdevs::Coupled for CoupAtomHO<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
         from.input_port.couple(&mut to.coup_atomic.input_port);
     }
     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
-        from.coup_atomic.output_port.couple(&mut to.output_port);
+        from.coup_atomic.output_port.couple(&mut to.output_port_1);
     }
 }
 //Fin modelo acoplado CoupAtomHO que contiene un único atómico
 
 //Inicio enum con las opciones que puede haber en el modelo HO
 pub enum HO<const W: usize> {
-    CoupD(CoupAtomHO),
+    CoupD(CoupAtomHO<W>),
     RestoCoup(CoupHO<W>),
 }
 
@@ -287,7 +287,7 @@ unsafe impl<const W: usize> AbstractSimulator for HO<W> {
 unsafe impl<const W: usize> Component for HO<W> {
     type Input = CoupInputPortHO;
 
-    type Output = CoupOutputPortHO;
+    type Output = CoupOutputPortHO<W>;
 
     type InputRef<'a>
         = &'a mut Self::Input
@@ -344,157 +344,32 @@ unsafe impl<const W: usize> Component for HO<W> {
     fn get_output(&self) -> &Self::Output {
         match self {
             HO::CoupD(coup_d) => coup_d.get_output(),
-            // HO::RestoCoup(coup_r) => coup_r.get_output(),
-            HO::RestoCoup(coup_r) => &coup_r.output.output_port_1,
+            HO::RestoCoup(coup_r) => coup_r.get_output(),
         }
     }
 
     fn get_output_mut(&mut self) -> &mut Self::Output {
         match self {
             HO::CoupD(coup_d) => coup_d.get_output_mut(),
-            // HO::RestoCoup(coup_r) => coup_r.get_output_mut(),
-            HO::RestoCoup(coup_r) => &mut coup_r.output.output_port_1,
+            HO::RestoCoup(coup_r) => coup_r.get_output_mut(),
         }
     }
 
     fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
         match self {
             HO::CoupD(coup_d) => coup_d.get_ports(),
-            // HO::RestoCoup(coup_r) => coup_r.get_ports(),
-            HO::RestoCoup(coup_r) => (&mut coup_r.input, &coup_r.output.output_port_1),
+            HO::RestoCoup(coup_r) => coup_r.get_ports(),
         }
     }
 
     fn get_out_ports(&self) -> Self::OutputRef<'_> {
         match self {
             HO::CoupD(coup_d) => coup_d.get_out_ports(),
-            // HO::RestoCoup(coup_r) => coup_r.get_out_ports(),
-            HO::RestoCoup(coup_r) => &coup_r.output.output_port_1,
-        }
-    }
-}
-
-impl<const W: usize> HO<W> {
-    pub fn get_n_internals(&self) -> usize {
-        match self {
-            HO::CoupD(coup_atom) => coup_atom.get_n_internals(),
-            HO::RestoCoup(coup_ho) => coup_ho.get_n_internals(),
-        }
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        match self {
-            HO::CoupD(coup_atom) => coup_atom.get_n_externals(),
-            HO::RestoCoup(coup_ho) => coup_ho.get_n_externals(),
-        }
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        match self {
-            HO::CoupD(coup_atom) => coup_atom.get_n_events(),
-            HO::RestoCoup(coup_ho) => coup_ho.get_n_events(),
-        }
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        match self {
-            HO::CoupD(coup_atom) => coup_atom.get_n_atomics(),
-            HO::RestoCoup(coup_ho) => coup_ho.get_n_atomics(),
+            HO::RestoCoup(coup_r) => coup_r.get_out_ports(),
         }
     }
 }
 //Fin enum con las opciones que puede haber en el modelo HO
-
-//Implementación manual de Component para HO
-unsafe impl<const W: usize> Component for HO<W> {
-    type Input = CoupInputPortHO;
-
-    type Output = CoupOutputPort;
-
-    type InputRef<'a>
-        = &'a mut Self::Input
-    where
-        Self: 'a;
-    type OutputRef<'a>
-        = &'a Self::Output
-    where
-        Self: 'a;
-
-    fn get_t_last(&self) -> f64 {
-        match self {
-            HO::CoupD(coup_d) => coup_d.get_t_last(),
-            HO::RestoCoup(coup_r) => coup_r.get_t_last(),
-        }
-    }
-
-    fn set_t_last(&mut self, t_last: f64) {
-        match self {
-            HO::CoupD(coup_d) => coup_d.set_t_last(t_last),
-            HO::RestoCoup(coup_r) => coup_r.set_t_last(t_last),
-        }
-    }
-
-    fn get_t_next(&self) -> f64 {
-        match self {
-            HO::CoupD(coup_d) => coup_d.get_t_next(),
-            HO::RestoCoup(coup_r) => coup_r.get_t_next(),
-        }
-    }
-
-    fn set_t_next(&mut self, t_next: f64) {
-        match self {
-            HO::CoupD(coup_d) => coup_d.set_t_next(t_next),
-            HO::RestoCoup(coup_r) => coup_r.set_t_next(t_next),
-        }
-    }
-
-    /// Returns a reference to the model's input event bag.
-    fn get_input(&self) -> &Self::Input {
-        match self {
-            HO::CoupD(coup_d) => coup_d.get_input(),
-            HO::RestoCoup(coup_r) => coup_r.get_input(),
-        }
-    }
-
-    fn get_input_mut(&mut self) -> &mut Self::Input {
-        match self {
-            HO::CoupD(coup_d) => coup_d.get_input_mut(),
-            HO::RestoCoup(coup_r) => coup_r.get_input_mut(),
-        }
-    }
-
-    fn get_output(&self) -> &Self::Output {
-        match self {
-            HO::CoupD(coup_d) => coup_d.get_output(),
-            // HO::RestoCoup(coup_r) => coup_r.get_output(),
-            HO::RestoCoup(coup_r) => &coup_r.output.output_port_1,
-        }
-    }
-
-    fn get_output_mut(&mut self) -> &mut Self::Output {
-        match self {
-            HO::CoupD(coup_d) => coup_d.get_output_mut(),
-            // HO::RestoCoup(coup_r) => coup_r.get_output_mut(),
-            HO::RestoCoup(coup_r) => &mut coup_r.output.output_port_1,
-        }
-    }
-
-    fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>) {
-        match self {
-            HO::CoupD(coup_d) => coup_d.get_ports(),
-            // HO::RestoCoup(coup_r) => coup_r.get_ports(),
-            HO::RestoCoup(coup_r) => (&mut coup_r.input, &coup_r.output.output_port_1),
-        }
-    }
-
-    fn get_out_ports(&self) -> Self::OutputRef<'_> {
-        match self {
-            HO::CoupD(coup_d) => coup_d.get_out_ports(),
-            // HO::RestoCoup(coup_r) => coup_r.get_out_ports(),
-            HO::RestoCoup(coup_r) => &coup_r.output.output_port_1,
-        }
-    }
-}
 
 impl<const W: usize> HO<W> {
     pub fn get_n_internals(&self) -> usize {
@@ -529,7 +404,7 @@ impl<const W: usize> HO<W> {
 
 //Inicio del acoplado con con un array de atómicos con puerto input tamaño 2 y otro acoplado igual
 //1 puerto de entrada y 2 puertos de salida (uno de tamaño 1 y otro de tamaño W-1)
-#[xdevs::coupled2]
+// #[xdevs::coupled2]
 // pub struct CoupHO<const W: usize> {
 //     #[input]
 //     input_port: xdevs::port::Port<usize, 1>,
@@ -815,8 +690,8 @@ impl<const W: usize> xdevs::Coupled for CoupHO<W> {
 
     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
         from.comp_coupled
-            .output_port
-            .couple(&mut to.output_port_1.output_port);
+            .output_port_1
+            .couple(&mut to.output_port_1);
         for atom_output_ports in from.comp_atomic.iter() {
             atom_output_ports.output_port.couple(&mut to.output_port_2);
         }
@@ -934,6 +809,18 @@ impl<const W: usize> ModeloFinal<W> {
             t_next: f64::INFINITY,
             components: ModeloFinalComponents::new(generator, modelo_ho),
         }
+    }
+
+    pub fn get_n_internals(&self) -> usize {
+        self.components.modelo_ho.get_n_internals()
+    }
+
+    pub fn get_n_externals(&self) -> usize {
+        self.components.modelo_ho.get_n_externals()
+    }
+
+    pub fn get_n_events(&self) -> usize {
+        self.components.modelo_ho.get_n_events()
     }
 
     pub fn get_n_atomics(&self) -> usize {

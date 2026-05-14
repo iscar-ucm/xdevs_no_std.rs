@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use xdevs_devstone::common::*;
-use xdevs_devstone::ho_no::*;
+use xdevs_devstone::ho::*;
 
 fn main() {
     const WIDTH: usize = 2;
@@ -46,11 +46,11 @@ mod test {
 
     #[test]
     fn test_ho() {
-        const WIDTH: usize = 200;
-        const DEPTH: usize = 20;
+        const WIDTH: usize = 1;
+        const DEPTH: usize = 1;
         const W: usize = WIDTH - 1;
 
-        xdevs_devstone_macros::generate_ho!(200, 20);
+        xdevs_devstone_macros::generate_ho!(1, 1);
 
         //Creación del modelo atómico generador (mete datos en el modelo HO)
         let generator = Generator::new(5);

@@ -133,11 +133,11 @@ pub(crate) fn expand_ho(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
         if val == 1 {
             if val != depth_val {
                 token.extend(quote! {
-                    let model_1 = ::std::boxed::Box::new(HO::CoupD(CoupAtom::new()));
+                    let model_1 = ::std::boxed::Box::new(HO::CoupD(CoupAtomHO::<W>::new()));
                 })
             } else {
                 token.extend(quote! {
-                    let model_1 = HO::CoupD(CoupAtom::new());
+                    let model_1 = HO::CoupD(CoupAtomHO::<W>::new());
                 });
             }
         } else {
