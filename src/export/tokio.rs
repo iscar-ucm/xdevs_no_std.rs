@@ -5,38 +5,38 @@ pub type SubscribeError = core::convert::Infallible;
 use tokio::sync::mpsc::error::SendError;
 
 #[repr(transparent)]
-pub struct Sender<T> {
-    sender: tokio::sync::mpsc::Sender<T>,
+pub struct Sender<I> {
+    sender: tokio::sync::mpsc::Sender<I>,
 }
-impl<T> Sender<T> {
-    pub async fn send(&self, msg: T) -> Result<(), SendError<T>> {
+impl<I> Sender<I> {
+    pub async fn send(&self, msg: I) -> Result<(), SendError<I>> {
         self.sender.send(msg).await
     }
 }
 
 #[repr(transparent)]
-pub struct Receiver<T> {
-    receiver: tokio::sync::broadcast::Receiver<T>,
+pub struct Receiver<O> {
+    receiver: tokio::sync::broadcast::Receiver<O>,
 }
-impl<T: Clone> Receiver<T> {
-    pub async fn recv(&mut self) -> Result<T, RecvError> {
+impl<O: Clone> Receiver<O> {
+    pub async fn recv(&mut self) -> Result<O, RecvError> {
         self.receiver.recv().await
     }
 }
 
-pub struct InputChannel<T, const N: usize> {
-    sender: tokio::sync::mpsc::Sender<T>,
-    receiver: tokio::sync::mpsc::Receiver<T>,
+pub struct InputChannel<I, const N: usize> {
+    sender: tokio::sync::mpsc::Sender<I>,
+    receiver: tokio::sync::mpsc::Receiver<I>,
 }
-impl<T, const N: usize> InputChannel<T, N> {
+impl<I, const N: usize> InputChannel<I, N> {
     pub fn new() -> Self {
         let (sender, receiver) = tokio::sync::mpsc::channel(N);
         Self { sender, receiver }
     }
 }
-impl<T, const N: usize> RtEngineInputChannel for InputChannel<T, N> {
-    type Input = T;
-    type Sender = Sender<T>;
+impl<I: Send, const N: usize> RtEngineInputChannel for InputChannel<I, N> {
+    type Input = I;
+    type Sender = Sender<I>;
 
     fn sender(&self) -> Self::Sender {
         Sender {
@@ -49,21 +49,21 @@ impl<T, const N: usize> RtEngineInputChannel for InputChannel<T, N> {
         self.receiver.recv().await.unwrap()
     }
 }
-impl<T, const N: usize> Sealed for InputChannel<T, N> {}
+impl<I: Send, const N: usize> Sealed for InputChannel<I, N> {}
 
-pub struct OutputChannel<T: Clone, const N: usize> {
-    sender: tokio::sync::broadcast::Sender<T>,
-    receiver: tokio::sync::broadcast::Receiver<T>,
+pub struct OutputChannel<O: Clone, const N: usize> {
+    sender: tokio::sync::broadcast::Sender<O>,
+    receiver: tokio::sync::broadcast::Receiver<O>,
 }
-impl<T: Clone, const N: usize> OutputChannel<T, N> {
+impl<O: Clone, const N: usize> OutputChannel<O, N> {
     pub fn new() -> Self {
         let (sender, receiver) = tokio::sync::broadcast::channel(N);
         Self { sender, receiver }
     }
 }
-impl<T: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<T, N> {
-    type Output = T;
-    type Receiver = Receiver<T>;
+impl<O: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<O, N> {
+    type Output = O;
+    type Receiver = Receiver<O>;
 
     fn receiver(&self) -> Result<Self::Receiver, SubscribeError> {
         Ok(Receiver {
@@ -75,4 +75,4 @@ impl<T: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<T, N> {
         let _ = self.sender.send(msg);
     }
 }
-impl<T: Clone, const N: usize> Sealed for OutputChannel<T, N> {}
+impl<O: Clone, const N: usize> Sealed for OutputChannel<O, N> {}
