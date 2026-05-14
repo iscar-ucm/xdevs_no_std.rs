@@ -53,7 +53,7 @@ impl<'a, I, const N: usize> InputChannel<'a, I, N> {
         Self { channel }
     }
 }
-impl<'a, I, const N: usize> RtEngineInputChannel for InputChannel<'a, I, N> {
+impl<'a, I: Send, const N: usize> RtEngineInputChannel for InputChannel<'a, I, N> {
     type Input = I;
     type Sender = Sender<'a, I, N>;
 
