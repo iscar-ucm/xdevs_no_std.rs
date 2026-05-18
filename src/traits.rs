@@ -13,6 +13,9 @@ pub use crate::rt_engine::traits::{
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
 pub unsafe trait Bag {
+    /// Build a new instance of the bag.
+    fn build() -> Self;
+
     /// Returns `true` if the ports are empty.
     fn is_empty(&self) -> bool;
 

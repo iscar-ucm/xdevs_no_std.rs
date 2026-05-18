@@ -10,6 +10,10 @@ use crate::traits::Component;
 
 //////////////////////////////////////////////// Arrays //////////////////////////////////////////////
 unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
+    fn build() -> Self {
+        core::array::from_fn(|_| T::build())
+    }
+
     fn is_empty(&self) -> bool {
         self.iter().all(|bag| bag.is_empty())
     }
@@ -80,6 +84,10 @@ unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for [T; N] {
 macro_rules! impl_ref {
     ( $ty:ty ) => {
         unsafe impl<T: Bag> Bag for $ty {
+            fn build() -> Self {
+                unimplemented!("Cannot build a reference bag. This method should never be called.")
+            }
+
             fn is_empty(&self) -> bool {
                 (**self).is_empty()
             }
@@ -137,6 +145,9 @@ impl_ref!(alloc::boxed::Box<T>);
 
 //////////////////////////////////////////////// Empty Tuple //////////////////////////////////////////////
 unsafe impl Bag for () {
+    fn build() -> Self {
+        ()
+    }
     fn is_empty(&self) -> bool {
         true
     }
