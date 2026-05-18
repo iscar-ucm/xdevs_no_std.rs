@@ -179,7 +179,7 @@ fn main() {
     let buffer = buffer::Buffer::new(8, Some("FIFO buffer")); //cambio new2 por new
     let processor = processor::Processor::new(eDuration::from_millis(1500)); //previamente 1.5 //cambio new2 por new
 
-    let gpb = GPB::new(generator, buffer, processor);
+    let gpb = GPB::build(generator, buffer, processor);
 
     let mut simulator = xdevs::simulator::Simulator::new(gpb);
     let config = xdevs::simulator::Config::new(

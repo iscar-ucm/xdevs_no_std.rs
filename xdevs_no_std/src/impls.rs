@@ -5,6 +5,7 @@ extern crate alloc;
 use crate::traits::AbstractSimulator;
 use crate::traits::Bag;
 use crate::traits::Component;
+use crate::Instant;
 
 //////////////////////////////////////////////// Iterables //////////////////////////////////////////////
 
@@ -23,26 +24,26 @@ macro_rules! seq_bag_impl_body {
 macro_rules! seq_simulator_impl_body {
     () => {
         #[inline]
-        fn start(&mut self, t_start: f64) -> f64 {
-            self.iter_mut().fold(f64::INFINITY, |t_next, c| {
-                f64::min(t_next, c.start(t_start))
+        fn start(&mut self, t_start: Instant) -> Instant {
+            self.iter_mut().fold(Instant::MAX, |t_next, c| {
+                Instant::min(t_next, c.start(t_start))
             })
         }
 
         #[inline]
-        fn stop(&mut self, t_stop: f64) {
+        fn stop(&mut self, t_stop: Instant) {
             self.iter_mut().for_each(|c| c.stop(t_stop));
         }
 
         #[inline]
-        fn lambda(&mut self, t: f64) {
+        fn lambda(&mut self, t: Instant) {
             self.iter_mut().for_each(|c| c.lambda(t));
         }
 
         #[inline]
-        fn delta(&mut self, t: f64) -> f64 {
+        fn delta(&mut self, t: Instant) -> Instant {
             self.iter_mut()
-                .fold(f64::INFINITY, |t_next, c| f64::min(t_next, c.delta(t)))
+                .fold(Instant::MAX, |t_next, c| Instant::min(t_next, c.delta(t)))
         }
     };
 }
@@ -65,23 +66,23 @@ unsafe impl<T: Component> Component for alloc::vec::Vec<T> {
     where
         Self: 'a;
 
-    fn get_t_last(&self) -> f64 {
+    fn get_t_last(&self) -> Instant {
         self.iter()
             .map(|c| c.get_t_last())
-            .fold(f64::INFINITY, f64::min)
+            .fold(Instant::MAX, Instant::min)
     }
 
-    fn set_t_last(&mut self, t_last: f64) {
+    fn set_t_last(&mut self, t_last: Instant) {
         self.iter_mut().for_each(|c| c.set_t_last(t_last));
     }
 
-    fn get_t_next(&self) -> f64 {
+    fn get_t_next(&self) -> Instant {
         self.iter()
             .map(|c| c.get_t_next())
-            .fold(f64::INFINITY, f64::min)
+            .fold(Instant::MAX, Instant::min)
     }
 
-    fn set_t_next(&mut self, t_next: f64) {
+    fn set_t_next(&mut self, t_next: Instant) {
         self.iter_mut().for_each(|c| c.set_t_next(t_next));
     }
 
@@ -141,23 +142,23 @@ unsafe impl<T: Component, const N: usize> Component for heapless::Vec<T, N> {
     where
         Self: 'a;
 
-    fn get_t_last(&self) -> f64 {
+    fn get_t_last(&self) -> Instant {
         self.iter()
             .map(|c| c.get_t_last())
-            .fold(f64::INFINITY, f64::min)
+            .fold(Instant::MAX, Instant::min)
     }
 
-    fn set_t_last(&mut self, t_last: f64) {
+    fn set_t_last(&mut self, t_last: Instant) {
         self.iter_mut().for_each(|c| c.set_t_last(t_last));
     }
 
-    fn get_t_next(&self) -> f64 {
+    fn get_t_next(&self) -> Instant {
         self.iter()
             .map(|c| c.get_t_next())
-            .fold(f64::INFINITY, f64::min)
+            .fold(Instant::MAX, Instant::min)
     }
 
-    fn set_t_next(&mut self, t_next: f64) {
+    fn set_t_next(&mut self, t_next: Instant) {
         self.iter_mut().for_each(|c| c.set_t_next(t_next));
     }
 
@@ -229,23 +230,23 @@ unsafe impl<T: Component, const N: usize> Component for [T; N] {
     where
         Self: 'a;
 
-    fn get_t_last(&self) -> f64 {
+    fn get_t_last(&self) -> Instant {
         self.iter()
             .map(|c| c.get_t_last())
-            .fold(f64::INFINITY, f64::min)
+            .fold(Instant::MAX, Instant::min)
     }
 
-    fn set_t_last(&mut self, t_last: f64) {
+    fn set_t_last(&mut self, t_last: Instant) {
         self.iter_mut().for_each(|c| c.set_t_last(t_last));
     }
 
-    fn get_t_next(&self) -> f64 {
+    fn get_t_next(&self) -> Instant {
         self.iter()
             .map(|c| c.get_t_next())
-            .fold(f64::INFINITY, f64::min)
+            .fold(Instant::MAX, Instant::min)
     }
 
-    fn set_t_next(&mut self, t_next: f64) {
+    fn set_t_next(&mut self, t_next: Instant) {
         self.iter_mut().for_each(|c| c.set_t_next(t_next));
     }
 
@@ -387,19 +388,19 @@ macro_rules! impl_ref {
             where
                 Self: 'a;
 
-            fn get_t_last(&self) -> f64 {
+            fn get_t_last(&self) -> Instant {
                 (**self).get_t_last()
             }
 
-            fn set_t_last(&mut self, t_last: f64) {
+            fn set_t_last(&mut self, t_last: Instant) {
                 (**self).set_t_last(t_last)
             }
 
-            fn get_t_next(&self) -> f64 {
+            fn get_t_next(&self) -> Instant {
                 (**self).get_t_next()
             }
 
-            fn set_t_next(&mut self, t_next: f64) {
+            fn set_t_next(&mut self, t_next: Instant) {
                 (**self).set_t_next(t_next)
             }
 
@@ -429,19 +430,19 @@ macro_rules! impl_ref {
         }
 
         unsafe impl<T: AbstractSimulator> AbstractSimulator for $ty {
-            fn start(&mut self, t_start: f64) -> f64 {
+            fn start(&mut self, t_start: Instant) -> Instant {
                 (**self).start(t_start)
             }
 
-            fn stop(&mut self, t_stop: f64) {
+            fn stop(&mut self, t_stop: Instant) {
                 (**self).stop(t_stop);
             }
 
-            fn lambda(&mut self, t: f64) {
+            fn lambda(&mut self, t: Instant) {
                 (**self).lambda(t);
             }
 
-            fn delta(&mut self, t: f64) -> f64 {
+            fn delta(&mut self, t: Instant) -> Instant {
                 (**self).delta(t)
             }
         }
