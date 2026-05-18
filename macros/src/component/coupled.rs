@@ -291,8 +291,8 @@ impl Component {
             }
             #component_impl
             unsafe impl #impl_generics ::xdevs::traits::PartialCoupled for #ident #ty_generics #where_clause {
-                type ComponentsInput<'__xdevs_inner> = #component_inputs_ident #wrapper_trait_generics where Self: '__xdevs_inner;
-                type ComponentsOutput<'__xdevs_inner> = #component_outputs_ident #wrapper_trait_generics where Self: '__xdevs_inner;
+                type ComponentsInput = #component_inputs_ident #wrapper_trait_generics;
+                type ComponentsOutput = #component_outputs_ident #wrapper_trait_generics;
             }
             unsafe impl #impl_generics ::xdevs::traits::AbstractSimulator for #ident #ty_generics #where_clause {
                 #[inline]

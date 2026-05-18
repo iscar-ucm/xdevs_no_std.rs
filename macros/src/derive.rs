@@ -38,6 +38,32 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
         Fields::Unit => Vec::new(),
     };
 
+    let build_body = match &fields {
+        Fields::Named(fields) => {
+            let build_fields = fields.named.iter().map(|field| {
+                let field_ident = field.ident.as_ref().expect("named field must have ident");
+                quote::quote!(#field_ident: <_ as ::xdevs::traits::Bag>::build())
+            });
+            quote::quote! {
+                Self {
+                    #(#build_fields),*
+                }
+            }
+        }
+        Fields::Unnamed(fields) => {
+            let build_elems = fields
+                .unnamed
+                .iter()
+                .map(|_| quote::quote!(<_ as ::xdevs::traits::Bag>::build()));
+            quote::quote! {
+                Self(
+                    #(#build_elems),*
+                )
+            }
+        }
+        Fields::Unit => quote::quote! { Self },
+    };
+
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let is_empty_body = if accesses.is_empty() {
@@ -52,6 +78,11 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
 
     Ok(quote::quote! {
         unsafe impl #impl_generics ::xdevs::traits::Bag for #ident #ty_generics #where_clause {
+            #[inline]
+            fn build() -> Self {
+                #build_body
+            }
+
             #[inline]
             fn is_empty(&self) -> bool {
                 #is_empty_body
