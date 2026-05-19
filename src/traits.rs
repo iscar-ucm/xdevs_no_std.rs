@@ -115,13 +115,13 @@ pub unsafe trait AbstractSimulator: Component {
 
     /// Executes output functions and propagates messages according to EOCs.
     /// Internally, it checks that the model is imminent before executing.
-    fn lambda(&mut self, t: f64);
+    fn lambda(&mut self, output: &mut Self::Output, t: f64);
 
     /// Propagates messages according to ICs and EICs and executes model transition functions.
     /// It also clears all the input and output ports.
     /// Internally, it checks that the model is imminent before executing.
     /// Finally, it returns the time for the next state transition of the inner DEVS model.
-    fn delta(&mut self, t: f64) -> f64;
+    fn delta(&mut self, input: &Self::Input, t: f64) -> f64;
 }
 
 /// Interface for handling input events in an asynchronous DEVS simulation.
