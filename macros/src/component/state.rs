@@ -34,7 +34,6 @@ impl State {
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
 
         quote::quote! {
-            #[derive(Debug)]
             pub struct #ident #impl_generics #where_clause {
                 #(#fields_ident: #fields_ty,)*
             }
