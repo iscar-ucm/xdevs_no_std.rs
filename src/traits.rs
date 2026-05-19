@@ -120,7 +120,7 @@ pub unsafe trait AbstractSimulator: Component {
     /// Propagates messages according to ICs and EICs, and executes state transition functions.
     /// Internally, it checks that the model is imminent before executing.
     /// Finally, it returns the time for the next state transition of the inner DEVS model.
-    fn delta(&mut self, input: &Self::Input, t: f64) -> f64;
+    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64;
 }
 
 /// Interface for handling input events in an asynchronous DEVS simulation.
