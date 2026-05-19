@@ -14,51 +14,6 @@ use xdevs::traits::{AbstractSimulator, Component};
 
 // Recursive expansion of coupled2 macro
 // ======================================
-
-// #[derive(Debug, Default)]
-// pub struct CoupInputPortHO {
-//     pub input_port: xdevs::port::Port<usize, 1>,
-// }
-// impl CoupInputPortHO {
-//     #[inline]
-//     pub const fn new() -> Self {
-//         Self {
-//             input_port: xdevs::port::Port::new(),
-//         }
-//     }
-// }
-// unsafe impl xdevs::traits::Bag for CoupInputPortHO {
-//     #[inline]
-//     fn is_empty(&self) -> bool {
-//         true && self.input_port.is_empty()
-//     }
-//     #[inline]
-//     fn clear(&mut self) {
-//         self.input_port.clear();
-//     }
-// }
-// #[derive(Debug, Default)]
-// pub struct CoupOutputPortHO<const W: usize> {
-//     pub output_port: xdevs::port::Port<usize, W>,
-// }
-// impl<const W: usize> CoupOutputPortHO<W> {
-//     #[inline]
-//     pub const fn new() -> Self {
-//         Self {
-//             output_port: xdevs::port::Port::new(),
-//         }
-//     }
-// }
-// unsafe impl<const W: usize> xdevs::traits::Bag for CoupOutputPortHO<W> {
-//     #[inline]
-//     fn is_empty(&self) -> bool {
-//         true && self.output_port.is_empty()
-//     }
-//     #[inline]
-//     fn clear(&mut self) {
-//         self.output_port.clear();
-//     }
-// }
 pub struct CoupAtomHOComponents {
     coup_atomic: Atom,
 }
@@ -238,10 +193,10 @@ impl<const W: usize> CoupAtomHO<W> {
 
 impl<const W: usize> xdevs::Coupled for CoupAtomHO<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
-        from.input_port.couple(&mut to.coup_atomic.input_port);
+        let _ = from.input_port.couple(&mut to.coup_atomic.input_port);
     }
     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
-        from.coup_atomic.output_port.couple(&mut to.output_port_1);
+        let _ = from.coup_atomic.output_port.couple(&mut to.output_port_1);
     }
 }
 //Fin modelo acoplado CoupAtomHO que contiene un único atómico
@@ -682,25 +637,26 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for CoupHO<W> {
 //Implementación manual del trato Coupled
 impl<const W: usize> xdevs::Coupled for CoupHO<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
-        from.input_port.couple(&mut to.comp_coupled.input_port);
+        let _ = from.input_port.couple(&mut to.comp_coupled.input_port);
         for atom_ports in to.comp_atomic.iter_mut() {
-            from.input_port.couple(&mut atom_ports.input_port);
+            let _ = from.input_port.couple(&mut atom_ports.input_port);
         }
     }
 
     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
-        from.comp_coupled
+        let _ = from
+            .comp_coupled
             .output_port_1
             .couple(&mut to.output_port_1);
         for atom_output_ports in from.comp_atomic.iter() {
-            atom_output_ports.output_port.couple(&mut to.output_port_2);
+            let _ = atom_output_ports.output_port.couple(&mut to.output_port_2);
         }
     }
 
     fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
         if W > 1 {
             for i in 0..(W - 1) {
-                from.comp_atomic[i]
+                let _ = from.comp_atomic[i]
                     .output_port
                     .couple(&mut to.comp_atomic[i + 1].input_port);
             }
@@ -970,7 +926,7 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for ModeloFinal<W> 
 //Implementación manual del trato Coupled para ModeloFinal
 impl<const W: usize> xdevs::Coupled for ModeloFinal<W> {
     fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
-        from.generator.out_job.couple(&mut to.modelo_ho.input_port);
+        let _ = from.generator.out_job.couple(&mut to.modelo_ho.input_port);
     }
 }
 //Fin acoplado ModeloFinal que recibe los datos de Generator y los introduce en el puerto de entrada del modelo HO
