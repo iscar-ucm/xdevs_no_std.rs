@@ -42,7 +42,8 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
         Fields::Named(fields) => {
             let build_fields = fields.named.iter().map(|field| {
                 let field_ident = field.ident.as_ref().expect("named field must have ident");
-                quote::quote!(#field_ident: <_ as ::xdevs::traits::Bag>::build())
+                let field_ty = &field.ty;
+                quote::quote!(#field_ident: <#field_ty as ::xdevs::traits::Bag>::build())
             });
             quote::quote! {
                 Self {
@@ -51,10 +52,10 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
             }
         }
         Fields::Unnamed(fields) => {
-            let build_elems = fields
-                .unnamed
-                .iter()
-                .map(|_| quote::quote!(<_ as ::xdevs::traits::Bag>::build()));
+            let build_elems = fields.unnamed.iter().map(|field| {
+                let field_ty = &field.ty;
+                quote::quote!(<#field_ty as ::xdevs::traits::Bag>::build())
+            });
             quote::quote! {
                 Self(
                     #(#build_elems),*

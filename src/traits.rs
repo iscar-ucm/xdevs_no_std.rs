@@ -117,8 +117,7 @@ pub unsafe trait AbstractSimulator: Component {
     /// Internally, it checks that the model is imminent before executing.
     fn lambda(&mut self, output: &mut Self::Output, t: f64);
 
-    /// Propagates messages according to ICs and EICs and executes model transition functions.
-    /// It also clears all the input and output ports.
+    /// Propagates messages according to ICs and EICs, and executes state transition functions.
     /// Internally, it checks that the model is imminent before executing.
     /// Finally, it returns the time for the next state transition of the inner DEVS model.
     fn delta(&mut self, input: &Self::Input, t: f64) -> f64;

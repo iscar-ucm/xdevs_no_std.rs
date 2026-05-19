@@ -90,7 +90,7 @@ macro_rules! impl_ref {
     ( $ty:ty ) => {
         unsafe impl<T: Bag> Bag for $ty {
             fn build() -> Self {
-                unimplemented!("Cannot build a reference bag. This method should never be called.")
+                unreachable!("Cannot build a reference bag. This method should never be called.")
             }
 
             fn is_empty(&self) -> bool {
