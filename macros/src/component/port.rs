@@ -55,7 +55,7 @@ impl Ports {
         };
 
         quote::quote! {
-            #[derive(Debug, Default, ::xdevs::Bag #bagmux)]
+            #[derive(::xdevs::Bag #bagmux)]
             pub struct #ident #impl_generics #where_clause {
                 #(pub #ports_ident: #ports_ty,)*
             }
