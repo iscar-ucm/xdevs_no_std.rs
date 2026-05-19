@@ -105,11 +105,11 @@ impl Component {
         // Generate wrapper structs for inner components' inputs and outputs
         // These structs hold all inner components' inputs/outputs,
         // allowing them to be passed as a single argument to trait methods.
-        let component_inputs_ident = Ident::new(&format!("{}ComponentsInput", ident), ident.span());
-        let component_outputs_ident =
+        let components_input_ident = Ident::new(&format!("{}ComponentsInput", ident), ident.span());
+        let components_output_ident =
             Ident::new(&format!("{}ComponentsOutput", ident), ident.span());
 
-        let component_input_fields: Vec<TokenStream2> = self
+        let components_input_fields: Vec<TokenStream2> = self
             .components
             .components
             .iter()
@@ -122,7 +122,7 @@ impl Component {
             })
             .collect();
 
-        let component_output_fields: Vec<TokenStream2> = self
+        let components_output_fields: Vec<TokenStream2> = self
             .components
             .components
             .iter()
@@ -146,19 +146,19 @@ impl Component {
 
             /// Wrapper struct holding mutable references to all inner components' inputs.
             #[derive(::xdevs::Bag)]
-            pub struct #component_inputs_ident #components_impl_generics #components_where_clause {
-                #(#component_input_fields),*
+            pub struct #components_input_ident #components_impl_generics #components_where_clause {
+                #(#components_input_fields),*
             }
 
             /// Wrapper struct holding references to all inner components' outputs.
             #[derive(::xdevs::Bag)]
-            pub struct #component_outputs_ident #components_impl_generics #components_where_clause {
-                #(#component_output_fields),*
+            pub struct #components_output_ident #components_impl_generics #components_where_clause {
+                #(#components_output_fields),*
             }
 
             pub struct #ident #impl_generics #where_clause {
-                pub components_input: #component_inputs_ident #components_ty_generics,
-                pub components_output: #component_outputs_ident #components_ty_generics,
+                pub components_input: #components_input_ident #components_ty_generics,
+                pub components_output: #components_output_ident #components_ty_generics,
                 pub t_last: f64,
                 pub t_next: f64,
                 pub components: #components_ident #components_ty_generics,
@@ -167,8 +167,8 @@ impl Component {
                 #[inline]
                 pub fn build(#(#components_fields: #components_tys),*) -> Self {
                     Self {
-                        components_input: <#component_inputs_ident #components_ty_generics as ::xdevs::traits::Bag>::build(),
-                        components_output: <#component_outputs_ident #components_ty_generics as ::xdevs::traits::Bag>::build(),
+                        components_input: <#components_input_ident #components_ty_generics as ::xdevs::traits::Bag>::build(),
+                        components_output: <#components_output_ident #components_ty_generics as ::xdevs::traits::Bag>::build(),
                         t_last: 0.0,
                         t_next: f64::INFINITY,
                         components: #components_ident::new(#(#components_fields),*),
@@ -177,8 +177,8 @@ impl Component {
             }
             #component_impl
             unsafe impl #impl_generics ::xdevs::traits::PartialCoupled for #ident #ty_generics #where_clause {
-                type ComponentsInput = #component_inputs_ident #components_ty_generics;
-                type ComponentsOutput = #component_outputs_ident #components_ty_generics;
+                type ComponentsInput = #components_input_ident #components_ty_generics;
+                type ComponentsOutput = #components_output_ident #components_ty_generics;
             }
             unsafe impl #impl_generics ::xdevs::traits::AbstractSimulator for #ident #ty_generics #where_clause {
                 #[inline]

@@ -153,14 +153,12 @@ impl Component {
                             let e = t - ::xdevs::traits::Component::get_t_last(self);
                             <Self as ::xdevs::Atomic>::delta_ext(&mut self.state, e, input);
                         }
-                        // clear input events
                     } else if t >= t_next {
                         // internal transition
                         <Self as ::xdevs::Atomic>::delta_int(&mut self.state);
                     } else {
                         return t_next; // nothing to do
                     }
-                    // clear output events
                     // get t_next from ta and set new t_last and t_next
                     t_next = t + <Self as ::xdevs::Atomic>::ta(&self.state);
                     ::xdevs::traits::Component::set_t_last(self, t);
