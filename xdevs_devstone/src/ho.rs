@@ -1,4 +1,5 @@
 use crate::common::*;
+use embassy_time::Instant;
 use xdevs::traits::{AbstractSimulator, Component};
 
 //Inicio del modelo acoplado CoupAtom que contiene un único atómico
@@ -14,51 +15,6 @@ use xdevs::traits::{AbstractSimulator, Component};
 
 // Recursive expansion of coupled2 macro
 // ======================================
-
-// #[derive(Debug, Default)]
-// pub struct CoupInputPortHO {
-//     pub input_port: xdevs::port::Port<usize, 1>,
-// }
-// impl CoupInputPortHO {
-//     #[inline]
-//     pub const fn new() -> Self {
-//         Self {
-//             input_port: xdevs::port::Port::new(),
-//         }
-//     }
-// }
-// unsafe impl xdevs::traits::Bag for CoupInputPortHO {
-//     #[inline]
-//     fn is_empty(&self) -> bool {
-//         true && self.input_port.is_empty()
-//     }
-//     #[inline]
-//     fn clear(&mut self) {
-//         self.input_port.clear();
-//     }
-// }
-// #[derive(Debug, Default)]
-// pub struct CoupOutputPortHO<const W: usize> {
-//     pub output_port: xdevs::port::Port<usize, W>,
-// }
-// impl<const W: usize> CoupOutputPortHO<W> {
-//     #[inline]
-//     pub const fn new() -> Self {
-//         Self {
-//             output_port: xdevs::port::Port::new(),
-//         }
-//     }
-// }
-// unsafe impl<const W: usize> xdevs::traits::Bag for CoupOutputPortHO<W> {
-//     #[inline]
-//     fn is_empty(&self) -> bool {
-//         true && self.output_port.is_empty()
-//     }
-//     #[inline]
-//     fn clear(&mut self) {
-//         self.output_port.clear();
-//     }
-// }
 pub struct CoupAtomHOComponents {
     coup_atomic: Atom,
 }
@@ -79,8 +35,8 @@ pub struct CoupAtomHOComponentsOutput<'__xdevs_inner> {
 pub struct CoupAtomHO<const W: usize> {
     pub input: CoupInputPortHO,
     pub output: CoupOutputPortHO<W>,
-    pub t_last: f64,
-    pub t_next: f64,
+    pub t_last: ::xdevs::Instant,
+    pub t_next: ::xdevs::Instant,
     pub components: CoupAtomHOComponents,
 }
 impl<const W: usize> CoupAtomHO<W> {
@@ -89,8 +45,8 @@ impl<const W: usize> CoupAtomHO<W> {
         Self {
             input: CoupInputPortHO::new(),
             output: CoupOutputPortHO::new(),
-            t_last: 0.0,
-            t_next: f64::INFINITY,
+            t_last: ::xdevs::Instant::from_secs(0),
+            t_next: ::xdevs::Instant::MAX,
             components: CoupAtomHOComponents::new(coup_atomic),
         }
     }
@@ -107,19 +63,19 @@ unsafe impl<const W: usize> xdevs::traits::Component for CoupAtomHO<W> {
     where
         Self: '__xdevs_ports;
     #[inline]
-    fn get_t_last(&self) -> f64 {
+    fn get_t_last(&self) -> ::xdevs::Instant {
         self.t_last
     }
     #[inline]
-    fn set_t_last(&mut self, t_last: f64) {
+    fn set_t_last(&mut self, t_last: ::xdevs::Instant) {
         self.t_last = t_last;
     }
     #[inline]
-    fn get_t_next(&self) -> f64 {
+    fn get_t_next(&self) -> ::xdevs::Instant {
         self.t_next
     }
     #[inline]
-    fn set_t_next(&mut self, t_next: f64) {
+    fn set_t_next(&mut self, t_next: ::xdevs::Instant) {
         self.t_next = t_next;
     }
     #[inline]
@@ -159,10 +115,10 @@ unsafe impl<const W: usize> xdevs::traits::PartialCoupled for CoupAtomHO<W> {
 }
 unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for CoupAtomHO<W> {
     #[inline]
-    fn start(&mut self, t_start: f64) -> f64 {
+    fn start(&mut self, t_start: ::xdevs::Instant) -> ::xdevs::Instant {
         xdevs::traits::Component::set_t_last(self, t_start);
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
+        let mut t_next = ::xdevs::Instant::MAX;
+        t_next = ::xdevs::Instant::min(
             t_next,
             xdevs::traits::AbstractSimulator::start(&mut self.components.coup_atomic, t_start),
         );
@@ -170,13 +126,13 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for CoupAtomHO<W> {
         t_next
     }
     #[inline]
-    fn stop(&mut self, t_stop: f64) {
+    fn stop(&mut self, t_stop: ::xdevs::Instant) {
         xdevs::traits::AbstractSimulator::stop(&mut self.components.coup_atomic, t_stop);
         xdevs::traits::Component::set_t_last(self, t_stop);
-        xdevs::traits::Component::set_t_next(self, f64::INFINITY);
+        xdevs::traits::Component::set_t_next(self, ::xdevs::Instant::MAX);
     }
     #[inline]
-    fn lambda(&mut self, t: f64) {
+    fn lambda(&mut self, t: ::xdevs::Instant) {
         if t >= xdevs::traits::Component::get_t_next(self) {
             xdevs::traits::AbstractSimulator::lambda(&mut self.components.coup_atomic, t);
             let coup_atomic_output =
@@ -188,7 +144,7 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for CoupAtomHO<W> {
         }
     }
     #[inline]
-    fn delta(&mut self, t: f64) -> f64 {
+    fn delta(&mut self, t: ::xdevs::Instant) -> ::xdevs::Instant {
         {
             let (coup_atomic_input, coup_atomic_output) =
                 xdevs::traits::Component::get_ports(&mut self.components.coup_atomic);
@@ -201,8 +157,8 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for CoupAtomHO<W> {
             <Self as xdevs::Coupled>::eic(&self.input, &mut component_inputs);
             <Self as xdevs::Coupled>::ic(&component_outputs, &mut component_inputs);
         }
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
+        let mut t_next = ::xdevs::Instant::MAX;
+        t_next = ::xdevs::Instant::min(
             t_next,
             xdevs::traits::AbstractSimulator::delta(&mut self.components.coup_atomic, t),
         );
@@ -238,10 +194,10 @@ impl<const W: usize> CoupAtomHO<W> {
 
 impl<const W: usize> xdevs::Coupled for CoupAtomHO<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
-        from.input_port.couple(&mut to.coup_atomic.input_port);
+        let _ = from.input_port.couple(&mut to.coup_atomic.input_port);
     }
     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
-        from.coup_atomic.output_port.couple(&mut to.output_port_1);
+        let _ = from.coup_atomic.output_port.couple(&mut to.output_port_1);
     }
 }
 //Fin modelo acoplado CoupAtomHO que contiene un único atómico
@@ -254,28 +210,28 @@ pub enum HO<const W: usize> {
 
 //Implementacion manual de AbstractSimulator para HO
 unsafe impl<const W: usize> AbstractSimulator for HO<W> {
-    fn start(&mut self, t_start: f64) -> f64 {
+    fn start(&mut self, t_start: Instant) -> Instant {
         match self {
             HO::CoupD(coup_d) => coup_d.start(t_start),
             HO::RestoCoup(coup_r) => coup_r.start(t_start),
         }
     }
 
-    fn stop(&mut self, t_stop: f64) {
+    fn stop(&mut self, t_stop: Instant) {
         match self {
             HO::CoupD(coup_d) => coup_d.stop(t_stop),
             HO::RestoCoup(coup_r) => coup_r.stop(t_stop),
         }
     }
 
-    fn lambda(&mut self, t: f64) {
+    fn lambda(&mut self, t: Instant) {
         match self {
             HO::CoupD(coup_d) => coup_d.lambda(t),
             HO::RestoCoup(coup_r) => coup_r.lambda(t),
         }
     }
 
-    fn delta(&mut self, t: f64) -> f64 {
+    fn delta(&mut self, t: Instant) -> Instant {
         match self {
             HO::CoupD(coup_d) => coup_d.delta(t),
             HO::RestoCoup(coup_r) => coup_r.delta(t),
@@ -298,28 +254,28 @@ unsafe impl<const W: usize> Component for HO<W> {
     where
         Self: 'a;
 
-    fn get_t_last(&self) -> f64 {
+    fn get_t_last(&self) -> Instant {
         match self {
             HO::CoupD(coup_d) => coup_d.get_t_last(),
             HO::RestoCoup(coup_r) => coup_r.get_t_last(),
         }
     }
 
-    fn set_t_last(&mut self, t_last: f64) {
+    fn set_t_last(&mut self, t_last: Instant) {
         match self {
             HO::CoupD(coup_d) => coup_d.set_t_last(t_last),
             HO::RestoCoup(coup_r) => coup_r.set_t_last(t_last),
         }
     }
 
-    fn get_t_next(&self) -> f64 {
+    fn get_t_next(&self) -> Instant {
         match self {
             HO::CoupD(coup_d) => coup_d.get_t_next(),
             HO::RestoCoup(coup_r) => coup_r.get_t_next(),
         }
     }
 
-    fn set_t_next(&mut self, t_next: f64) {
+    fn set_t_next(&mut self, t_next: Instant) {
         match self {
             HO::CoupD(coup_d) => coup_d.set_t_next(t_next),
             HO::RestoCoup(coup_r) => coup_r.set_t_next(t_next),
@@ -418,6 +374,7 @@ impl<const W: usize> HO<W> {
 
 // Recursive expansion of coupled2 macro
 // ======================================
+
 #[derive(Debug, Default)]
 pub struct CoupInputPortHO {
     pub input_port: xdevs::port::Port<usize, 1>,
@@ -491,8 +448,8 @@ pub struct CoupHOComponentsOutput<'__xdevs_inner, const W: usize> {
 pub struct CoupHO<const W: usize> {
     pub input: CoupInputPortHO,
     pub output: CoupOutputPortHO<W>,
-    pub t_last: f64,
-    pub t_next: f64,
+    pub t_last: ::xdevs::Instant,
+    pub t_next: ::xdevs::Instant,
     pub components: CoupHOComponents<W>,
 }
 impl<const W: usize> CoupHO<W> {
@@ -501,8 +458,8 @@ impl<const W: usize> CoupHO<W> {
         Self {
             input: CoupInputPortHO::new(),
             output: CoupOutputPortHO::new(),
-            t_last: 0.0,
-            t_next: f64::INFINITY,
+            t_last: ::xdevs::Instant::from_secs(0),
+            t_next: ::xdevs::Instant::MAX,
             components: CoupHOComponents::new(comp_atomic, comp_coupled),
         }
     }
@@ -555,19 +512,19 @@ unsafe impl<const W: usize> xdevs::traits::Component for CoupHO<W> {
     where
         Self: '__xdevs_ports;
     #[inline]
-    fn get_t_last(&self) -> f64 {
+    fn get_t_last(&self) -> ::xdevs::Instant {
         self.t_last
     }
     #[inline]
-    fn set_t_last(&mut self, t_last: f64) {
+    fn set_t_last(&mut self, t_last: ::xdevs::Instant) {
         self.t_last = t_last;
     }
     #[inline]
-    fn get_t_next(&self) -> f64 {
+    fn get_t_next(&self) -> ::xdevs::Instant {
         self.t_next
     }
     #[inline]
-    fn set_t_next(&mut self, t_next: f64) {
+    fn set_t_next(&mut self, t_next: ::xdevs::Instant) {
         self.t_next = t_next;
     }
     #[inline]
@@ -607,14 +564,14 @@ unsafe impl<const W: usize> xdevs::traits::PartialCoupled for CoupHO<W> {
 }
 unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for CoupHO<W> {
     #[inline]
-    fn start(&mut self, t_start: f64) -> f64 {
+    fn start(&mut self, t_start: ::xdevs::Instant) -> ::xdevs::Instant {
         xdevs::traits::Component::set_t_last(self, t_start);
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
+        let mut t_next = ::xdevs::Instant::MAX;
+        t_next = ::xdevs::Instant::min(
             t_next,
             xdevs::traits::AbstractSimulator::start(&mut self.components.comp_atomic, t_start),
         );
-        t_next = f64::min(
+        t_next = ::xdevs::Instant::min(
             t_next,
             xdevs::traits::AbstractSimulator::start(&mut self.components.comp_coupled, t_start),
         );
@@ -622,14 +579,14 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for CoupHO<W> {
         t_next
     }
     #[inline]
-    fn stop(&mut self, t_stop: f64) {
+    fn stop(&mut self, t_stop: ::xdevs::Instant) {
         xdevs::traits::AbstractSimulator::stop(&mut self.components.comp_atomic, t_stop);
         xdevs::traits::AbstractSimulator::stop(&mut self.components.comp_coupled, t_stop);
         xdevs::traits::Component::set_t_last(self, t_stop);
-        xdevs::traits::Component::set_t_next(self, f64::INFINITY);
+        xdevs::traits::Component::set_t_next(self, ::xdevs::Instant::MAX);
     }
     #[inline]
-    fn lambda(&mut self, t: f64) {
+    fn lambda(&mut self, t: ::xdevs::Instant) {
         if t >= xdevs::traits::Component::get_t_next(self) {
             xdevs::traits::AbstractSimulator::lambda(&mut self.components.comp_atomic, t);
             xdevs::traits::AbstractSimulator::lambda(&mut self.components.comp_coupled, t);
@@ -645,7 +602,7 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for CoupHO<W> {
         }
     }
     #[inline]
-    fn delta(&mut self, t: f64) -> f64 {
+    fn delta(&mut self, t: ::xdevs::Instant) -> ::xdevs::Instant {
         {
             let (comp_atomic_input, comp_atomic_output) =
                 xdevs::traits::Component::get_ports(&mut self.components.comp_atomic);
@@ -662,12 +619,12 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for CoupHO<W> {
             <Self as xdevs::Coupled>::eic(&self.input, &mut component_inputs);
             <Self as xdevs::Coupled>::ic(&component_outputs, &mut component_inputs);
         }
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
+        let mut t_next = ::xdevs::Instant::MAX;
+        t_next = ::xdevs::Instant::min(
             t_next,
             xdevs::traits::AbstractSimulator::delta(&mut self.components.comp_atomic, t),
         );
-        t_next = f64::min(
+        t_next = ::xdevs::Instant::min(
             t_next,
             xdevs::traits::AbstractSimulator::delta(&mut self.components.comp_coupled, t),
         );
@@ -682,25 +639,26 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for CoupHO<W> {
 //Implementación manual del trato Coupled
 impl<const W: usize> xdevs::Coupled for CoupHO<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
-        from.input_port.couple(&mut to.comp_coupled.input_port);
+        let _ = from.input_port.couple(&mut to.comp_coupled.input_port);
         for atom_ports in to.comp_atomic.iter_mut() {
-            from.input_port.couple(&mut atom_ports.input_port);
+            let _ = from.input_port.couple(&mut atom_ports.input_port);
         }
     }
 
     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
-        from.comp_coupled
+        let _ = from
+            .comp_coupled
             .output_port_1
             .couple(&mut to.output_port_1);
         for atom_output_ports in from.comp_atomic.iter() {
-            atom_output_ports.output_port.couple(&mut to.output_port_2);
+            let _ = atom_output_ports.output_port.couple(&mut to.output_port_2);
         }
     }
 
     fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
         if W > 1 {
             for i in 0..(W - 1) {
-                from.comp_atomic[i]
+                let _ = from.comp_atomic[i]
                     .output_port
                     .couple(&mut to.comp_atomic[i + 1].input_port);
             }
@@ -795,8 +753,8 @@ pub struct ModeloFinalComponentsOutput<'__xdevs_inner, const W: usize> {
 pub struct ModeloFinal<const W: usize> {
     pub input: ModeloFinalInput,
     pub output: ModeloFinalOutput,
-    pub t_last: f64,
-    pub t_next: f64,
+    pub t_last: ::xdevs::Instant,
+    pub t_next: ::xdevs::Instant,
     pub components: ModeloFinalComponents<W>,
 }
 impl<const W: usize> ModeloFinal<W> {
@@ -805,8 +763,8 @@ impl<const W: usize> ModeloFinal<W> {
         Self {
             input: ModeloFinalInput::new(),
             output: ModeloFinalOutput::new(),
-            t_last: 0.0,
-            t_next: f64::INFINITY,
+            t_last: ::xdevs::Instant::from_secs(0),
+            t_next: ::xdevs::Instant::MAX,
             components: ModeloFinalComponents::new(generator, modelo_ho),
         }
     }
@@ -827,7 +785,6 @@ impl<const W: usize> ModeloFinal<W> {
         self.components.modelo_ho.get_n_atomics()
     }
 }
-
 unsafe impl<const W: usize> xdevs::traits::Component for ModeloFinal<W> {
     type Input = ModeloFinalInput;
     type Output = ModeloFinalOutput;
@@ -840,19 +797,19 @@ unsafe impl<const W: usize> xdevs::traits::Component for ModeloFinal<W> {
     where
         Self: '__xdevs_ports;
     #[inline]
-    fn get_t_last(&self) -> f64 {
+    fn get_t_last(&self) -> ::xdevs::Instant {
         self.t_last
     }
     #[inline]
-    fn set_t_last(&mut self, t_last: f64) {
+    fn set_t_last(&mut self, t_last: ::xdevs::Instant) {
         self.t_last = t_last;
     }
     #[inline]
-    fn get_t_next(&self) -> f64 {
+    fn get_t_next(&self) -> ::xdevs::Instant {
         self.t_next
     }
     #[inline]
-    fn set_t_next(&mut self, t_next: f64) {
+    fn set_t_next(&mut self, t_next: ::xdevs::Instant) {
         self.t_next = t_next;
     }
     #[inline]
@@ -892,14 +849,14 @@ unsafe impl<const W: usize> xdevs::traits::PartialCoupled for ModeloFinal<W> {
 }
 unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for ModeloFinal<W> {
     #[inline]
-    fn start(&mut self, t_start: f64) -> f64 {
+    fn start(&mut self, t_start: ::xdevs::Instant) -> ::xdevs::Instant {
         xdevs::traits::Component::set_t_last(self, t_start);
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
+        let mut t_next = ::xdevs::Instant::MAX;
+        t_next = ::xdevs::Instant::min(
             t_next,
             xdevs::traits::AbstractSimulator::start(&mut self.components.generator, t_start),
         );
-        t_next = f64::min(
+        t_next = ::xdevs::Instant::min(
             t_next,
             xdevs::traits::AbstractSimulator::start(&mut self.components.modelo_ho, t_start),
         );
@@ -907,14 +864,14 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for ModeloFinal<W> 
         t_next
     }
     #[inline]
-    fn stop(&mut self, t_stop: f64) {
+    fn stop(&mut self, t_stop: ::xdevs::Instant) {
         xdevs::traits::AbstractSimulator::stop(&mut self.components.generator, t_stop);
         xdevs::traits::AbstractSimulator::stop(&mut self.components.modelo_ho, t_stop);
         xdevs::traits::Component::set_t_last(self, t_stop);
-        xdevs::traits::Component::set_t_next(self, f64::INFINITY);
+        xdevs::traits::Component::set_t_next(self, ::xdevs::Instant::MAX);
     }
     #[inline]
-    fn lambda(&mut self, t: f64) {
+    fn lambda(&mut self, t: ::xdevs::Instant) {
         if t >= xdevs::traits::Component::get_t_next(self) {
             xdevs::traits::AbstractSimulator::lambda(&mut self.components.generator, t);
             xdevs::traits::AbstractSimulator::lambda(&mut self.components.modelo_ho, t);
@@ -931,7 +888,7 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for ModeloFinal<W> 
         }
     }
     #[inline]
-    fn delta(&mut self, t: f64) -> f64 {
+    fn delta(&mut self, t: ::xdevs::Instant) -> ::xdevs::Instant {
         {
             let (generator_input, generator_output) =
                 xdevs::traits::Component::get_ports(&mut self.components.generator);
@@ -950,12 +907,12 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for ModeloFinal<W> 
             <Self as xdevs::Coupled>::eic(&self.input, &mut component_inputs);
             <Self as xdevs::Coupled>::ic(&component_outputs, &mut component_inputs);
         }
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
+        let mut t_next = ::xdevs::Instant::MAX;
+        t_next = ::xdevs::Instant::min(
             t_next,
             xdevs::traits::AbstractSimulator::delta(&mut self.components.generator, t),
         );
-        t_next = f64::min(
+        t_next = ::xdevs::Instant::min(
             t_next,
             xdevs::traits::AbstractSimulator::delta(&mut self.components.modelo_ho, t),
         );
@@ -970,7 +927,7 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for ModeloFinal<W> 
 //Implementación manual del trato Coupled para ModeloFinal
 impl<const W: usize> xdevs::Coupled for ModeloFinal<W> {
     fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
-        from.generator.out_job.couple(&mut to.modelo_ho.input_port);
+        let _ = from.generator.out_job.couple(&mut to.modelo_ho.input_port);
     }
 }
 //Fin acoplado ModeloFinal que recibe los datos de Generator y los introduce en el puerto de entrada del modelo HO

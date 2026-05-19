@@ -16,7 +16,7 @@ impl xdevs::Atomic for Generator {
     }
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
-        output.out_job.add_value(state.count);
+        let _ = output.out_job.add_value(state.count);
     }
 
     fn ta(state: &Self::State) -> Duration {
@@ -54,7 +54,7 @@ impl xdevs::Atomic for Atom {
     }
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
-        output.output_port.add_value(state.n_events);
+        let _ = output.output_port.add_value(state.n_events);
     }
 
     fn ta(state: &Self::State) -> Duration {
@@ -329,10 +329,10 @@ impl CoupAtom {
 
 impl xdevs::Coupled for CoupAtom {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
-        from.input_port.couple(&mut to.coup_atomic.input_port);
+        let _ = from.input_port.couple(&mut to.coup_atomic.input_port);
     }
     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
-        from.coup_atomic.output_port.couple(&mut to.output_port);
+        let _ = from.coup_atomic.output_port.couple(&mut to.output_port);
     }
 }
 //Fin modelo acoplado CoupAtom que contiene un único atómico
@@ -358,7 +358,7 @@ impl xdevs::Atomic for AtomInputSize2 {
     }
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
-        output.output_port.add_value(state.n_events);
+        let _ = output.output_port.add_value(state.n_events);
     }
 
     fn ta(state: &Self::State) -> Duration {

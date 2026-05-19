@@ -390,15 +390,16 @@ impl<const W: usize> CoupLI<W> {
 impl<const W: usize> xdevs::Coupled for CoupLI<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
         for atom_ports in to.comp_atomic.iter_mut() {
-            from.input_port.couple(&mut atom_ports.input_port);
+            let _ = from.input_port.couple(&mut atom_ports.input_port);
         }
 
-        from.input_port //Conexión con el coupled
+        let _ = from
+            .input_port //Conexión con el coupled
             .couple(&mut to.comp_coupled.input_port);
     }
 
     fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
-        from.comp_coupled.output_port.couple(&mut to.output_port);
+        let _ = from.comp_coupled.output_port.couple(&mut to.output_port);
     }
 }
 //Fin del acoplado con un array de atómicos y otro acoplado igual
@@ -662,7 +663,7 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for ModeloFinal<W> 
 //Implementación manual de Coupled para ModeloFinal
 impl<const W: usize> xdevs::Coupled for ModeloFinal<W> {
     fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
-        from.generator.out_job.couple(&mut to.modelo_li.input_port);
+        let _ = from.generator.out_job.couple(&mut to.modelo_li.input_port);
     }
 }
 //Fin modelo acoplado ModeloFinal que recibe los datos de Generator y los introduce en el puerto de entrada del modelo LI
