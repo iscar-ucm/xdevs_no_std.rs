@@ -1,32 +1,34 @@
+use embassy_time::Duration;
+
 //Inicio modelo atómico sencillo que mete datos en el puerto de entrada del modelo LI
 #[xdevs::atomic]
 pub struct Generator {
     #[output]
     out_job: xdevs::port::Port<usize, 1>,
     #[state]
-    sigma: f64,
+    sigma: Duration,
     count: usize,
 }
 
 impl xdevs::Atomic for Generator {
     fn delta_int(state: &mut Self::State) {
-        state.sigma = f64::INFINITY;
+        state.sigma = Duration::MAX;
     }
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
         output.out_job.add_value(state.count);
     }
 
-    fn ta(state: &Self::State) -> f64 {
+    fn ta(state: &Self::State) -> Duration {
         state.sigma
     }
 
-    fn delta_ext(_state: &mut Self::State, _elapsed: f64, _input: &Self::Input) {}
+    fn delta_ext(_state: &mut Self::State, _elapsed: Duration, _input: &Self::Input) {}
 }
 
 impl Generator {
     pub fn new(val_count: usize) -> Self {
-        Self::build(0.0, val_count)
+        Self::build(Duration::from_secs(0), val_count)
     }
 }
 //Fin modelo atómico sencillo que mete datos en el puerto de entrada del modelo LI
@@ -39,7 +41,7 @@ pub struct Atom {
     #[output]
     output_port: xdevs::port::Port<usize, 1>,
     #[state]
-    sigma: f64,
+    sigma: Duration,
     n_internals: usize,
     n_externals: usize, //debería ser igual que n_internals
     n_events: usize,    //número de eventos que llegan al puerto acumulador
@@ -47,7 +49,7 @@ pub struct Atom {
 
 impl xdevs::Atomic for Atom {
     fn delta_int(state: &mut Self::State) {
-        state.sigma = f64::INFINITY;
+        state.sigma = Duration::MAX;
         state.n_internals += 1;
     }
 
@@ -55,13 +57,13 @@ impl xdevs::Atomic for Atom {
         output.output_port.add_value(state.n_events);
     }
 
-    fn ta(state: &Self::State) -> f64 {
+    fn ta(state: &Self::State) -> Duration {
         state.sigma
     }
 
-    fn delta_ext(state: &mut Self::State, _elapsed: f64, input: &Self::Input) {
+    fn delta_ext(state: &mut Self::State, _elapsed: Duration, input: &Self::Input) {
         // state.sigma -= elapsed;
-        state.sigma = 0.0;
+        state.sigma = Duration::from_secs(0);
         state.n_externals += 1;
         state.n_events += input.input_port.get_values().len();
     }
@@ -69,7 +71,7 @@ impl xdevs::Atomic for Atom {
 
 impl Atom {
     pub fn new() -> Self {
-        Self::build(f64::INFINITY, 0, 0, 0)
+        Self::build(Duration::MAX, 0, 0, 0)
     }
 
     pub fn get_n_internals(&self) -> usize {
@@ -168,8 +170,8 @@ pub struct CoupAtomComponentsOutput<'__xdevs_inner> {
 pub struct CoupAtom {
     pub input: CoupInputPort,
     pub output: CoupOutputPort,
-    pub t_last: f64,
-    pub t_next: f64,
+    pub t_last: ::xdevs::Instant,
+    pub t_next: ::xdevs::Instant,
     pub components: CoupAtomComponents,
 }
 impl CoupAtom {
@@ -178,8 +180,8 @@ impl CoupAtom {
         Self {
             input: CoupInputPort::new(),
             output: CoupOutputPort::new(),
-            t_last: 0.0,
-            t_next: f64::INFINITY,
+            t_last: ::xdevs::Instant::from_secs(0),
+            t_next: ::xdevs::Instant::MAX,
             components: CoupAtomComponents::new(coup_atomic),
         }
     }
@@ -196,19 +198,19 @@ unsafe impl xdevs::traits::Component for CoupAtom {
     where
         Self: '__xdevs_ports;
     #[inline]
-    fn get_t_last(&self) -> f64 {
+    fn get_t_last(&self) -> ::xdevs::Instant {
         self.t_last
     }
     #[inline]
-    fn set_t_last(&mut self, t_last: f64) {
+    fn set_t_last(&mut self, t_last: ::xdevs::Instant) {
         self.t_last = t_last;
     }
     #[inline]
-    fn get_t_next(&self) -> f64 {
+    fn get_t_next(&self) -> ::xdevs::Instant {
         self.t_next
     }
     #[inline]
-    fn set_t_next(&mut self, t_next: f64) {
+    fn set_t_next(&mut self, t_next: ::xdevs::Instant) {
         self.t_next = t_next;
     }
     #[inline]
@@ -248,10 +250,10 @@ unsafe impl xdevs::traits::PartialCoupled for CoupAtom {
 }
 unsafe impl xdevs::traits::AbstractSimulator for CoupAtom {
     #[inline]
-    fn start(&mut self, t_start: f64) -> f64 {
+    fn start(&mut self, t_start: ::xdevs::Instant) -> ::xdevs::Instant {
         xdevs::traits::Component::set_t_last(self, t_start);
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
+        let mut t_next = ::xdevs::Instant::MAX;
+        t_next = ::xdevs::Instant::min(
             t_next,
             xdevs::traits::AbstractSimulator::start(&mut self.components.coup_atomic, t_start),
         );
@@ -259,13 +261,13 @@ unsafe impl xdevs::traits::AbstractSimulator for CoupAtom {
         t_next
     }
     #[inline]
-    fn stop(&mut self, t_stop: f64) {
+    fn stop(&mut self, t_stop: ::xdevs::Instant) {
         xdevs::traits::AbstractSimulator::stop(&mut self.components.coup_atomic, t_stop);
         xdevs::traits::Component::set_t_last(self, t_stop);
-        xdevs::traits::Component::set_t_next(self, f64::INFINITY);
+        xdevs::traits::Component::set_t_next(self, ::xdevs::Instant::MAX);
     }
     #[inline]
-    fn lambda(&mut self, t: f64) {
+    fn lambda(&mut self, t: ::xdevs::Instant) {
         if t >= xdevs::traits::Component::get_t_next(self) {
             xdevs::traits::AbstractSimulator::lambda(&mut self.components.coup_atomic, t);
             let coup_atomic_output =
@@ -277,7 +279,7 @@ unsafe impl xdevs::traits::AbstractSimulator for CoupAtom {
         }
     }
     #[inline]
-    fn delta(&mut self, t: f64) -> f64 {
+    fn delta(&mut self, t: ::xdevs::Instant) -> ::xdevs::Instant {
         {
             let (coup_atomic_input, coup_atomic_output) =
                 xdevs::traits::Component::get_ports(&mut self.components.coup_atomic);
@@ -290,8 +292,8 @@ unsafe impl xdevs::traits::AbstractSimulator for CoupAtom {
             <Self as xdevs::Coupled>::eic(&self.input, &mut component_inputs);
             <Self as xdevs::Coupled>::ic(&component_outputs, &mut component_inputs);
         }
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
+        let mut t_next = ::xdevs::Instant::MAX;
+        t_next = ::xdevs::Instant::min(
             t_next,
             xdevs::traits::AbstractSimulator::delta(&mut self.components.coup_atomic, t),
         );
@@ -343,7 +345,7 @@ pub struct AtomInputSize2 {
     #[output]
     output_port: xdevs::port::Port<usize, 1>,
     #[state]
-    sigma: f64,
+    sigma: Duration,
     n_internals: usize,
     n_externals: usize,
     n_events: usize,
@@ -351,7 +353,7 @@ pub struct AtomInputSize2 {
 
 impl xdevs::Atomic for AtomInputSize2 {
     fn delta_int(state: &mut Self::State) {
-        state.sigma = f64::INFINITY;
+        state.sigma = Duration::MAX;
         state.n_internals += 1;
     }
 
@@ -359,12 +361,12 @@ impl xdevs::Atomic for AtomInputSize2 {
         output.output_port.add_value(state.n_events);
     }
 
-    fn ta(state: &Self::State) -> f64 {
+    fn ta(state: &Self::State) -> Duration {
         state.sigma
     }
 
-    fn delta_ext(state: &mut Self::State, _elapsed: f64, input: &Self::Input) {
-        state.sigma = 0.0;
+    fn delta_ext(state: &mut Self::State, _elapsed: Duration, input: &Self::Input) {
+        state.sigma = Duration::from_secs(0);
         state.n_externals += 1;
         state.n_events += input.input_port.get_values().len();
     }
@@ -372,7 +374,7 @@ impl xdevs::Atomic for AtomInputSize2 {
 
 impl AtomInputSize2 {
     pub fn new() -> Self {
-        Self::build(f64::INFINITY, 0, 0, 0)
+        Self::build(Duration::MAX, 0, 0, 0)
     }
 
     pub fn get_n_internals(&self) -> usize {

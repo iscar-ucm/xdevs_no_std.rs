@@ -1,6 +1,9 @@
+use embassy_time::{Duration as eDuration, Instant as eInstant};
+
 /// Example demonstrating multiple models with port arrays for coupling.
 /// This example shows a load balancer that distributes jobs to multiple processors.
 mod processor {
+    use crate::eDuration;
     use xdevs::port::Port;
 
     #[xdevs::atomic]
@@ -10,8 +13,8 @@ mod processor {
         #[output]
         pub out_job: Port<usize, 1>,
         #[state]
-        sigma: f64,
-        time: f64,
+        sigma: eDuration,
+        time: eDuration,
         id: usize,
         job: Option<usize>,
     }
@@ -21,7 +24,7 @@ mod processor {
             if let Some(job) = state.job.take() {
                 println!("[P{}] processed job {}", state.id, job);
             }
-            state.sigma = f64::INFINITY;
+            state.sigma = eDuration::MAX;
         }
 
         fn lambda(state: &Self::State, output: &mut Self::Output) {
@@ -30,11 +33,11 @@ mod processor {
             }
         }
 
-        fn ta(state: &Self::State) -> f64 {
+        fn ta(state: &Self::State) -> eDuration {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+        fn delta_ext(state: &mut Self::State, elapsed: eDuration, input: &Self::Input) {
             state.sigma -= elapsed;
             if let Some(&job) = input.in_job.get_values().last() {
                 if state.job.is_none() {
@@ -49,13 +52,14 @@ mod processor {
     }
 
     impl Processor {
-        pub fn new(id: usize, time: f64) -> Self {
-            Self::build(f64::INFINITY, time, id, None)
+        pub fn new(id: usize, time: eDuration) -> Self {
+            Self::build(eDuration::MAX, time, id, None)
         }
     }
 }
 
 mod load_balancer {
+    use crate::eDuration;
     use xdevs::port::Port;
 
     /// A load balancer that receives jobs and distributes them round-robin to 3 output ports.
@@ -66,7 +70,7 @@ mod load_balancer {
         #[output]
         pub out_jobs: [Port<usize, 1>; 3],
         #[state]
-        sigma: f64,
+        sigma: eDuration,
         next_processor: usize,
         pending_job: Option<usize>,
     }
@@ -74,7 +78,7 @@ mod load_balancer {
     impl xdevs::Atomic for LoadBalancer {
         fn delta_int(state: &mut Self::State) {
             state.pending_job = None;
-            state.sigma = f64::INFINITY;
+            state.sigma = eDuration::MAX;
         }
 
         fn lambda(state: &Self::State, output: &mut Self::Output) {
@@ -85,29 +89,30 @@ mod load_balancer {
             }
         }
 
-        fn ta(state: &Self::State) -> f64 {
+        fn ta(state: &Self::State) -> eDuration {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+        fn delta_ext(state: &mut Self::State, elapsed: eDuration, input: &Self::Input) {
             state.sigma -= elapsed;
             if let Some(&job) = input.in_job.get_values().last() {
                 println!("[LB] received job {}", job);
                 state.pending_job = Some(job);
                 state.next_processor = (state.next_processor + 1) % 3;
-                state.sigma = 0.0; // Immediate output
+                state.sigma = eDuration::from_secs(0); // Immediate output
             }
         }
     }
 
     impl LoadBalancer {
         pub fn new() -> Self {
-            Self::build(f64::INFINITY, 0, None)
+            Self::build(eDuration::MAX, 0, None)
         }
     }
 }
 
 mod generator {
+    use crate::eDuration;
     use xdevs::port::Port;
 
     #[xdevs::atomic]
@@ -115,8 +120,8 @@ mod generator {
         #[output]
         pub out_job: Port<usize, 1>,
         #[state]
-        sigma: f64,
-        period: f64,
+        sigma: eDuration,
+        period: eDuration,
         count: usize,
         max_jobs: usize,
     }
@@ -125,7 +130,7 @@ mod generator {
         fn delta_int(state: &mut Self::State) {
             state.count += 1;
             if state.count >= state.max_jobs {
-                state.sigma = f64::INFINITY;
+                state.sigma = eDuration::MAX;
             } else {
                 state.sigma = state.period;
             }
@@ -136,23 +141,24 @@ mod generator {
             output.out_job.add_value(state.count).unwrap();
         }
 
-        fn ta(state: &Self::State) -> f64 {
+        fn ta(state: &Self::State) -> eDuration {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, elapsed: f64, _input: &Self::Input) {
+        fn delta_ext(state: &mut Self::State, elapsed: eDuration, _input: &Self::Input) {
             state.sigma -= elapsed;
         }
     }
 
     impl Generator {
-        pub fn new(period: f64, max_jobs: usize) -> Self {
-            Self::build(0.0, period, 0, max_jobs)
+        pub fn new(period: eDuration, max_jobs: usize) -> Self {
+            Self::build(eDuration::from_secs(0), period, 0, max_jobs)
         }
     }
 }
 
 mod collector {
+    use crate::eDuration;
     use xdevs::port::Port;
 
     /// Collects processed jobs from multiple processors via a single input port.
@@ -161,22 +167,22 @@ mod collector {
         #[input]
         pub in_jobs: Port<usize, 3>,
         #[state]
-        sigma: f64,
+        sigma: eDuration,
         total_collected: usize,
     }
 
     impl xdevs::Atomic for Collector {
         fn delta_int(state: &mut Self::State) {
-            state.sigma = f64::INFINITY;
+            state.sigma = eDuration::MAX;
         }
 
         fn lambda(_state: &Self::State, _output: &mut Self::Output) {}
 
-        fn ta(state: &Self::State) -> f64 {
+        fn ta(state: &Self::State) -> eDuration {
             state.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
+        fn delta_ext(state: &mut Self::State, elapsed: eDuration, input: &Self::Input) {
             state.sigma -= elapsed;
             for &job in input.in_jobs.get_values() {
                 state.total_collected += 1;
@@ -190,7 +196,7 @@ mod collector {
 
     impl Collector {
         pub fn new() -> Self {
-            Self::build(f64::INFINITY, 0)
+            Self::build(eDuration::MAX, 0)
         }
     }
 }
@@ -233,11 +239,11 @@ impl xdevs::Coupled for MultiProcessor {
 }
 
 fn main() {
-    let generator = generator::Generator::new(1.0, 10);
+    let generator = generator::Generator::new(eDuration::from_millis(1000), 10);
     let load_balancer = load_balancer::LoadBalancer::new();
-    let processor0 = processor::Processor::new(0, 2.5);
-    let processor1 = processor::Processor::new(1, 2.5);
-    let processor2 = processor::Processor::new(2, 2.5);
+    let processor0 = processor::Processor::new(0, eDuration::from_millis(2500));
+    let processor1 = processor::Processor::new(1, eDuration::from_millis(2500));
+    let processor2 = processor::Processor::new(2, eDuration::from_millis(2500));
     let collector = collector::Collector::new();
 
     let model = MultiProcessor::build(
@@ -248,6 +254,7 @@ fn main() {
     );
 
     let mut simulator = xdevs::simulator::Simulator::new(model);
-    let config = xdevs::simulator::Config::new(0.0, 15.0, 1.0, None);
+    let config =
+        xdevs::simulator::Config::new(eInstant::from_secs(0), eInstant::from_secs(15), 1, None);
     simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
 }

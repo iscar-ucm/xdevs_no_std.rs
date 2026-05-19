@@ -287,8 +287,8 @@ impl Component {
             pub struct #ident #impl_generics {
                 pub input: #input_ident #input_generics,
                 pub output: #output_ident #output_generics,
-                pub t_last: f64,
-                pub t_next: f64,
+                pub t_last: ::xdevs::Instant,
+                pub t_next: ::xdevs::Instant,
                 pub components: #components_ident #components_generics,
             }
             impl #impl_generics #ident #ty_generics {
@@ -297,8 +297,8 @@ impl Component {
                     Self {
                         input: #input_ident::new(),
                         output: #output_ident::new(),
-                        t_last: 0.0,
-                        t_next: f64::INFINITY,
+                        t_last: ::xdevs::Instant::from_secs(0),
+                        t_next: ::xdevs::Instant::MAX,
                         components: #components_ident::new(#(#components_fields),*),
                     }
                 }
@@ -310,12 +310,12 @@ impl Component {
             }
             unsafe impl #impl_generics xdevs::traits::AbstractSimulator for #ident #ty_generics{
                 #[inline]
-                fn start(&mut self, t_start: f64) -> f64 {
+                fn start(&mut self, t_start: ::xdevs::Instant) -> ::xdevs::Instant {
                     // set t_last to t_start
                     xdevs::traits::Component::set_t_last(self, t_start);
                     // get minimum t_next from all components
-                    let mut t_next = f64::INFINITY;
-                    #(t_next = f64::min(t_next, xdevs::traits::AbstractSimulator::start(&mut self.components.#components_fields, t_start));)*
+                    let mut t_next = ::xdevs::Instant::MAX;
+                    #(t_next = ::xdevs::Instant::min(t_next, xdevs::traits::AbstractSimulator::start(&mut self.components.#components_fields, t_start));)*
                     // set t_next to minimum t_next
                     xdevs::traits::Component::set_t_next(self, t_next);
 
@@ -323,16 +323,16 @@ impl Component {
                 }
 
                 #[inline]
-                fn stop(&mut self, t_stop: f64) {
+                fn stop(&mut self, t_stop: ::xdevs::Instant) {
                     // stop all components
                     #(xdevs::traits::AbstractSimulator::stop(&mut self.components.#components_fields, t_stop);)*
-                    // set t_last to t_stop and t_next to infinity
+                    // set t_last to t_stop and t_next to infinity (MAX)
                     xdevs::traits::Component::set_t_last(self, t_stop);
-                    xdevs::traits::Component::set_t_next(self, f64::INFINITY);
+                    xdevs::traits::Component::set_t_next(self, ::xdevs::Instant::MAX);
                 }
 
                 #[inline]
-                fn lambda(&mut self, t: f64) {
+                fn lambda(&mut self, t: ::xdevs::Instant) {
                     if t >= xdevs::traits::Component::get_t_next(self) {
                         // propagate lambda to all components
                         #(xdevs::traits::AbstractSimulator::lambda(&mut self.components.#components_fields, t);)*
@@ -346,7 +346,7 @@ impl Component {
                 }
 
                 #[inline]
-                fn delta(&mut self, t: f64) -> f64 {
+                fn delta(&mut self, t: ::xdevs::Instant) -> ::xdevs::Instant {
                     // propagate EICs and ICs via Coupled trait
                     {
                         #(#component_ports_inits)*
@@ -360,8 +360,8 @@ impl Component {
                         <Self as xdevs::Coupled>::ic(&component_outputs, &mut component_inputs);
                     }
                     // get minimum t_next from all components after executing their delta
-                    let mut t_next = f64::INFINITY;
-                    #(t_next = f64::min(t_next, xdevs::traits::AbstractSimulator::delta(&mut self.components.#components_fields, t));)*
+                    let mut t_next = ::xdevs::Instant::MAX;
+                    #(t_next = ::xdevs::Instant::min(t_next, xdevs::traits::AbstractSimulator::delta(&mut self.components.#components_fields, t));)*
                     // clear input and output events
                     xdevs::traits::Component::clear_output(self);
                     xdevs::traits::Component::clear_input(self);

@@ -1,4 +1,6 @@
 use crate as xdevs;
+use embassy_time::Duration;
+
 #[crate::atomic]
 #[derive(Debug, Clone, PartialEq, Copy, Eq)]
 pub struct Atomic1{
@@ -7,23 +9,23 @@ pub struct Atomic1{
     #[output]
     out_port: xdevs::port::Port<bool, 1>,
     #[state]
-    sigma: f64,
+    sigma: Duration,
 }
 
 impl xdevs::Atomic for Atomic1 {
     fn delta_int(state: &mut Self::State) {
-        state.sigma = 10.0;
+        state.sigma = Duration::from_secs(10);
     }
 
     fn lambda(state: &Self::State, output: &mut Self::Output) {
         output.out_port.add_value(1);
     }
 
-    fn ta(state: &Self::State) -> f64 {
+    fn ta(state: &Self::State) -> eDuration {
         state.sigma
     }
 
-    fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input) {
+    fn delta_ext(state: &mut Self::State, e: eDuration, x: &Self::Input) {
         state.sigma -= e;
     }
 }
