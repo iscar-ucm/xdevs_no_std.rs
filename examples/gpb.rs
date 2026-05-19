@@ -163,7 +163,7 @@ struct GPB<'a> {
 }
 
 impl xdevs::Coupled for GPB<'_> {
-    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
+    fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
         from.generator
             .out_job
             .couple(&mut to.buffer.in_item)

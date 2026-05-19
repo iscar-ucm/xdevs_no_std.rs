@@ -207,10 +207,10 @@ struct MultiProcessor {
 }
 
 impl xdevs::Coupled for MultiProcessor {
-    fn eic(_from: &Self::Input, _to: &mut Self::ComponentsInput<'_>) {
+    fn eic(_from: &Self::Input, _to: &mut Self::ComponentsInput) {
         // No external input coupling needed, this implementation could be omitted
     }
-    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
+    fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
         from.generator
             .out_job
             .couple(&mut to.load_balancer.in_job)
@@ -227,7 +227,7 @@ impl xdevs::Coupled for MultiProcessor {
             proc_port.couple(&mut to.collector.in_jobs).unwrap();
         }
     }
-    fn eoc(_from: &Self::ComponentsOutput<'_>, _to: &mut Self::Output) {
+    fn eoc(_from: &Self::ComponentsOutput, _to: &mut Self::Output) {
         // No external output coupling needed, this implementation could be omitted
     }
 }
