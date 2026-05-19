@@ -6,7 +6,7 @@ use super::CommonComponent;
 use super::ParsedComponentFields;
 use components::Components;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{parse2, Error, GenericParam, Ident, ItemStruct, Result};
+use syn::{parse2, Error, Ident, ItemStruct, Result};
 
 /// Parsed representation of a coupled2 component macro input.
 pub struct Component {
@@ -79,9 +79,10 @@ impl Component {
 
         // Extract generics for impl
         let (impl_generics, ty_generics, where_clause) = self.common.generics.split_for_impl();
-        let (_, input_generics, _) = &self.common.input.generics.split_for_impl();
-        let (_, output_generics, _) = &self.common.output.generics.split_for_impl();
-        let (_, components_generics, _) = &self.components.generics.split_for_impl();
+        let (_, input_ty_generics, _) = &self.common.input.generics.split_for_impl();
+        let (_, output_ty_generics, _) = &self.common.output.generics.split_for_impl();
+        let (components_impl_generics, components_ty_generics, components_where_clause) =
+            &self.components.generics.split_for_impl();
 
         // Generate input, output, and components structs
         let is_bagmux = self.common.rt_engine.is_some();
@@ -94,17 +95,16 @@ impl Component {
             &input_ident,
             &output_ident,
             &self.common.generics,
-            input_generics,
-            output_generics,
+            input_ty_generics,
+            output_ty_generics,
         );
 
         // Generate rt_engine code if defined
         let rt_engine_impl = self.common.quote_rt_engine();
 
         // Generate wrapper structs for inner components' inputs and outputs
-        // These structs hold references to all inner components' inputs/outputs,
-        // allowing them to be passed as a single argument to trait methods without
-        // exposing the component's state or internal structure.
+        // These structs hold all inner components' inputs/outputs,
+        // allowing them to be passed as a single argument to trait methods.
         let component_inputs_ident = Ident::new(&format!("{}ComponentsInput", ident), ident.span());
         let component_outputs_ident =
             Ident::new(&format!("{}ComponentsOutput", ident), ident.span());
@@ -117,7 +117,7 @@ impl Component {
                 let field_ident = &field.ident;
                 let field_ty = &field.ty;
                 quote::quote! {
-                    pub #field_ident: <#field_ty as ::xdevs::traits::Component>::InputRef<'__xdevs_inner>
+                    pub #field_ident: <#field_ty as ::xdevs::traits::Component>::Input
                 }
             })
             .collect();
@@ -130,128 +130,12 @@ impl Component {
                 let field_ident = &field.ident;
                 let field_ty = &field.ty;
                 quote::quote! {
-                    pub #field_ident: <#field_ty as ::xdevs::traits::Component>::OutputRef<'__xdevs_inner>
-                }
-            })
-            .collect();
-
-        let component_ports_inits: Vec<TokenStream2> = self
-            .components
-            .components
-            .iter()
-            .map(|field| {
-                let field_ident = &field.ident;
-                let input_var = quote::format_ident!("{}_input", field_ident);
-                let output_var = quote::format_ident!("{}_output", field_ident);
-                quote::quote! {
-                    let (#input_var, #output_var) = ::xdevs::traits::Component::get_ports(&mut self.components.#field_ident);
-                }
-            })
-            .collect();
-
-        // For lambda, we only use output refs via get_out_ports
-        let component_out_ports_inits: Vec<TokenStream2> = self
-            .components
-            .components
-            .iter()
-            .map(|field| {
-                let field_ident = &field.ident;
-                let output_var = quote::format_ident!("{}_output", field_ident);
-                quote::quote! {
-                    let #output_var = ::xdevs::traits::Component::get_out_ports(&self.components.#field_ident);
-                }
-            })
-            .collect();
-
-        let component_input_inits: Vec<TokenStream2> = self
-            .components
-            .components
-            .iter()
-            .map(|field| {
-                let field_ident = &field.ident;
-                let input_var = quote::format_ident!("{}_input", field_ident);
-                quote::quote! {
-                    #field_ident: #input_var
-                }
-            })
-            .collect();
-
-        let component_output_inits: Vec<TokenStream2> = self
-            .components
-            .components
-            .iter()
-            .map(|field| {
-                let field_ident = &field.ident;
-                let output_var = quote::format_ident!("{}_output", field_ident);
-                quote::quote! {
-                    #field_ident: #output_var
+                    pub #field_ident: <#field_ty as ::xdevs::traits::Component>::Output
                 }
             })
             .collect();
 
         // Generate struct definition generics and usage generics for ComponentsInput/ComponentsOutput
-        // We need to include ALL generic parameters from components (lifetimes, types, consts)
-        // so that the field types can reference them.
-        let components_params: Vec<_> = self.components.generics.params.iter().collect();
-        let components_ty_args: Vec<TokenStream2> = self
-            .components
-            .generics
-            .params
-            .iter()
-            .map(|p| match p {
-                GenericParam::Type(tp) => {
-                    let ident = &tp.ident;
-                    quote::quote! { #ident }
-                }
-                GenericParam::Lifetime(lp) => {
-                    let lifetime = &lp.lifetime;
-                    quote::quote! { #lifetime }
-                }
-                GenericParam::Const(cp) => {
-                    let ident = &cp.ident;
-                    quote::quote! { #ident }
-                }
-            })
-            .collect();
-        let has_components_params = !components_params.is_empty();
-
-        // Extract lifetime parameters to generate bounds (lifetime: '__xdevs_inner)
-        let lifetime_params: Vec<_> = self
-            .components
-            .generics
-            .params
-            .iter()
-            .filter_map(|p| {
-                if let GenericParam::Lifetime(lp) = p {
-                    Some(&lp.lifetime)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        let has_lifetime_params = !lifetime_params.is_empty();
-
-        // Generate where clause for wrapper structs to bound component lifetimes
-        let wrapper_where_clause = if has_lifetime_params {
-            quote::quote! { where #(#lifetime_params: '__xdevs_inner),* }
-        } else {
-            quote::quote! {}
-        };
-
-        let (wrapper_def_generics, wrapper_use_generics, wrapper_trait_generics) =
-            if has_components_params {
-                (
-                    quote::quote! { <'__xdevs_inner, #(#components_params),*> },
-                    quote::quote! { <'_, #(#components_ty_args),*> },
-                    quote::quote! { <'__xdevs_inner, #(#components_ty_args),*> },
-                )
-            } else {
-                (
-                    quote::quote! { <'__xdevs_inner> },
-                    quote::quote! { <'_> },
-                    quote::quote! { <'__xdevs_inner> },
-                )
-            };
 
         // Generate the expanded code
         let expanded = quote::quote! {
@@ -261,28 +145,30 @@ impl Component {
             #rt_engine_impl
 
             /// Wrapper struct holding mutable references to all inner components' inputs.
-            pub struct #component_inputs_ident #wrapper_def_generics #wrapper_where_clause {
+            #[derive(::xdevs::Bag)]
+            pub struct #component_inputs_ident #components_impl_generics #components_where_clause {
                 #(#component_input_fields),*
             }
 
             /// Wrapper struct holding references to all inner components' outputs.
-            pub struct #component_outputs_ident #wrapper_def_generics #wrapper_where_clause {
+            #[derive(::xdevs::Bag)]
+            pub struct #component_outputs_ident #components_impl_generics #components_where_clause {
                 #(#component_output_fields),*
             }
 
             pub struct #ident #impl_generics #where_clause {
-                pub input: #input_ident #input_generics,
-                pub output: #output_ident #output_generics,
+                pub components_input: #component_inputs_ident #components_ty_generics,
+                pub components_output: #component_outputs_ident #components_ty_generics,
                 pub t_last: f64,
                 pub t_next: f64,
-                pub components: #components_ident #components_generics,
+                pub components: #components_ident #components_ty_generics,
             }
             impl #impl_generics #ident #ty_generics #where_clause {
                 #[inline]
-                pub const fn build(#(#components_fields: #components_tys),*) -> Self {
+                pub fn build(#(#components_fields: #components_tys),*) -> Self {
                     Self {
-                        input: #input_ident::new(),
-                        output: #output_ident::new(),
+                        components_input: <#component_inputs_ident #components_ty_generics as ::xdevs::traits::Bag>::build(),
+                        components_output: <#component_outputs_ident #components_ty_generics as ::xdevs::traits::Bag>::build(),
                         t_last: 0.0,
                         t_next: f64::INFINITY,
                         components: #components_ident::new(#(#components_fields),*),
@@ -291,8 +177,8 @@ impl Component {
             }
             #component_impl
             unsafe impl #impl_generics ::xdevs::traits::PartialCoupled for #ident #ty_generics #where_clause {
-                type ComponentsInput = #component_inputs_ident #wrapper_trait_generics;
-                type ComponentsOutput = #component_outputs_ident #wrapper_trait_generics;
+                type ComponentsInput = #component_inputs_ident #components_ty_generics;
+                type ComponentsOutput = #component_outputs_ident #components_ty_generics;
             }
             unsafe impl #impl_generics ::xdevs::traits::AbstractSimulator for #ident #ty_generics #where_clause {
                 #[inline]
@@ -318,42 +204,32 @@ impl Component {
                 }
 
                 #[inline]
-                fn lambda(&mut self, t: f64) {
+                fn lambda(&mut self, output: &mut Self::Output, t: f64) {
                     if t >= ::xdevs::traits::Component::get_t_next(self) {
                         // propagate lambda to all components
-                        #(::xdevs::traits::AbstractSimulator::lambda(&mut self.components.#components_fields, t);)*
+                        #(::xdevs::traits::AbstractSimulator::lambda(&mut self.components.#components_fields, &mut self.components_output.#components_fields, t);)*
                         // propagate EOCs via Coupled trait
-                        #(#component_out_ports_inits)*
-                        let component_outputs: #component_outputs_ident #wrapper_use_generics = #component_outputs_ident {
-                            #(#component_output_inits),*
-                        };
-                        <Self as ::xdevs::Coupled>::eoc(&component_outputs, &mut self.output);
+                        <Self as ::xdevs::Coupled>::eoc(&self.components_output, output);
                     }
                 }
 
                 #[inline]
-                fn delta(&mut self, t: f64) -> f64 {
+                fn delta(&mut self, input: &Self::Input, t: f64) -> f64 {
                     // propagate EICs and ICs via Coupled trait
-                    {
-                        #(#component_ports_inits)*
-                        let component_outputs: #component_outputs_ident #wrapper_use_generics = #component_outputs_ident {
-                            #(#component_output_inits),*
-                        };
-                        let mut component_inputs: #component_inputs_ident #wrapper_use_generics = #component_inputs_ident {
-                            #(#component_input_inits),*
-                        };
-                        <Self as ::xdevs::Coupled>::eic(&self.input, &mut component_inputs);
-                        <Self as ::xdevs::Coupled>::ic(&component_outputs, &mut component_inputs);
-                    }
+                    <Self as ::xdevs::Coupled>::eic(input, &mut self.components_input);
+                    <Self as ::xdevs::Coupled>::ic(&self.components_output, &mut self.components_input);
+
                     // get minimum t_next from all components after executing their delta
                     let mut t_next = f64::INFINITY;
-                    #(t_next = f64::min(t_next, ::xdevs::traits::AbstractSimulator::delta(&mut self.components.#components_fields, t));)*
-                    // clear input and output events
-                    ::xdevs::traits::Component::clear_output(self);
-                    ::xdevs::traits::Component::clear_input(self);
+                    #(t_next = f64::min(t_next, ::xdevs::traits::AbstractSimulator::delta(&mut self.components.#components_fields, &self.components_input.#components_fields, t));)*
+
                     // set t_last to t and t_next to minimum t_next
                     ::xdevs::traits::Component::set_t_last(self, t);
                     ::xdevs::traits::Component::set_t_next(self, t_next);
+
+                    // clear input and output events for all components
+                    <<Self as ::xdevs::traits::PartialCoupled>::ComponentsInput as ::xdevs::traits::Bag>::clear(&mut self.components_input);
+                    <<Self as ::xdevs::traits::PartialCoupled>::ComponentsOutput as ::xdevs::traits::Bag>::clear(&mut self.components_output);
 
                     t_next
                 }

@@ -30,8 +30,8 @@ impl<T: AsPort, const N: usize> AsPort for [T; N] {
 impl<T: AsPort, const N: usize> Sealed for [T; N] {}
 
 unsafe impl<T: Component, const N: usize> Component for [T; N] {
-    type Input = ();
-    type Output = ();
+    type Input = [T::Input; N];
+    type Output = [T::Output; N];
 
     fn get_t_last(&self) -> f64 {
         self.iter()
@@ -68,14 +68,19 @@ unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for [T; N] {
     }
 
     #[inline]
-    fn lambda(&mut self, t: f64) {
-        self.iter_mut().for_each(|c| c.lambda(t));
+    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+        self.iter_mut()
+            .zip(output.iter_mut())
+            .for_each(|(c, out)| c.lambda(out, t));
     }
 
     #[inline]
-    fn delta(&mut self, t: f64) -> f64 {
+    fn delta(&mut self, input: &Self::Input, t: f64) -> f64 {
         self.iter_mut()
-            .fold(f64::INFINITY, |t_next, c| f64::min(t_next, c.delta(t)))
+            .zip(input.iter())
+            .fold(f64::INFINITY, |t_next, (c, inp)| {
+                f64::min(t_next, c.delta(inp, t))
+            })
     }
 }
 
@@ -127,12 +132,12 @@ macro_rules! impl_ref {
                 (**self).stop(t_stop);
             }
 
-            fn lambda(&mut self, t: f64) {
-                (**self).lambda(t);
+            fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+                (**self).lambda(output, t);
             }
 
-            fn delta(&mut self, t: f64) -> f64 {
-                (**self).delta(t)
+            fn delta(&mut self, input: &Self::Input, t: f64) -> f64 {
+                (**self).delta(input, t)
             }
         }
     };
