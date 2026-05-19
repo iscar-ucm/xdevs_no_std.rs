@@ -20,7 +20,12 @@ fn main() {
     println!("Model creation time: {:?}", duration);
     let start = Instant::now();
     let mut simulator = xdevs::simulator::Simulator::new(modelo_final);
-    let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);
+    let config = xdevs::simulator::Config::new(
+        ::xdevs::Instant::from_secs(0),
+        ::xdevs::Instant::from_secs(10),
+        1,
+        None,
+    );
     let duration = start.elapsed();
     println!("Simulator creation time: {:?}", duration);
     let start = Instant::now();
@@ -61,7 +66,12 @@ mod test {
         //Creación del modelo final (modelo HI + atómico generador que mete datos en el puerto del HI)
         let modelo_final: ModeloFinal<W> = ModeloFinal::build(generator, model_hi);
         let mut simulator = xdevs::simulator::Simulator::new(modelo_final);
-        let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);
+        let config = xdevs::simulator::Config::new(
+            ::xdevs::Instant::from_secs(0),
+            ::xdevs::Instant::from_secs(10),
+            1,
+            None,
+        );
         simulator.simulate_vt(&config);
         let modelo_final = simulator.get_model();
 

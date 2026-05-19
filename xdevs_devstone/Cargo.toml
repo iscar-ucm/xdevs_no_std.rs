@@ -9,8 +9,3 @@ embassy-time = "0.5.0"
 
 [dev-dependencies] 
 xdevs_devstone_macros = {path = "../xdevs_devstone_macros"}
-
-# [features]
-# embassy = []
-# std = ["tokio/time", "embassy-time/std"]
-

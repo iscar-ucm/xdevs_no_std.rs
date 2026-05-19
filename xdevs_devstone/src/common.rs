@@ -90,6 +90,12 @@ impl Atom {
         1
     }
 }
+
+impl Default for Atom {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 //Fin del modelo atómico que va dentro de los acoplados en un array de atómicos
 
 //Inicio del modelo acoplado CoupAtom que contiene un único atómico
@@ -327,6 +333,12 @@ impl CoupAtom {
     }
 }
 
+impl Default for CoupAtom {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl xdevs::Coupled for CoupAtom {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
         let _ = from.input_port.couple(&mut to.coup_atomic.input_port);
@@ -391,6 +403,12 @@ impl AtomInputSize2 {
 
     pub fn get_n_atomics(&self) -> usize {
         1
+    }
+}
+
+impl Default for AtomInputSize2 {
+    fn default() -> Self {
+        Self::new()
     }
 }
 //Fin atómico con puerto de entrada de tamaño 2 y 1 de salida

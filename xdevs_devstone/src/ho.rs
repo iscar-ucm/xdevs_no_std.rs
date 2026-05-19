@@ -192,6 +192,12 @@ impl<const W: usize> CoupAtomHO<W> {
     }
 }
 
+impl<const W: usize> Default for CoupAtomHO<W> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const W: usize> xdevs::Coupled for CoupAtomHO<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
         let _ = from.input_port.couple(&mut to.coup_atomic.input_port);
