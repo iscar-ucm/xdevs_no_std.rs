@@ -142,20 +142,26 @@ impl Component {
                     }
                 }
                 #[inline]
-                fn delta(&mut self, input: &Self::Input, t: f64) -> f64 {
+                fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
                     let mut t_next = ::xdevs::traits::Component::get_t_next(self);
                     if !::xdevs::traits::Bag::is_empty(input) {
                         if t >= t_next {
                             // confluent transition
                             <Self as ::xdevs::Atomic>::delta_conf(&mut self.state, input);
+                            // clear output events
+                            <Self::Output as ::xdevs::traits::Bag>::clear(output);
                         } else {
                             // external transition
                             let e = t - ::xdevs::traits::Component::get_t_last(self);
                             <Self as ::xdevs::Atomic>::delta_ext(&mut self.state, e, input);
                         }
+                        // clear input events
+                        <Self::Input as ::xdevs::traits::Bag>::clear(input);
                     } else if t >= t_next {
                         // internal transition
                         <Self as ::xdevs::Atomic>::delta_int(&mut self.state);
+                        // clear output events
+                        <Self::Output as ::xdevs::traits::Bag>::clear(output);
                     } else {
                         return t_next; // nothing to do
                     }

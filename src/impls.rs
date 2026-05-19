@@ -75,11 +75,12 @@ unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for [T; N] {
     }
 
     #[inline]
-    fn delta(&mut self, input: &Self::Input, t: f64) -> f64 {
+    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
         self.iter_mut()
-            .zip(input.iter())
-            .fold(f64::INFINITY, |t_next, (c, inp)| {
-                f64::min(t_next, c.delta(inp, t))
+            .zip(input.iter_mut())
+            .zip(output.iter_mut())
+            .fold(f64::INFINITY, |t_next, ((c, inp), out)| {
+                f64::min(t_next, c.delta(inp, out, t))
             })
     }
 }
@@ -88,20 +89,6 @@ unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for [T; N] {
 
 macro_rules! impl_ref {
     ( $ty:ty ) => {
-        unsafe impl<T: Bag> Bag for $ty {
-            fn build() -> Self {
-                unreachable!("Cannot build a reference bag. This method should never be called.")
-            }
-
-            fn is_empty(&self) -> bool {
-                (**self).is_empty()
-            }
-
-            fn clear(&mut self) {
-                (**self).clear();
-            }
-        }
-
         unsafe impl<T: Component> Component for $ty {
             type Input = T::Input;
             type Output = T::Output;
@@ -136,8 +123,8 @@ macro_rules! impl_ref {
                 (**self).lambda(output, t);
             }
 
-            fn delta(&mut self, input: &Self::Input, t: f64) -> f64 {
-                (**self).delta(input, t)
+            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+                (**self).delta(input, output, t)
             }
         }
     };

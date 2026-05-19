@@ -97,7 +97,9 @@ impl<M: AbstractSimulator> Simulator<M> {
             } else if component_input.is_empty() {
                 continue; // avoid spurious external transitions
             }
-            t_next_internal = self.model.delta(&component_input, t);
+            t_next_internal = self
+                .model
+                .delta(&mut component_input, &mut component_output, t);
             component_input.clear();
             component_output.clear();
         }
@@ -136,7 +138,9 @@ impl<M: AbstractSimulator> Simulator<M> {
             } else if component_input.is_empty() {
                 continue; // avoid spurious external transitions
             }
-            t_next_internal = self.model.delta(&component_input, t);
+            t_next_internal = self
+                .model
+                .delta(&mut component_input, &mut component_output, t);
             component_input.clear();
             component_output.clear();
         }

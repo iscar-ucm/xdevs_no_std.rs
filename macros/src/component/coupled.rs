@@ -214,22 +214,26 @@ impl Component {
                 }
 
                 #[inline]
-                fn delta(&mut self, input: &Self::Input, t: f64) -> f64 {
+                fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
                     // propagate EICs and ICs via Coupled trait
                     <Self as ::xdevs::Coupled>::eic(input, &mut self.components_input);
                     <Self as ::xdevs::Coupled>::ic(&self.components_output, &mut self.components_input);
 
                     // get minimum t_next from all components after executing their delta
                     let mut t_next = f64::INFINITY;
-                    #(t_next = f64::min(t_next, ::xdevs::traits::AbstractSimulator::delta(&mut self.components.#components_fields, &self.components_input.#components_fields, t));)*
+                    #(t_next = f64::min(t_next, ::xdevs::traits::AbstractSimulator::delta(
+                        &mut self.components.#components_fields,
+                        &mut self.components_input.#components_fields,
+                        &mut self.components_output.#components_fields,
+                         t));)*
 
                     // set t_last to t and t_next to minimum t_next
                     ::xdevs::traits::Component::set_t_last(self, t);
                     ::xdevs::traits::Component::set_t_next(self, t_next);
 
-                    // clear input and output events for all components
-                    <<Self as ::xdevs::traits::PartialCoupled>::ComponentsInput as ::xdevs::traits::Bag>::clear(&mut self.components_input);
-                    <<Self as ::xdevs::traits::PartialCoupled>::ComponentsOutput as ::xdevs::traits::Bag>::clear(&mut self.components_output);
+                    // clear input and output events
+                    <Self::Input as ::xdevs::traits::Bag>::clear(input);
+                    <Self::Output as ::xdevs::traits::Bag>::clear(output);
 
                     t_next
                 }
