@@ -86,16 +86,20 @@ impl<M: AbstractSimulator> Simulator<M> {
         let t_stop = config.t_stop;
         let mut t = t_start;
         let mut t_next_internal = self.model.start(t);
+        let mut component_input = <M::Input>::build();
+        let mut component_output = <M::Output>::build();
         while t < t_stop {
             let t_until = f64::min(t_next_internal, t_stop);
-            t = wait_until(t, t_until, self.model.get_input_mut());
+            t = wait_until(t, t_until, &mut component_input);
             if t >= t_next_internal {
-                self.model.lambda(t);
-                propagate_output(self.model.get_output());
-            } else if self.model.get_input().is_empty() {
+                self.model.lambda(&mut component_output, t);
+                propagate_output(&component_output);
+            } else if component_input.is_empty() {
                 continue; // avoid spurious external transitions
             }
-            t_next_internal = self.model.delta(t);
+            t_next_internal = self.model.delta(&component_input, t);
+            component_input.clear();
+            component_output.clear();
         }
         self.model.stop(t_stop);
     }
@@ -119,18 +123,22 @@ impl<M: AbstractSimulator> Simulator<M> {
     ) {
         let mut t = config.t_start;
         let mut t_next_internal = self.model.start(t);
+        let mut component_input = <M::Input>::build();
+        let mut component_output = <M::Output>::build();
         while t < config.t_stop {
             let t_until = f64::min(t_next_internal, config.t_stop);
             t = input_handler
-                .handle(config, t, t_until, self.model.get_input_mut())
+                .handle(config, t, t_until, &mut component_input)
                 .await;
             if t >= t_next_internal {
-                self.model.lambda(t);
-                propagate_output(self.model.get_output());
-            } else if self.model.get_input().is_empty() {
+                self.model.lambda(&mut component_output, t);
+                propagate_output(&component_output);
+            } else if component_input.is_empty() {
                 continue; // avoid spurious external transitions
             }
-            t_next_internal = self.model.delta(t);
+            t_next_internal = self.model.delta(&component_input, t);
+            component_input.clear();
+            component_output.clear();
         }
         self.model.stop(config.t_stop);
     }
