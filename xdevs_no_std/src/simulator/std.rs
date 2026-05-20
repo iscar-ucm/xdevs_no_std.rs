@@ -6,10 +6,8 @@ use crate::{
     Duration as eDuration, Instant as eInstant,
 };
 
-use embassy_time::{with_deadline, Timer};
-
 //use std::time::Duration as StdDuration;
-use std::{thread, time::Duration as stdDuration, time::Instant as stdInstant, time::SystemTime};
+use std::{thread, time::SystemTime};
 
 /// Closure for RT simulation on targets with `std`.
 /// It sleeps until the next state transition.

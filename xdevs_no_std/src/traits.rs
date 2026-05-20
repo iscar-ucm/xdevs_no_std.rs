@@ -1,7 +1,5 @@
-use crate::simulator::Config;
 use core::future::Future;
-//use std::time::{Duration, Instant, SystemTime};
-use embassy_time::{Duration, Instant};
+use embassy_time::Instant;
 
 /// Trait that defines the methods that a DEVS event bag set must implement.
 ///

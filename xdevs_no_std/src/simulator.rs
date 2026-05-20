@@ -1,6 +1,5 @@
 use crate::traits::{AbstractSimulator, AsyncInput, Bag};
-//use core::time::Duration;
-use embassy_time::{with_deadline, Duration, Instant, Timer};
+use embassy_time::{with_deadline, Duration, Instant};
 
 #[cfg(feature = "std")]
 pub mod std;
