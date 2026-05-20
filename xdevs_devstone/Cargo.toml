@@ -9,3 +9,4 @@ embassy-time = "0.5.0"
 
 [dev-dependencies] 
 xdevs_devstone_macros = {path = "../xdevs_devstone_macros"}
+embassy-time = {version = "0.5.0", features = ["std", "generic-queue-128"]}
