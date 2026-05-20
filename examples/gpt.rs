@@ -164,7 +164,7 @@ struct GPT {
 }
 
 impl xdevs::Coupled for GPT {
-    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
+    fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
         from.generator
             .out_job
             .couple(&mut to.processor.in_job)
@@ -196,7 +196,7 @@ struct EF {
 }
 
 impl xdevs::Coupled for EF {
-    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
+    fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
         from.generator
             .out_job
             .couple(&mut to.transducer.in_generator)
@@ -206,12 +206,12 @@ impl xdevs::Coupled for EF {
             .couple(&mut to.generator.in_stop)
             .unwrap();
     }
-    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput<'_>) {
+    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
         from.in_processor
             .couple(&mut to.transducer.in_processor)
             .unwrap();
     }
-    fn eoc(from: &Self::ComponentsOutput<'_>, to: &mut Self::Output) {
+    fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {
         from.generator
             .out_job
             .couple(&mut to.out_generator)
@@ -227,7 +227,7 @@ struct EFP {
 }
 
 impl xdevs::Coupled for EFP {
-    fn ic(from: &Self::ComponentsOutput<'_>, to: &mut Self::ComponentsInput<'_>) {
+    fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
         from.ef
             .out_generator
             .couple(&mut to.processor.in_job)

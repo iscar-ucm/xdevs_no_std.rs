@@ -1,5 +1,6 @@
-use crate::{simulator::Config, traits::sealed::Sealed};
+use crate::simulator::Config;
 use core::future::Future;
+use sealed::Sealed;
 
 #[cfg(any(feature = "embassy", feature = "std"))]
 pub use crate::rt_engine::traits::{
@@ -12,6 +13,9 @@ pub use crate::rt_engine::traits::{
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
 pub unsafe trait Bag {
+    /// Build a new instance of the bag.
+    fn build() -> Self;
+
     /// Returns `true` if the ports are empty.
     fn is_empty(&self) -> bool;
 
@@ -58,16 +62,6 @@ pub unsafe trait Component {
     /// Output event bag of the model.
     type Output: Bag;
 
-    /// Reference returned by the `get_ports` method.
-    type InputRef<'a>
-    where
-        Self: 'a;
-
-    /// Reference returned by the `get_ports` method.
-    type OutputRef<'a>
-    where
-        Self: 'a;
-
     /// Returns the last time the component was updated.
     fn get_t_last(&self) -> f64;
 
@@ -79,36 +73,6 @@ pub unsafe trait Component {
 
     /// Sets the next time the component will be updated.
     fn set_t_next(&mut self, t_next: f64);
-
-    /// Returns a reference to the model's input event bag.
-    fn get_input(&self) -> &Self::Input;
-
-    /// Returns a mutable reference to the model's input event bag.
-    fn get_input_mut(&mut self) -> &mut Self::Input;
-
-    /// Returns a reference to the model's output event bag.
-    fn get_output(&self) -> &Self::Output;
-
-    /// Returns a mutable reference to the model's output event bag.
-    fn get_output_mut(&mut self) -> &mut Self::Output;
-
-    /// Returns both the input and output event bags as a tuple of references.
-    fn get_ports(&mut self) -> (Self::InputRef<'_>, Self::OutputRef<'_>);
-
-    /// Returns only the output event bag reference. Useful for output-only operations like lambda.
-    fn get_out_ports(&self) -> Self::OutputRef<'_>;
-
-    /// Clears the input bag, removing all values.
-    #[inline]
-    fn clear_input(&mut self) {
-        self.get_input_mut().clear()
-    }
-
-    /// Clears the output bag, removing all values.
-    #[inline]
-    fn clear_output(&mut self) {
-        self.get_output_mut().clear()
-    }
 }
 
 /// Partial interface for DEVS atomic models.
@@ -129,15 +93,11 @@ pub unsafe trait PartialAtomic: Component {
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
 pub unsafe trait PartialCoupled: Component {
-    /// Wrapper type holding references to all inner components' inputs.
-    type ComponentsInput<'a>
-    where
-        Self: 'a;
+    /// Wrapper type holding all inner components' inputs.
+    type ComponentsInput;
 
-    /// Wrapper type holding references to all inner components' outputs.
-    type ComponentsOutput<'a>
-    where
-        Self: 'a;
+    /// Wrapper type holding all inner components' outputs.
+    type ComponentsOutput;
 }
 
 /// Interface for simulating DEVS models. All DEVS models must implement this trait.
@@ -155,13 +115,12 @@ pub unsafe trait AbstractSimulator: Component {
 
     /// Executes output functions and propagates messages according to EOCs.
     /// Internally, it checks that the model is imminent before executing.
-    fn lambda(&mut self, t: f64);
+    fn lambda(&mut self, output: &mut Self::Output, t: f64);
 
-    /// Propagates messages according to ICs and EICs and executes model transition functions.
-    /// It also clears all the input and output ports.
+    /// Propagates messages according to ICs and EICs, and executes state transition functions.
     /// Internally, it checks that the model is imminent before executing.
     /// Finally, it returns the time for the next state transition of the inner DEVS model.
-    fn delta(&mut self, t: f64) -> f64;
+    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64;
 }
 
 /// Interface for handling input events in an asynchronous DEVS simulation.

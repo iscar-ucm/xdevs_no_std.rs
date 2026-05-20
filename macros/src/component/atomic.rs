@@ -96,8 +96,6 @@ impl Component {
             #state_struct
             #rt_engine_impl
             pub struct #ident #impl_generics #where_clause {
-                pub input: #input_ident #input_generics,
-                pub output: #output_ident #output_generics,
                 pub t_last: f64,
                 pub t_next: f64,
                 pub state: #state_ident #state_generics,
@@ -106,8 +104,6 @@ impl Component {
                 #[inline]
                 pub const fn build(#(#state_fields: #state_tys),*) -> Self {
                     Self {
-                        input: #input_ident::new(),
-                        output: #output_ident::new(),
                         t_last: 0.0,
                         t_next: f64::INFINITY,
                         state: #state_ident::new(#(#state_fields),*),
@@ -139,34 +135,36 @@ impl Component {
                     ::xdevs::traits::Component::set_t_next(self, f64::INFINITY);
                 }
                 #[inline]
-                fn lambda(&mut self, t: f64) {
+                fn lambda(&mut self, output: &mut Self::Output, t: f64) {
                     if t >= ::xdevs::traits::Component::get_t_next(self) {
                         // execute atomic model's lambda if applies
-                        <Self as ::xdevs::Atomic>::lambda(&self.state, &mut self.output);
+                        <Self as ::xdevs::Atomic>::lambda(&self.state, output);
                     }
                 }
                 #[inline]
-                fn delta(&mut self, t: f64) -> f64 {
+                fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
                     let mut t_next = ::xdevs::traits::Component::get_t_next(self);
-                    if !::xdevs::traits::Bag::is_empty(&self.input) {
+                    if !::xdevs::traits::Bag::is_empty(input) {
                         if t >= t_next {
                             // confluent transition
-                            <Self as ::xdevs::Atomic>::delta_conf(&mut self.state, &self.input);
+                            <Self as ::xdevs::Atomic>::delta_conf(&mut self.state, input);
+                            // clear output events
+                            <Self::Output as ::xdevs::traits::Bag>::clear(output);
                         } else {
                             // external transition
                             let e = t - ::xdevs::traits::Component::get_t_last(self);
-                            <Self as ::xdevs::Atomic>::delta_ext(&mut self.state, e, &self.input);
+                            <Self as ::xdevs::Atomic>::delta_ext(&mut self.state, e, input);
                         }
                         // clear input events
-                        ::xdevs::traits::Component::clear_input(self);
+                        <Self::Input as ::xdevs::traits::Bag>::clear(input);
                     } else if t >= t_next {
                         // internal transition
                         <Self as ::xdevs::Atomic>::delta_int(&mut self.state);
+                        // clear output events
+                        <Self::Output as ::xdevs::traits::Bag>::clear(output);
                     } else {
                         return t_next; // nothing to do
                     }
-                    // clear output events
-                    ::xdevs::traits::Component::clear_output(self);
                     // get t_next from ta and set new t_last and t_next
                     t_next = t + <Self as ::xdevs::Atomic>::ta(&self.state);
                     ::xdevs::traits::Component::set_t_last(self, t);
