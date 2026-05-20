@@ -171,7 +171,7 @@ unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for CoupAtomHO<W> {
 
 impl<const W: usize> CoupAtomHO<W> {
     pub fn new() -> Self {
-        Self::build(Atom::new())
+        Self::build(Atom::default())
     }
 
     pub fn get_n_internals(&self) -> usize {
@@ -188,6 +188,12 @@ impl<const W: usize> CoupAtomHO<W> {
 
     pub fn get_n_atomics(&self) -> usize {
         self.components.coup_atomic.get_n_atomics()
+    }
+}
+
+impl<const W: usize> Default for CoupAtomHO<W> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

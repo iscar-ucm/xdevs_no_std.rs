@@ -4,12 +4,12 @@ use xdevs_devstone::common::*;
 use xdevs_devstone::hi::*;
 
 fn main() {
-    const WIDTH: usize = 2;
+    const WIDTH: usize = 20;
     const W: usize = WIDTH - 1;
 
     let start = Instant::now();
 
-    xdevs_devstone_macros::generate_hi!(2, 2);
+    xdevs_devstone_macros::generate_hi!(20, 20);
 
     //Creación del modelo atómico generador (mete datos en el modelo HI)
     let generator = Generator::new(5);
