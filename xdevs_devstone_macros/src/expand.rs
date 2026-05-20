@@ -27,11 +27,11 @@ pub(crate) fn expand_li(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
         if val == 1 {
             if val != depth_val {
                 token.extend(quote! {
-                    let model_1 = ::std::boxed::Box::new(LI::CoupD(CoupAtom::new()));
+                    let model_1 = ::std::boxed::Box::new(LI::CoupD(CoupAtom::default()));
                 })
             } else {
                 token.extend(quote! {
-                    let model_1 = LI::CoupD(CoupAtom::new());
+                    let model_1 = LI::CoupD(CoupAtom::default());
                 });
             }
         } else {
@@ -80,11 +80,11 @@ pub(crate) fn expand_hi(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
         if val == 1 {
             if val != depth_val {
                 token.extend(quote! {
-                    let model_1 = ::std::boxed::Box::new(HI::CoupD(CoupAtom::new()));
+                    let model_1 = ::std::boxed::Box::new(HI::CoupD(CoupAtom::default()));
                 })
             } else {
                 token.extend(quote! {
-                    let model_1 = HI::CoupD(CoupAtom::new());
+                    let model_1 = HI::CoupD(CoupAtom::default());
                 });
             }
         } else {
@@ -133,11 +133,11 @@ pub(crate) fn expand_ho(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
         if val == 1 {
             if val != depth_val {
                 token.extend(quote! {
-                    let model_1 = ::std::boxed::Box::new(HO::CoupD(CoupAtomHO::<W>::new()));
+                    let model_1 = ::std::boxed::Box::new(HO::CoupD(CoupAtomHO::<W>::default()));
                 })
             } else {
                 token.extend(quote! {
-                    let model_1 = HO::CoupD(CoupAtomHO::<W>::new());
+                    let model_1 = HO::CoupD(CoupAtomHO::<W>::default());
                 });
             }
         } else {
