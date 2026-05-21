@@ -10,6 +10,9 @@ path = "./src/bin/main.rs"
 
 [dependencies]
 esp-hal = { version = "1.0.0", features = ["defmt", "esp32c6", "unstable"] }
+xdevs-no-std = { path = "../xdevs_no_std" }
+xdevs_devstone ={ path = "../xdevs_devstone" }
+xdevs_devstone_macros = {path = "../xdevs_devstone_macros"}
 
 esp-rtos = { version = "0.2.0", features = [
   "defmt",

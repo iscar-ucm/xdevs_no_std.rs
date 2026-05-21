@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-xdevs-no-std = { path = "../xdevs_no_std" , features = ["std"]}
+xdevs-no-std = { path = "../xdevs_no_std", features = ["alloc"] }
 embassy-time = "0.5.0"
 
 [dev-dependencies] 

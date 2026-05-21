@@ -2,6 +2,8 @@ use crate::common::*;
 use embassy_time::Instant;
 use xdevs::traits::{AbstractSimulator, Component};
 
+use alloc::boxed::Box;
+
 //Inicio del modelo acoplado CoupAtom que contiene un único atómico
 // #[xdevs::coupled2]
 // pub struct CoupAtomHO<const W: usize> {

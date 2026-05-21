@@ -2,6 +2,8 @@ use crate::common::*;
 use embassy_time::Instant;
 use xdevs::traits::{AbstractSimulator, Component};
 
+use alloc::boxed::Box;
+
 pub enum LI<const W: usize> {
     CoupD(CoupAtom),
     RestoCoup(CoupLI<W>),

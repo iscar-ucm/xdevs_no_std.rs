@@ -173,6 +173,8 @@ impl<const W: usize> HI<W> {
 // Recursive expansion of coupled2 macro
 // ======================================
 
+use alloc::boxed::Box;
+
 pub struct CoupHIComponents<const W: usize> {
     comp_atomic: [AtomInputSize2; W],
     comp_coupled: Box<HI<W>>,

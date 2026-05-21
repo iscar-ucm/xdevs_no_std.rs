@@ -1,4 +1,12 @@
 {
     "rust-analyzer.check.allTargets": true,
-    "rust-analyzer.cargo.features": ["std", "embassy"]
+    "rust-analyzer.cargo.features": [
+        "std",
+        "embassy"
+    ],
+    "idf.currentSetup": "C:/Espressif/frameworks/esp-idf-v5.5.2/",
+    "idf.openOcdConfigs": [
+        "board/esp32c6-builtin.cfg"
+    ],
+    "idf.portWin": "COM14"
 }
