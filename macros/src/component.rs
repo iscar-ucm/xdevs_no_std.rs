@@ -25,7 +25,7 @@ pub struct ComponentField {
 }
 
 /// Shared metadata used by atomic and coupled component macro expansions.
-pub struct CommonComponent {
+pub struct Component {
     pub ident: Ident,
     pub generics: Generics,
     pub input: Ports,
@@ -33,7 +33,7 @@ pub struct CommonComponent {
     pub rt_engine: Option<RtEngine>,
 }
 
-impl CommonComponent {
+impl Component {
     fn parse_rt_engine(
         args: TokenStream2,
         unknown_arg_error: &'static str,

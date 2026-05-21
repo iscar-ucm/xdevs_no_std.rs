@@ -1,18 +1,18 @@
 use super::filter_generics;
 use super::impl_component;
 use super::state::State;
-use super::CommonComponent;
+use super::Component;
 use super::ParsedComponentFields;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{parse2, Error, Ident, ItemStruct, Result};
 
 /// Parsed representation of an atomic component macro input.
-pub struct Component {
-    pub common: CommonComponent,
+pub struct Atomic {
+    pub common: Component,
     pub state: State,
 }
 
-impl Component {
+impl Atomic {
     pub fn parse(args: TokenStream2, item: TokenStream2) -> Result<Self> {
         let component: ItemStruct = parse2(item)?;
 
@@ -41,7 +41,7 @@ impl Component {
         let generics = component.generics.clone();
         let state_generics = filter_generics(&state, &generics);
         let state_ident = Ident::new(&format!("{ident}State"), ident.span());
-        let common = CommonComponent::new(
+        let common = Component::new(
             ident,
             generics,
             inputs,
@@ -51,7 +51,7 @@ impl Component {
         )?;
         let state = State::new(state, state_ident, state_generics);
 
-        Ok(Component { common, state })
+        Ok(Atomic { common, state })
     }
 
     pub fn quote(&self) -> TokenStream2 {

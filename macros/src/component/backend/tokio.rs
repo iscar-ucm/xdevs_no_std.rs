@@ -1,5 +1,5 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
-use crate::component::CommonComponent;
+use crate::component::Component;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use syn::{
     parse::{Parse, ParseStream},
@@ -42,11 +42,11 @@ impl Parse for RtEngineBackend {
 }
 
 impl Backend for RtEngineBackend {
-    fn check_compatibility(&self, _: &CommonComponent) -> Result<()> {
+    fn check_compatibility(&self, _: &Component) -> Result<()> {
         Ok(())
     }
 
-    fn input_channel(&self, _model: &CommonComponent) -> ChannelTokens {
+    fn input_channel(&self, _model: &Component) -> ChannelTokens {
         let in_channel_size = self.in_channel_size;
         let channel_type = quote::quote! { ::xdevs::export::InputChannel<
             <Self as ::xdevs::traits::BagMux>::Mux,
@@ -61,7 +61,7 @@ impl Backend for RtEngineBackend {
         }
     }
 
-    fn output_channel(&self, _model: &CommonComponent) -> ChannelTokens {
+    fn output_channel(&self, _model: &Component) -> ChannelTokens {
         let out_channel_size = self.out_channel_size;
         let channel_type = quote::quote! { ::xdevs::export::OutputChannel<
             <Self as ::xdevs::traits::BagMux>::Mux,

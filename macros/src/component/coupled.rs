@@ -2,19 +2,19 @@ mod components;
 
 use super::filter_generics;
 use super::impl_component;
-use super::CommonComponent;
+use super::Component;
 use super::ParsedComponentFields;
 use components::Components;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{parse2, Error, Ident, ItemStruct, Result};
 
 /// Parsed representation of a coupled2 component macro input.
-pub struct Component {
-    pub common: CommonComponent,
+pub struct Coupled {
+    pub common: Component,
     pub components: Components,
 }
 
-impl Component {
+impl Coupled {
     pub fn parse(args: TokenStream2, item: TokenStream2) -> Result<Self> {
         let component: ItemStruct = parse2(item)?;
 
@@ -45,7 +45,7 @@ impl Component {
         let components_ident = Ident::new(&format!("{}Components", &ident), ident.span());
 
         // Generate common component and components
-        let common = CommonComponent::new(
+        let common = Component::new(
             ident,
             generics,
             inputs,
@@ -55,7 +55,7 @@ impl Component {
         )?;
         let components = Components::new(components, components_ident, components_generics);
 
-        Ok(Component { common, components })
+        Ok(Coupled { common, components })
     }
 
     pub fn quote(&self) -> TokenStream2 {

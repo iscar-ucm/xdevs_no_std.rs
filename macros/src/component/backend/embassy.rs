@@ -1,5 +1,5 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
-use crate::component::CommonComponent;
+use crate::component::Component;
 use heck::ToShoutySnakeCase;
 use syn::{
     parse::{Parse, ParseStream},
@@ -39,7 +39,7 @@ impl Parse for RtEngineBackend {
 }
 
 impl Backend for RtEngineBackend {
-    fn check_compatibility(&self, model: &CommonComponent) -> Result<()> {
+    fn check_compatibility(&self, model: &Component) -> Result<()> {
         let has_input_generics = !model.input.generics.params.is_empty();
         let has_output_generics = !model.output.generics.params.is_empty();
 
@@ -53,7 +53,7 @@ impl Backend for RtEngineBackend {
         }
     }
 
-    fn input_channel(&self, model: &CommonComponent) -> ChannelTokens {
+    fn input_channel(&self, model: &Component) -> ChannelTokens {
         let model_ident = &model.ident;
         let input_ident = &model.input.ident;
         let in_channel_size = self.in_channel_size;
@@ -81,7 +81,7 @@ impl Backend for RtEngineBackend {
         }
     }
 
-    fn output_channel(&self, model: &CommonComponent) -> ChannelTokens {
+    fn output_channel(&self, model: &Component) -> ChannelTokens {
         let model_ident = &model.ident;
         let output_ident = &model.output.ident;
         let out_channel_size = self.out_channel_size;

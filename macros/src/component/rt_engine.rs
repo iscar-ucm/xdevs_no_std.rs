@@ -1,8 +1,8 @@
-use super::{backend::Backend, CommonComponent};
+use super::{backend::Backend, Component};
 use heck::ToSnakeCase;
 use proc_macro2::TokenStream as TokenStream2;
 
-impl CommonComponent {
+impl Component {
     /// Generate the rt-engine infrastructure code:
     pub fn quote_rt_engine(&self) -> TokenStream2 {
         if let Some(rt_engine) = &self.rt_engine {

@@ -1,5 +1,5 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
-use crate::component::CommonComponent;
+use crate::component::Component;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{
     parse::{Parse, ParseStream},
@@ -29,14 +29,14 @@ impl Parse for RtEngineBackend {
 }
 
 impl Backend for RtEngineBackend {
-    fn check_compatibility(&self, model: &CommonComponent) -> Result<()> {
+    fn check_compatibility(&self, model: &Component) -> Result<()> {
         Err(Error::new_spanned(
             &model.ident,
             "rt_engine requires enabling one backend feature: `std-backend` or `embassy-backend`",
         ))
     }
 
-    fn input_channel(&self, _model: &CommonComponent) -> ChannelTokens {
+    fn input_channel(&self, _model: &Component) -> ChannelTokens {
         ChannelTokens {
             channel_type: quote::quote! { () },
             channel_call: quote::quote! { () },
@@ -44,7 +44,7 @@ impl Backend for RtEngineBackend {
         }
     }
 
-    fn output_channel(&self, _model: &CommonComponent) -> ChannelTokens {
+    fn output_channel(&self, _model: &Component) -> ChannelTokens {
         ChannelTokens {
             channel_type: quote::quote! { () },
             channel_call: quote::quote! { () },

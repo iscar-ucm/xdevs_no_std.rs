@@ -22,7 +22,7 @@ use syn::{
     Error, Ident, LitInt, Result, Token,
 };
 
-use crate::component::CommonComponent;
+use crate::component::Component;
 
 /// Generated token fragments used to construct backend channel code.
 pub struct ChannelTokens {
@@ -31,7 +31,7 @@ pub struct ChannelTokens {
     pub private_channel: TokenStream2,
 }
 
-/// Generic parsed arguments for `rt_engine = { ... }` backend configuration.
+/// Generic parsed arguments for `rt_engine(...)` backend configuration.
 pub struct RtEngineArgs {
     pub in_channel_size: Option<usize>,
     pub out_channel_size: Option<usize>,
@@ -98,7 +98,7 @@ impl Parse for RtEngineArgs {
 }
 
 pub trait Backend {
-    fn check_compatibility(&self, model: &CommonComponent) -> Result<()>;
-    fn input_channel(&self, model: &CommonComponent) -> ChannelTokens;
-    fn output_channel(&self, model: &CommonComponent) -> ChannelTokens;
+    fn check_compatibility(&self, model: &Component) -> Result<()>;
+    fn input_channel(&self, model: &Component) -> ChannelTokens;
+    fn output_channel(&self, model: &Component) -> ChannelTokens;
 }
