@@ -3,6 +3,8 @@ use std::time::Instant;
 use xdevs_devstone::common::*;
 use xdevs_devstone::ho::*;
 
+extern crate alloc;
+
 fn main() {
     const WIDTH: usize = 2;
     const W: usize = WIDTH - 1;
