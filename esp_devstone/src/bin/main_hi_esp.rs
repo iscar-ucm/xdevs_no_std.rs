@@ -46,12 +46,7 @@ fn main() -> ! {
     info!("Model creation time: {:?}", duration);
     let start = Instant::now();
     let mut simulator = xdevs::simulator::Simulator::new(modelo_final);
-    let config = xdevs::simulator::Config::new(
-        xdevs::Instant::from_secs(0),
-        xdevs::Instant::from_secs(10),
-        1,
-        None,
-    );
+    let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);
     let duration = start.elapsed();
     info!("Simulator creation time: {:?}", duration);
     let start = Instant::now();

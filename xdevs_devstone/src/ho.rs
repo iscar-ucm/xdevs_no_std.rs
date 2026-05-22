@@ -1,4 +1,5 @@
 use crate::common::*;
+use alloc::boxed::Box;
 use xdevs::traits::{AbstractSimulator, Component};
 
 //Inicio del modelo acoplado CoupAtom que contiene un único atómico

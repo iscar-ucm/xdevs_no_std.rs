@@ -1,4 +1,5 @@
 use crate::common::*;
+use alloc::boxed::Box;
 use xdevs::traits::{AbstractSimulator, Component};
 
 pub enum LI<const W: usize> {

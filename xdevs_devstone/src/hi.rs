@@ -1,6 +1,8 @@
 use crate::common::*;
 use xdevs::traits::{AbstractSimulator, Component};
 
+use alloc::boxed::Box;
+
 //Inicio enum con las opciones que puede haber en el modelo HI
 pub enum HI<const W: usize> {
     CoupD(CoupAtom),

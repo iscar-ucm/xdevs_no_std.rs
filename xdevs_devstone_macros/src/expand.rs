@@ -27,7 +27,7 @@ pub(crate) fn expand_li(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
         if val == 1 {
             if val != depth_val {
                 token.extend(quote! {
-                    let model_1 = ::std::boxed::Box::new(LI::CoupD(CoupAtom::default()));
+                    let model_1 = ::alloc::boxed::Box::new(LI::CoupD(CoupAtom::default()));
                 })
             } else {
                 token.extend(quote! {
@@ -40,7 +40,7 @@ pub(crate) fn expand_li(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
             let prev_model = format_ident!("model_{}", val_minus_one);
             if val != depth_val {
                 token.extend(quote! {
-                    let #model_name = ::std::boxed::Box::new(LI::RestoCoup(CoupLI::<#width_minus_one>::new(#prev_model)));
+                    let #model_name = ::alloc::boxed::Box::new(LI::RestoCoup(CoupLI::<#width_minus_one>::new(#prev_model)));
                 });
             } else {
                 token.extend(quote! {
@@ -80,7 +80,7 @@ pub(crate) fn expand_hi(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
         if val == 1 {
             if val != depth_val {
                 token.extend(quote! {
-                    let model_1 = ::std::boxed::Box::new(HI::CoupD(CoupAtom::default()));
+                    let model_1 = ::alloc::boxed::Box::new(HI::CoupD(CoupAtom::default()));
                 })
             } else {
                 token.extend(quote! {
@@ -93,7 +93,7 @@ pub(crate) fn expand_hi(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
             let prev_model = format_ident!("model_{}", val_minus_one);
             if val != depth_val {
                 token.extend(quote! {
-                    let #model_name = ::std::boxed::Box::new(HI::RestoCoup(CoupHI::<#width_minus_one>::new(#prev_model)));
+                    let #model_name = ::alloc::boxed::Box::new(HI::RestoCoup(CoupHI::<#width_minus_one>::new(#prev_model)));
                 });
             } else {
                 token.extend(quote! {
@@ -133,7 +133,7 @@ pub(crate) fn expand_ho(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
         if val == 1 {
             if val != depth_val {
                 token.extend(quote! {
-                    let model_1 = ::std::boxed::Box::new(HO::CoupD(CoupAtomHO::<W>::default()));
+                    let model_1 = ::alloc::boxed::Box::new(HO::CoupD(CoupAtomHO::<W>::default()));
                 })
             } else {
                 token.extend(quote! {
@@ -146,7 +146,7 @@ pub(crate) fn expand_ho(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
             let prev_model = format_ident!("model_{}", val_minus_one);
             if val != depth_val {
                 token.extend(quote! {
-                    let #model_name = ::std::boxed::Box::new(HO::RestoCoup(CoupHO::<#width_minus_one>::new(#prev_model)));
+                    let #model_name = ::alloc::boxed::Box::new(HO::RestoCoup(CoupHO::<#width_minus_one>::new(#prev_model)));
                 });
             } else {
                 token.extend(quote! {
