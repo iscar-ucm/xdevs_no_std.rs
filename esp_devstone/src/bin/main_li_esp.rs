@@ -35,11 +35,11 @@ fn main() -> ! {
 
     esp_alloc::heap_allocator!(#[unsafe(link_section = ".dram2_uninit")] size: 65536);
 
-    const WIDTH: usize = 2;
+    const WIDTH: usize = 35;
     const W: usize = WIDTH - 1;
 
     let start = Instant::now();
-    xdevs_devstone_macros::generate_li!(2, 2);
+    xdevs_devstone_macros::generate_li!(35, 35);
     let generator = Generator::new(5);
     let modelo_final: ModeloFinal<W> = ModeloFinal::build(generator, model_li);
     let duration: Duration = start.elapsed();
