@@ -6,12 +6,12 @@ use xdevs_devstone::ho::*;
 extern crate alloc;
 
 fn main() {
-    const WIDTH: usize = 2;
+    const WIDTH: usize = 100;
     const W: usize = WIDTH - 1;
 
     let start = Instant::now();
 
-    xdevs_devstone_macros::generate_ho!(2, 2);
+    xdevs_devstone_macros::generate_ho!(100, 100);
 
     //Creación del modelo atómico generador (mete datos en el modelo HO)
     let generator = Generator::new(5);
@@ -53,11 +53,11 @@ mod test {
 
     #[test]
     fn test_ho() {
-        const WIDTH: usize = 1;
-        const DEPTH: usize = 1;
+        const WIDTH: usize = 100;
+        const DEPTH: usize = 100;
         const W: usize = WIDTH - 1;
 
-        xdevs_devstone_macros::generate_ho!(1, 1);
+        xdevs_devstone_macros::generate_ho!(100, 100);
 
         //Creación del modelo atómico generador (mete datos en el modelo HO)
         let generator = Generator::new(5);
