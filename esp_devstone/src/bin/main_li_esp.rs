@@ -35,26 +35,30 @@ fn main() -> ! {
 
     esp_alloc::heap_allocator!(#[unsafe(link_section = ".dram2_uninit")] size: 65536);
 
-    const WIDTH: usize = 35;
+    const WIDTH: usize = 30;
     const W: usize = WIDTH - 1;
 
     let start = Instant::now();
-    xdevs_devstone_macros::generate_li!(35, 35);
+    xdevs_devstone_macros::generate_li!(30, 30);
     let generator = Generator::new(5);
     let modelo_final: ModeloFinal<W> = ModeloFinal::build(generator, model_li);
-    let duration: Duration = start.elapsed();
-    info!("Model creation time: {:?}", duration);
+    let model_creation: Duration = start.elapsed();
+    info!("Model creation time: {:?}", model_creation.as_micros());
     let start = Instant::now();
     let mut simulator = xdevs::simulator::Simulator::new(modelo_final);
     let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);
-    let duration = start.elapsed();
-    info!("Simulator creation time: {:?}", duration);
+    let simulator_creator = start.elapsed();
+    info!(
+        "Simulator creation time: {:?}",
+        simulator_creator.as_micros()
+    );
     let start = Instant::now();
     simulator.simulate_vt(&config);
     // let input_handler = xdevs::simulator::SleepAsync::new();
     // simulator.simulate_rt_async(&config, input_handler, |_| {});
-    let duration = start.elapsed();
-    info!("Simulation time: {:?}", duration);
+    let simulation = start.elapsed();
+    info!("Simulation time: {:?}", simulation.as_micros());
+    info!("BENCHMARK_DONE");
 
     loop {
         let delay_start = Instant::now();
