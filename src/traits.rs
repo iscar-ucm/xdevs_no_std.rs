@@ -94,10 +94,10 @@ pub unsafe trait PartialAtomic: Component {
 /// This trait must be implemented via macros. Do not implement it manually.
 pub unsafe trait PartialCoupled: Component {
     /// Wrapper type holding all inner components' inputs.
-    type ComponentsInput;
+    type ComponentsInput: Bag;
 
     /// Wrapper type holding all inner components' outputs.
-    type ComponentsOutput;
+    type ComponentsOutput: Bag;
 }
 
 /// Interface for simulating DEVS models. All DEVS models must implement this trait.
