@@ -33,7 +33,7 @@ pub trait AsPort: Bag + Sealed {
     type Item;
 }
 
-/// Trait that defines a type that maps to an event bag ports.
+/// Trait that defines a type that maps to event bag ports.
 /// Its main purpose is its usage by the `RtEngine` to inject and eject events from the model's ports.
 ///
 /// # Safety
@@ -87,7 +87,7 @@ pub unsafe trait PartialAtomic: Component {
 }
 
 /// Partial interface for DEVS coupled models.
-/// It is used as a helper trait to implement coupling logic.
+/// It is used as a helper trait to implement [`crate::Coupled`] trait.
 ///
 /// # Safety
 ///
@@ -146,5 +146,6 @@ pub trait AsyncInput {
 }
 
 pub(crate) mod sealed {
+    /// Trait used to prevent users from implementing certain traits manually.
     pub trait Sealed {}
 }
