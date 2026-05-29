@@ -1,5 +1,6 @@
 [![crates.io](https://img.shields.io/crates/d/xdevs_no_std.svg)](https://crates.io/crates/xdevs_no_std)
 [![crates.io](https://img.shields.io/crates/v/xdevs_no_std.svg)](https://crates.io/crates/xdevs_no_std)
+[![codecov](https://codecov.io/gh/iscar-ucm/xdevs_no_std.rs/graph/badge.svg)](https://codecov.io/gh/iscar-ucm/xdevs_no_std.rs)
 
 # `xdevs_no_std.rs`
 
