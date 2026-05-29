@@ -24,7 +24,8 @@ pub struct Sender<'a, I, const N: usize> {
 
 impl<'a, I, const N: usize> Sender<'a, I, N> {
     pub async fn send(&self, msg: I) -> Result<(), Infallible> {
-        Ok(self.sender.send(msg).await)
+        self.sender.send(msg).await;
+        Ok(())
     }
 }
 

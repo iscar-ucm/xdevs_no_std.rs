@@ -28,12 +28,20 @@ pub struct InputChannel<I, const N: usize> {
     sender: tokio::sync::mpsc::Sender<I>,
     receiver: tokio::sync::mpsc::Receiver<I>,
 }
+
 impl<I, const N: usize> InputChannel<I, N> {
     pub fn new() -> Self {
         let (sender, receiver) = tokio::sync::mpsc::channel(N);
         Self { sender, receiver }
     }
 }
+
+impl<I, const N: usize> Default for InputChannel<I, N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<I: Send, const N: usize> RtEngineInputChannel for InputChannel<I, N> {
     type Input = I;
     type Sender = Sender<I>;
@@ -49,18 +57,27 @@ impl<I: Send, const N: usize> RtEngineInputChannel for InputChannel<I, N> {
         self.receiver.recv().await.unwrap()
     }
 }
+
 impl<I: Send, const N: usize> Sealed for InputChannel<I, N> {}
 
 pub struct OutputChannel<O: Clone, const N: usize> {
     sender: tokio::sync::broadcast::Sender<O>,
     receiver: tokio::sync::broadcast::Receiver<O>,
 }
+
 impl<O: Clone, const N: usize> OutputChannel<O, N> {
     pub fn new() -> Self {
         let (sender, receiver) = tokio::sync::broadcast::channel(N);
         Self { sender, receiver }
     }
 }
+
+impl<O: Clone, const N: usize> Default for OutputChannel<O, N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<O: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<O, N> {
     type Output = O;
     type Receiver = Receiver<O>;
@@ -75,4 +92,5 @@ impl<O: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<O, N> {
         let _ = self.sender.send(msg);
     }
 }
+
 impl<O: Clone, const N: usize> Sealed for OutputChannel<O, N> {}

@@ -137,9 +137,8 @@ impl_ref!(alloc::boxed::Box<T>);
 
 //////////////////////////////////////////////// Empty Tuple //////////////////////////////////////////////
 unsafe impl Bag for () {
-    fn build() -> Self {
-        ()
-    }
+    fn build() -> Self {}
+
     fn is_empty(&self) -> bool {
         true
     }

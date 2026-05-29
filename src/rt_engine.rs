@@ -38,7 +38,7 @@ where
         let input_handler = RtEngineInputHandler::<M>::new(&mut self.input_channel);
         self.simulator
             .simulate_rt_async(config, input_handler, |output| {
-                output.map_output(&mut self.output_channel);
+                output.map_output(&self.output_channel);
             })
             .await;
     }
@@ -116,10 +116,10 @@ where
         let next_rt = last_rt + Duration::from_nanos(time_duration);
 
         let future = async {
-            input.map_input(&mut self.input_channel).await;
+            input.map_input(self.input_channel).await;
         };
 
-        if let Err(_) = embassy_time::with_deadline(next_rt.into(), future).await {
+        if embassy_time::with_deadline(next_rt, future).await.is_err() {
             // Deadline reached (timeout), check for jitter
             if let Some(max_jitter) = config.max_jitter {
                 let jitter = Instant::now().duration_since(next_rt);
@@ -129,14 +129,14 @@ where
                 }
             }
             self.last_rt = Some(next_rt);
-            return t_until;
+            t_until
         } else {
             let now = Instant::now();
             self.last_rt = Some(now);
             let elapsed_rt = now.duration_since(last_rt).as_micros() as f64 / 1_000_000.0;
             let elapsed_sim = elapsed_rt / config.time_scale;
 
-            return t_from + elapsed_sim;
+            t_from + elapsed_sim
         }
     }
 }
