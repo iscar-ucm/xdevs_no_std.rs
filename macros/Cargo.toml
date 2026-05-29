@@ -2,7 +2,7 @@
 name = "xdevs-no-std-macros"
 version = "0.2.0"
 edition = "2021"
-license = "GPL-3.0"
+license = "GPL-3.0-or-later"
 description = "procedural macros for xdevs-no-std"
 keywords = ["embedded", "simulation", "real-time", "no-std"]
 repository = "https://github.com/iscar-ucm/xdevs_no_std.rs"
