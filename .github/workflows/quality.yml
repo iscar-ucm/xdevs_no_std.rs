@@ -1,0 +1,62 @@
+name: Quality
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  dependency-security-hygiene:
+    name: dependency-security-hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@cargo-deny
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      - name: Install cargo-machete
+        uses: taiki-e/install-action@cargo-machete
+
+      - name: Run cargo-deny checks
+        run: cargo deny check advisories licenses bans sources
+
+      - name: Run cargo-audit
+        run: cargo audit
+
+      - name: Run cargo-machete
+        run: cargo machete
+
+  docs-and-spell:
+    name: docs-and-spell
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install typos-cli
+        uses: taiki-e/install-action@typos-cli
+
+      - name: Build docs with warnings as errors
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --features std
+      - name: typos
+        uses: crate-ci/typos@master

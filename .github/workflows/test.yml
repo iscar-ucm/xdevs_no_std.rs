@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  id-token: write
 
 env:
   # Set this to a value > 0 to enforce a minimum line coverage percentage.
@@ -79,42 +80,23 @@ jobs:
       - name: Export lcov report
         run: cargo llvm-cov report --lcov --output-path lcov.info
 
-      - name: Generate coverage summary
-        id: coverage-summary
-        run: |
-          cargo llvm-cov report --summary-only > coverage-summary.txt
-          {
-            echo 'summary<<EOF'
-            cat coverage-summary.txt
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          use_oidc: true
+          files: lcov.info
+          flags: rust
+          fail_ci_if_error: true
+          verbose: true
 
       - name: Upload lcov report
-        id: upload-lcov
         uses: actions/upload-artifact@v4
         with:
           name: lcov-report
           path: lcov.info
 
       - name: Upload HTML report
-        id: upload-html
         uses: actions/upload-artifact@v4
         with:
           name: coverage-html-report
           path: coverage-html
-
-      - name: Comment PR with coverage
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: coverage-report
-          message: |
-            ## Coverage report
-
-            ```text
-            ${{ steps.coverage-summary.outputs.summary }}
-            ```
-
-            [Download LCOV artifact](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.upload-lcov.outputs.artifact-id }})
-
-            [Download HTML report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.upload-html.outputs.artifact-id }})

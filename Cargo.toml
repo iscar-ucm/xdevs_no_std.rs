@@ -2,7 +2,7 @@
 name = "xdevs-no-std"
 version = "0.3.0"
 edition = "2021"
-license = "GPL-3.0"
+license = "GPL-3.0-or-later"
 authors = ["Román Cárdenas <r.cardenas@upm.es>"]
 description = "no-std implementation of xDEVS for real-time simulation on embedded systems"
 keywords = ["embedded", "simulation", "real-time", "no-std"]
