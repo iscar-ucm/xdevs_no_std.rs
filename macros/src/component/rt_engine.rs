@@ -1,14 +1,11 @@
+use super::{backend::Backend, CommonComponent};
+use heck::ToSnakeCase;
 use proc_macro2::TokenStream as TokenStream2;
-use heck::{ToSnakeCase};
-use super::{
-    backend::Backend,
-    CommonComponent,
-};
 
 impl CommonComponent {
     /// Generate the rt-engine infrastructure code:
     pub fn quote_rt_engine(&self) -> TokenStream2 {
-        if let Some(rt_engine) = &self.rt_engine{
+        if let Some(rt_engine) = &self.rt_engine {
             let mut generated = TokenStream2::new();
 
             // Check compatibility of the component with the selected rt-engine backend.
@@ -26,7 +23,7 @@ impl CommonComponent {
 
             let snake_name = self.ident.to_string().to_snake_case();
             let private_mod_ident =
-            quote::format_ident!("__xdevs_no_std_private_{}_rt_engine", snake_name);
+                quote::format_ident!("__xdevs_no_std_private_{}_rt_engine", snake_name);
 
             // Extract model generics
             let (model_impl_generics, model_ty_generics, model_where_clause) =
@@ -63,7 +60,7 @@ impl CommonComponent {
                 let input_channel_tokens = rt_engine.input_channel(&self);
 
                 // Generate TokenStreams
-                map_input_body = quote::quote!{
+                map_input_body = quote::quote! {
                     let input = <Self::InputChannel as ::xdevs::traits::RtEngineInputChannel>::recv(in_channel).await;
                     // TODO: Return Result when embassy time is merged
                     let _ = <Self as ::xdevs::traits::BagMux>::inject_event(self, input);
@@ -88,7 +85,7 @@ impl CommonComponent {
                 generated.extend(quote::quote! {
                     /// Auto-generated output receiver type alias.
                     pub type #receiver_ident #model_ty_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
-                    Output as ::xdevs::traits::EjectOutput>::OutputChannel as 
+                    Output as ::xdevs::traits::EjectOutput>::OutputChannel as
                     ::xdevs::traits::RtEngineOutputChannel>::Receiver;
 
                     /// Auto-generated output enum for channel communication alias.
@@ -98,7 +95,7 @@ impl CommonComponent {
                 let output_channel_tokens = rt_engine.output_channel(&self);
 
                 // Generate TokenStreams
-                map_output_body = quote::quote!{
+                map_output_body = quote::quote! {
                     let out_func = |output| {
                         <Self::OutputChannel as ::xdevs::traits::RtEngineOutputChannel>::publish(
                             out_channel,
@@ -122,7 +119,6 @@ impl CommonComponent {
                 /// Auto-generated `InjectInput` implementation for the top-level component input.
                 unsafe impl #input_impl_generics ::xdevs::traits::InjectInput for #input_ident #input_ty_generics #input_where_clause {
                     type InputChannel = #input_channel_type;
-                    
                     async fn map_input(
                         &mut self,
                         in_channel: &mut Self::InputChannel,
@@ -163,9 +159,8 @@ impl CommonComponent {
             });
 
             generated
+        } else {
+            TokenStream2::new()
         }
-    else{
-        TokenStream2::new()
-    }
     }
 }
