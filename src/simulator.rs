@@ -100,8 +100,6 @@ impl<M: AbstractSimulator> Simulator<M> {
             t_next_internal = self
                 .model
                 .delta(&mut component_input, &mut component_output, t);
-            component_input.clear();
-            component_output.clear();
         }
         self.model.stop(t_stop);
     }
@@ -141,8 +139,6 @@ impl<M: AbstractSimulator> Simulator<M> {
             t_next_internal = self
                 .model
                 .delta(&mut component_input, &mut component_output, t);
-            component_input.clear();
-            component_output.clear();
         }
         self.model.stop(config.t_stop);
     }
