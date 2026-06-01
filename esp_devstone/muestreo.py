@@ -10,7 +10,7 @@ import subprocess
 # Based on your provided CSV, it tests even numbers up to 30.
 WIDTHS = list(range(2, 32, 2))
 DEPTHS = list(range(2, 32, 2))
-ITERATIONS = 10
+ITERATIONS = 30
 
 # Maximum time (in seconds) to wait for a single run to finish
 TIMEOUT_SECONDS = 300 
@@ -23,7 +23,7 @@ MODELS = {
     'LI': {'file': 'main_li_esp.rs', 'bin': 'main_li_esp'},
     'HI': {'file': 'main_hi_esp.rs', 'bin': 'main_hi_esp'},
     # Fallback to main_ho_esp.rs if it exists, otherwise use main_ho.rs as stated in your prompt
-    'HO': {'file': 'main_ho_esp.rs' if os.path.exists(os.path.join(BIN_DIR, 'main_ho_esp.rs')) else 'main_ho.rs', 'bin': 'main_ho'},
+    'HO': {'file': 'main_ho_esp.rs' if os.path.exists(os.path.join(BIN_DIR, 'main_ho_esp.rs')) else 'main_ho_esp.rs', 'bin': 'main_ho_esp'},
 }
 
 # --- REGEX PATTERNS ---
