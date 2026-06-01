@@ -7,6 +7,7 @@ use syn::{
 };
 
 /// Arguments for the `#[rt_engine]` attribute macro.
+#[derive(Debug)]
 pub struct RtEngineBackend {
     /// Capacity of the input channel (`in_channel_size = ...`).
     in_channel_size: usize,

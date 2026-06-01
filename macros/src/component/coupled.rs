@@ -1,5 +1,7 @@
 mod components;
 
+use crate::component::ComponentArgs;
+
 use super::filter_generics;
 use super::impl_component;
 use super::Component;
@@ -15,7 +17,7 @@ pub struct Coupled {
 }
 
 impl Coupled {
-    pub fn parse(args: TokenStream2, item: TokenStream2) -> Result<Self> {
+    pub fn parse(args: ComponentArgs, item: TokenStream2) -> Result<Self> {
         let component: ItemStruct = parse2(item)?;
 
         let ident = component.ident.clone();
@@ -45,14 +47,7 @@ impl Coupled {
         let components_ident = Ident::new(&format!("{}Components", &ident), ident.span());
 
         // Generate common component and components
-        let common = Component::new(
-            ident,
-            generics,
-            inputs,
-            outputs,
-            args,
-            "unknown coupled component argument",
-        )?;
+        let common = Component::new(ident, generics, inputs, outputs, args)?;
         let components = Components::new(components, components_ident, components_generics);
 
         Ok(Coupled { common, components })

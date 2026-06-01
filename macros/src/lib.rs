@@ -1,11 +1,13 @@
 use proc_macro::TokenStream;
+use syn::parse_macro_input;
 
 mod component;
 mod derive;
 
 #[proc_macro_attribute]
 pub fn atomic(args: TokenStream, item: TokenStream) -> TokenStream {
-    let atomic_component = component::atomic::Atomic::parse(args.into(), item.into());
+    let args = parse_macro_input!(args as component::ComponentArgs);
+    let atomic_component = component::atomic::Atomic::parse(args, item.into());
     match atomic_component {
         Ok(component) => component.quote().into(),
         Err(err) => err.to_compile_error().into(),
@@ -14,7 +16,8 @@ pub fn atomic(args: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn coupled(args: TokenStream, item: TokenStream) -> TokenStream {
-    let coupled_component = component::coupled::Coupled::parse(args.into(), item.into());
+    let args = parse_macro_input!(args as component::ComponentArgs);
+    let coupled_component = component::coupled::Coupled::parse(args, item.into());
     match coupled_component {
         Ok(component) => component.quote().into(),
         Err(err) => err.to_compile_error().into(),

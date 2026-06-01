@@ -1,3 +1,5 @@
+use crate::component::ComponentArgs;
+
 use super::filter_generics;
 use super::impl_component;
 use super::state::State;
@@ -13,7 +15,7 @@ pub struct Atomic {
 }
 
 impl Atomic {
-    pub fn parse(args: TokenStream2, item: TokenStream2) -> Result<Self> {
+    pub fn parse(args: ComponentArgs, item: TokenStream2) -> Result<Self> {
         let component: ItemStruct = parse2(item)?;
 
         let ident = component.ident.clone();
@@ -41,14 +43,7 @@ impl Atomic {
         let generics = component.generics.clone();
         let state_generics = filter_generics(&state, &generics);
         let state_ident = Ident::new(&format!("{ident}State"), ident.span());
-        let common = Component::new(
-            ident,
-            generics,
-            inputs,
-            outputs,
-            args,
-            "unknown atomic component argument",
-        )?;
+        let common = Component::new(ident, generics, inputs, outputs, args)?;
         let state = State::new(state, state_ident, state_generics);
 
         Ok(Atomic { common, state })
