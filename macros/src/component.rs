@@ -33,6 +33,7 @@ pub struct ComponentArgs {
 
 impl Parse for ComponentArgs {
     fn parse(input: ParseStream) -> Result<Self> {
+        let mut acc: Option<Error> = None;
         let mut args = ComponentArgs::default();
 
         // Parse a comma-separated list of meta items (args)
@@ -52,15 +53,22 @@ impl Parse for ComponentArgs {
                     }
                     // Reject unsupported format `#[component(rt_engine = value)]`
                     Meta::NameValue(nv) => {
-                        return Err(Error::new_spanned(
-                            nv,
-                            "rt_engine does not expect a name-value pair",
-                        ));
+                        combine_err(
+                            &mut acc,
+                            Error::new_spanned(nv, "rt_engine does not expect a name-value pair"),
+                        );
                     }
                 }
             } else {
-                return Err(Error::new_spanned(meta, "Unknown component argument"));
+                combine_err(
+                    &mut acc,
+                    Error::new_spanned(meta, "Unknown component argument"),
+                );
             }
+        }
+
+        if let Some(err) = acc {
+            return Err(err);
         }
 
         Ok(args)
