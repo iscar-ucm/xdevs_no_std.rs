@@ -9,7 +9,7 @@ import subprocess
 # Define the widths and depths to test. 
 WIDTHS = list(range(2, 32, 2))
 DEPTHS = list(range(2, 32, 2))
-ITERATIONS = 10
+ITERATIONS = 30
 
 # Maximum time (in seconds) to wait for a single run to finish
 TIMEOUT_SECONDS = 300 
@@ -21,7 +21,7 @@ BIN_DIR = "src/bin" # Change to "src/bin" if your files are inside src/bin
 MODELS = {
     'LI': {'file': 'main_li_esp.rs', 'bin': 'main_li_esp'},
     'HI': {'file': 'main_hi_esp.rs', 'bin': 'main_hi_esp'},
-    'HO': {'file': 'main_ho_esp.rs' if os.path.exists(os.path.join(BIN_DIR, 'main_ho_esp.rs')) else 'main_ho.rs', 'bin': 'main_ho'},
+    'HO': {'file': 'main_ho_esp.rs' if os.path.exists(os.path.join(BIN_DIR, 'main_ho_esp.rs')) else 'main_ho_esp.rs', 'bin': 'main_ho_esp'},
 }
 
 # --- REGEX PATTERNS ---
