@@ -43,13 +43,10 @@ impl Atomic {
         let generics = component.generics.clone();
         let state_generics = filter_generics(&state, &generics);
         let state_ident = Ident::new(&format!("{ident}State"), ident.span());
-        let common = Component::new(ident, generics, inputs, outputs, args)?;
+        let component = Component::new(ident, generics, inputs, outputs, args)?;
         let state = State::new(state, state_ident, state_generics);
 
-        Ok(Atomic {
-            component: common,
-            state,
-        })
+        Ok(Atomic { component, state })
     }
 
     pub fn quote(&self) -> TokenStream2 {

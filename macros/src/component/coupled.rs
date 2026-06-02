@@ -47,11 +47,11 @@ impl Coupled {
         let components_ident = Ident::new(&format!("{}Components", &ident), ident.span());
 
         // Generate common component and components
-        let common = Component::new(ident, generics, inputs, outputs, args)?;
+        let component = Component::new(ident, generics, inputs, outputs, args)?;
         let components = Components::new(components, components_ident, components_generics);
 
         Ok(Coupled {
-            component: common,
+            component,
             components,
         })
     }

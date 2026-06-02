@@ -29,6 +29,7 @@ impl Parse for ComponentArgs {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut acc: Option<Error> = None;
         let mut args = ComponentArgs::default();
+        let mut rt_engine_seen = false;
 
         // Parse a comma-separated list of meta items (args)
         let metas = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
@@ -36,12 +37,13 @@ impl Parse for ComponentArgs {
         for meta in metas {
             // Check if the argument matches what we are looking for
             if meta.path().is_ident("rt_engine") {
-                if args.rt_engine.is_some() {
+                if rt_engine_seen {
                     combine_err(
                         &mut acc,
                         Error::new_spanned(&meta, "duplicate argument: rt_engine"),
                     );
                 } else {
+                    rt_engine_seen = true;
                     match meta {
                         // Handles the case with no parenthesis: `#[component(rt_engine)]`
                         Meta::Path(_) => {
