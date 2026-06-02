@@ -1,5 +1,5 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
-use crate::component::Component;
+use crate::component::{port::Ports, Component, ComponentArgs};
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use syn::{
     parse::{Parse, ParseStream},
@@ -7,7 +7,7 @@ use syn::{
 };
 
 /// Arguments for the `#[rt_engine]` attribute macro.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RtEngineBackend {
     /// Capacity of the input channel (`in_channel_size = ...`).
     in_channel_size: usize,
@@ -43,7 +43,7 @@ impl Parse for RtEngineBackend {
 }
 
 impl Backend for RtEngineBackend {
-    fn check_compatibility(&self, _: &Component) -> Result<()> {
+    fn check_compatibility(&self, _: &ComponentArgs, _: &Ports, _: &Ports) -> Result<()> {
         Ok(())
     }
 

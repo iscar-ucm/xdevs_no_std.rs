@@ -5,30 +5,47 @@ mod port;
 mod rt_engine;
 mod state;
 
-use crate::combine_err;
+use crate::{
+    combine_err,
+    component::{backend::Backend, coupled::components::Components, state::State},
+};
 
 use self::port::Ports;
 use backend::RtEngine;
+use proc_macro2::Span;
 use proc_macro2::TokenStream as TokenStream2;
 use std::collections::HashSet;
 use syn::{
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     visit::{self, Visit},
-    Error, Field, GenericParam, Generics, Ident, ItemStruct, Lifetime, Meta, Result, Token, Type,
-    TypeGenerics, TypePath,
+    Attribute, Error, Field, Fields, GenericParam, Generics, Ident, ItemStruct, Lifetime, Meta,
+    Result, Token, Type, TypeGenerics, TypePath, Visibility,
 };
 
+/// Different types of fields supported by `#[atomic]` and `#[coupled]` components.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldKind {
+    Input,
+    Output,
+    State,
+    Components,
+}
+
 /// Arguments for both the `#[atomic]` and `#[coupled]` attribute macros.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ComponentArgs {
     pub rt_engine: Option<RtEngine>,
+    pub rt_engine_span: Option<Span>,
 }
 
 impl Parse for ComponentArgs {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut acc: Option<Error> = None;
-        let mut args = ComponentArgs::default();
+        let mut args = ComponentArgs {
+            rt_engine: None,
+            rt_engine_span: None,
+        };
         let mut rt_engine_seen = false;
 
         // Parse a comma-separated list of meta items (args)
@@ -44,6 +61,7 @@ impl Parse for ComponentArgs {
                     );
                 } else {
                     rt_engine_seen = true;
+                    args.rt_engine_span = Some(syn::spanned::Spanned::span(&meta));
                     match meta {
                         // Handles the case with no parenthesis: `#[component(rt_engine)]`
                         Meta::Path(_) => {
@@ -85,146 +103,172 @@ impl Parse for ComponentArgs {
 /// Named struct field extracted from a component declaration.
 pub struct ComponentField {
     pub ident: Ident,
+    pub _vis: Visibility,
     pub ty: Type,
+    pub attr: Attribute,
+}
+
+impl ComponentField {
+    pub fn from_field(field: &Field, prev_attr: &mut Option<Attribute>) -> Result<Self> {
+        let mut acc: Option<Error> = None;
+        let attrs = &field.attrs;
+
+        let ident = match &field.ident {
+            Some(id) => id.clone(),
+            None => {
+                let err = Error::new_spanned(field, "Only named struct fields are supported");
+                combine_err(&mut acc, err);
+                syn::parse_quote!(_) // Placeholder to allow continued parsing
+            }
+        };
+
+        if attrs.len() > 1 {
+            combine_err(
+                &mut acc,
+                Error::new_spanned(&attrs[1], "Only one attribute is allowed on this field"),
+            );
+        }
+
+        let attr: Attribute = match attrs.is_empty() {
+            true => {
+                if let Some(attr) = prev_attr {
+                    attr.clone()
+                } else {
+                    combine_err(&mut acc, Error::new_spanned(
+                        field,
+                        "Field requires an attribute (#[input], #[output], #[state], or #[components])",
+                    ));
+                    syn::parse_quote!(#[invalid]) // Placeholder to allow continued parsing
+                }
+            }
+            false => {
+                let attr = attrs.first().unwrap().clone();
+                *prev_attr = Some(attr.clone());
+                attr
+            }
+        };
+
+        if let Some(err) = acc {
+            return Err(err);
+        }
+        Ok(Self {
+            ident,
+            _vis: field.vis.clone(),
+            ty: field.ty.clone(),
+            attr,
+        })
+    }
+
+    pub fn kind(&self) -> Option<FieldKind> {
+        if self.attr.path().is_ident("input") {
+            Some(FieldKind::Input)
+        } else if self.attr.path().is_ident("output") {
+            Some(FieldKind::Output)
+        } else if self.attr.path().is_ident("state") {
+            Some(FieldKind::State)
+        } else if self.attr.path().is_ident("components") {
+            Some(FieldKind::Components)
+        } else {
+            None
+        }
+    }
 }
 
 /// Shared metadata used by atomic and coupled component macro expansions.
 pub struct Component {
     pub ident: Ident,
+    pub _vis: Visibility,
     pub generics: Generics,
     pub input: Ports,
     pub output: Ports,
+    pub state: State,
+    pub components: Components,
     pub rt_engine: Option<RtEngine>,
 }
 
 impl Component {
-    pub fn new(
-        ident: Ident,
-        generics: Generics,
-        inputs: Vec<ComponentField>,
-        outputs: Vec<ComponentField>,
-        args: ComponentArgs,
-    ) -> Result<Self> {
-        let rt_engine = args.rt_engine;
-        let input_generics = filter_generics(&inputs, &generics);
-        let output_generics = filter_generics(&outputs, &generics);
+    pub fn new(args: &ComponentArgs, item: &ItemStruct) -> Result<Self> {
+        let mut acc: Option<Error> = None;
+        let mut input: Vec<ComponentField> = Vec::new();
+        let mut output: Vec<ComponentField> = Vec::new();
+        let mut state: Vec<ComponentField> = Vec::new();
+        let mut components: Vec<ComponentField> = Vec::new();
+
+        match &item.fields {
+            Fields::Named(fields) => {
+                let mut prev_attr: Option<Attribute> = None;
+                for field in &fields.named {
+                    match ComponentField::from_field(field, &mut prev_attr) {
+                        Ok(field) => match field.kind() {
+                            Some(FieldKind::Input) => input.push(field),
+                            Some(FieldKind::Output) => output.push(field),
+                            Some(FieldKind::State) => state.push(field),
+                            Some(FieldKind::Components) => components.push(field),
+                            None => {
+                                combine_err(
+                                    &mut acc,
+                                    Error::new_spanned(
+                                        &field.attr,
+                                        "Invalid attribute for this field",
+                                    ),
+                                );
+                            }
+                        },
+                        Err(err) => {
+                            combine_err(&mut acc, err);
+                        }
+                    }
+                }
+            }
+            _ => {
+                return Err(Error::new_spanned(
+                    item,
+                    "Only named struct fields are supported",
+                ))
+            }
+        }
+
+        let ident = &item.ident;
+        let generics = &item.generics;
+
+        let input_generics = filter_generics(&input, &generics);
+        let output_generics = filter_generics(&output, &generics);
+        let state_generics = filter_generics(&state, &generics);
+        let components_generics = filter_generics(&components, &generics);
 
         let input_ident = Ident::new(&format!("{ident}Input"), ident.span());
         let output_ident = Ident::new(&format!("{ident}Output"), ident.span());
+        let state_ident = Ident::new(&format!("{ident}State"), ident.span());
+        let components_ident = Ident::new(&format!("{ident}Components"), ident.span());
+
+        let input = Ports::new(input, input_ident, input_generics);
+        let output = Ports::new(output, output_ident, output_generics);
+        let state = State::new(state, state_ident, state_generics);
+        let components = Components::new(components, components_ident, components_generics);
+
+        // Rt-engine argument
+        let rt_engine = args.rt_engine.clone();
+        if let Some(rt_engine) = &rt_engine {
+            // Check compatibility of the component with the selected rt-engine backend.
+            if let Err(err) = rt_engine.check_compatibility(args, &input, &output) {
+                combine_err(&mut acc, err);
+            }
+        }
+
+        if let Some(err) = acc {
+            return Err(err);
+        }
 
         Ok(Self {
-            ident,
-            generics,
-            input: Ports::new(inputs, input_ident, input_generics),
-            output: Ports::new(outputs, output_ident, output_generics),
+            ident: ident.clone(),
+            _vis: item.vis.clone(),
+            generics: generics.clone(),
+            input,
+            output,
+            state,
+            components,
             rt_engine,
         })
-    }
-}
-
-#[derive(Default)]
-/// Parsed field groups collected from a user component struct.
-pub struct ParsedComponentFields {
-    pub input: Vec<ComponentField>,
-    pub output: Vec<ComponentField>,
-    pub state: Vec<ComponentField>,
-    pub components: Vec<ComponentField>,
-}
-
-impl ParsedComponentFields {
-    /// Check for duplicate field names across inputs, outputs, and a third field list (state or components).
-    fn check_duplicate_fields(
-        input: &[ComponentField],
-        output: &[ComponentField],
-        third: &[ComponentField],
-    ) -> Result<()> {
-        let output_names: HashSet<String> = output.iter().map(|f| f.ident.to_string()).collect();
-        let third_names: HashSet<String> = third.iter().map(|f| f.ident.to_string()).collect();
-
-        for input in input {
-            let name = input.ident.to_string();
-            if output_names.contains(&name) || third_names.contains(&name) {
-                return Err(Error::new_spanned(
-                    &input.ident,
-                    format!("Duplicate field name '{}': already defined as input", name),
-                ));
-            }
-        }
-        for output in output {
-            let name = output.ident.to_string();
-            if third_names.contains(&name) {
-                return Err(Error::new_spanned(
-                    &output.ident,
-                    format!("Duplicate field name '{}': already defined as output", name),
-                ));
-            }
-        }
-        Ok(())
-    }
-
-    /// Parse and classify all recognized component fields by attribute.
-    ///
-    /// Supported attributes are `#[input]`, `#[output]`, `#[state]`,
-    /// and `#[components]`.
-    pub fn parse(component: &ItemStruct) -> Result<Self> {
-        fn to_component_field(field: &Field) -> Result<ComponentField> {
-            let ident = field.ident.clone().ok_or_else(|| {
-                Error::new_spanned(field, "Only named struct fields are supported")
-            })?;
-            Ok(ComponentField {
-                ident,
-                ty: field.ty.clone(),
-            })
-        }
-
-        let mut parsed = Self::default();
-        let mut last_attr = None;
-
-        for field in &component.fields {
-            let field_attrs = &field.attrs;
-
-            if field_attrs.len() > 1 {
-                return Err(Error::new_spanned(
-                    field,
-                    "Each field may have at most one attribute",
-                ));
-            }
-
-            if let Some(attr) = field_attrs.first() {
-                last_attr = Some(attr);
-            } else if last_attr.is_none() {
-                return Err(Error::new_spanned(
-                    field,
-                    "Field requires an attribute (#[input], #[output], #[state], or #[components])",
-                ));
-            }
-            if let Some(attr) = last_attr {
-                let parsed_field = to_component_field(field)?;
-                if attr.path().is_ident("input") {
-                    parsed.input.push(parsed_field);
-                } else if attr.path().is_ident("output") {
-                    parsed.output.push(parsed_field);
-                } else if attr.path().is_ident("state") {
-                    parsed.state.push(parsed_field);
-                } else if attr.path().is_ident("components") {
-                    parsed.components.push(parsed_field);
-                } else {
-                    return Err(Error::new_spanned(attr, "Unknown attribute"));
-                }
-            }
-        }
-
-        // Validate duplicate names as part of common field parsing.
-        // Only run checks for non-empty groups so each macro kind can keep
-        // its own semantic constraints (e.g. state vs components) separately.
-        if !parsed.state.is_empty() {
-            Self::check_duplicate_fields(&parsed.input, &parsed.output, &parsed.state)?;
-        }
-        if !parsed.components.is_empty() {
-            Self::check_duplicate_fields(&parsed.input, &parsed.output, &parsed.components)?;
-        }
-
-        Ok(parsed)
     }
 }
 

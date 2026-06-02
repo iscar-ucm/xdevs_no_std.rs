@@ -5,26 +5,26 @@ use super::ComponentField;
 
 /// Parsed collection of component ports used to generate Input/Output structs.
 pub struct Ports {
-    pub ports: Vec<ComponentField>,
+    pub fields: Vec<ComponentField>,
     pub ident: Ident,
     pub generics: Generics,
 }
 
 impl Ports {
-    pub fn new(ports: Vec<ComponentField>, ident: Ident, generics: Generics) -> Self {
+    pub fn new(fields: Vec<ComponentField>, ident: Ident, generics: Generics) -> Self {
         Ports {
-            ports,
+            fields,
             ident,
             generics,
         }
     }
 
     fn field_idents(&self) -> Vec<&Ident> {
-        self.ports.iter().map(|f| &f.ident).collect()
+        self.fields.iter().map(|f| &f.ident).collect()
     }
 
     fn field_tys(&self) -> Vec<&Type> {
-        self.ports.iter().map(|f| &f.ty).collect()
+        self.fields.iter().map(|f| &f.ty).collect()
     }
 
     fn generate_news(&self, ports: &Vec<ComponentField>) -> Vec<TokenStream2> {
@@ -45,7 +45,7 @@ impl Ports {
         let ports_ident = self.field_idents();
         let ports_ty = self.field_tys();
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
-        let new_fn = self.generate_news(&self.ports);
+        let new_fn = self.generate_news(&self.fields);
         let bagmux = if is_bagmux {
             quote::quote! {
                 , ::xdevs::BagMux

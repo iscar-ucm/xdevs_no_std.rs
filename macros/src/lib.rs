@@ -7,6 +7,8 @@ mod derive;
 #[proc_macro_attribute]
 pub fn atomic(args: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as component::ComponentArgs);
+    let item = parse_macro_input!(item as syn::ItemStruct);
+
     let atomic_component = component::atomic::Atomic::parse(args, item.into());
     match atomic_component {
         Ok(component) => component.quote().into(),
@@ -17,6 +19,8 @@ pub fn atomic(args: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn coupled(args: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as component::ComponentArgs);
+    let item = parse_macro_input!(item as syn::ItemStruct);
+
     let coupled_component = component::coupled::Coupled::parse(args, item.into());
     match coupled_component {
         Ok(component) => component.quote().into(),

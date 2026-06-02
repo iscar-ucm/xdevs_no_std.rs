@@ -1,59 +1,46 @@
-mod components;
+pub mod components;
 
+use crate::combine_err;
 use crate::component::ComponentArgs;
 
-use super::filter_generics;
 use super::impl_component;
 use super::Component;
-use super::ParsedComponentFields;
-use components::Components;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{parse2, Error, Ident, ItemStruct, Result};
+use syn::{Error, Ident, ItemStruct, Result};
 
 /// Parsed representation of a coupled component macro input.
 pub struct Coupled {
     pub component: Component,
-    pub components: Components,
 }
 
 impl Coupled {
-    pub fn parse(args: ComponentArgs, item: TokenStream2) -> Result<Self> {
-        let component: ItemStruct = parse2(item)?;
+    pub fn parse(args: ComponentArgs, item: ItemStruct) -> Result<Self> {
+        let component = Component::new(&args, &item)?;
 
-        let ident = component.ident.clone();
-        let ParsedComponentFields {
-            input: inputs,
-            output: outputs,
-            state,
-            components,
-        } = ParsedComponentFields::parse(&component)?;
-
+        let mut acc: Option<Error> = None;
         // Coupled components must not declare state fields.
-        if !state.is_empty() {
-            return Err(Error::new_spanned(
-                &state[0].ident,
-                "Coupled components cannot define #[state] fields",
-            ));
+        if !component.state.fields.is_empty() {
+            for field in &component.state.fields {
+                combine_err(
+                    &mut acc,
+                    Error::new_spanned(
+                        &field.ident,
+                        "Coupled components cannot define #[state] fields",
+                    ),
+                );
+            }
         }
 
         // Check that components is defined
-        if components.is_empty() {
-            return Err(Error::new_spanned(&component, "No components found"));
+        if component.components.fields.is_empty() {
+            combine_err(&mut acc, Error::new_spanned(&item, "No components found"));
         }
 
-        // Build variables for generation.
-        let generics = component.generics.clone();
-        let components_generics = filter_generics(&components, &generics);
-        let components_ident = Ident::new(&format!("{}Components", &ident), ident.span());
+        if let Some(err) = acc {
+            return Err(err);
+        }
 
-        // Generate common component and components
-        let component = Component::new(ident, generics, inputs, outputs, args)?;
-        let components = Components::new(components, components_ident, components_generics);
-
-        Ok(Coupled {
-            component,
-            components,
-        })
+        Ok(Coupled { component })
     }
 
     pub fn quote(&self) -> TokenStream2 {
@@ -72,21 +59,21 @@ impl Coupled {
             &format!("{}Components", &self.component.ident),
             self.component.ident.span(),
         );
-        let components_fields = self.components.field_idents();
-        let components_tys = self.components.field_tys();
+        let components_fields = self.component.components.field_idents();
+        let components_tys = self.component.components.field_tys();
 
         // Extract generics for impl
         let (impl_generics, ty_generics, where_clause) = self.component.generics.split_for_impl();
         let (_, input_ty_generics, _) = &self.component.input.generics.split_for_impl();
         let (_, output_ty_generics, _) = &self.component.output.generics.split_for_impl();
         let (components_impl_generics, components_ty_generics, components_where_clause) =
-            &self.components.generics.split_for_impl();
+            &self.component.components.generics.split_for_impl();
 
         // Generate input, output, and components structs
         let is_bagmux = self.component.rt_engine.is_some();
         let input_struct = self.component.input.quote(is_bagmux);
         let output_struct = self.component.output.quote(is_bagmux);
-        let components_struct = self.components.quote();
+        let components_struct = self.component.components.quote();
         // Component trait implementation
         let component_impl = impl_component(
             ident,
@@ -108,8 +95,9 @@ impl Coupled {
             Ident::new(&format!("{}ComponentsOutput", ident), ident.span());
 
         let components_input_fields: Vec<TokenStream2> = self
+            .component
             .components
-            .components
+            .fields
             .iter()
             .map(|field| {
                 let field_ident = &field.ident;
@@ -121,8 +109,9 @@ impl Coupled {
             .collect();
 
         let components_output_fields: Vec<TokenStream2> = self
+            .component
             .components
-            .components
+            .fields
             .iter()
             .map(|field| {
                 let field_ident = &field.ident;
