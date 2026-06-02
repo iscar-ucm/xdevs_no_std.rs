@@ -1,21 +1,23 @@
 mod components;
 
+use crate::component::ComponentArgs;
+
 use super::filter_generics;
 use super::impl_component;
-use super::CommonComponent;
+use super::Component;
 use super::ParsedComponentFields;
 use components::Components;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{parse2, Error, Ident, ItemStruct, Result};
 
-/// Parsed representation of a coupled2 component macro input.
-pub struct Component {
-    pub common: CommonComponent,
+/// Parsed representation of a coupled component macro input.
+pub struct Coupled {
+    pub component: Component,
     pub components: Components,
 }
 
-impl Component {
-    pub fn parse(args: TokenStream2, item: TokenStream2) -> Result<Self> {
+impl Coupled {
+    pub fn parse(args: ComponentArgs, item: TokenStream2) -> Result<Self> {
         let component: ItemStruct = parse2(item)?;
 
         let ident = component.ident.clone();
@@ -45,62 +47,58 @@ impl Component {
         let components_ident = Ident::new(&format!("{}Components", &ident), ident.span());
 
         // Generate common component and components
-        let common = CommonComponent::new(
-            ident,
-            generics,
-            inputs,
-            outputs,
-            args,
-            "unknown coupled component argument",
-        )?;
+        let component = Component::new(ident, generics, inputs, outputs, args)?;
         let components = Components::new(components, components_ident, components_generics);
 
-        Ok(Component { common, components })
+        Ok(Coupled {
+            component,
+            components,
+        })
     }
 
     pub fn quote(&self) -> TokenStream2 {
-        let ident = &self.common.ident;
+        let ident = &self.component.ident;
 
         // Prepare identifiers for code generation
         let input_ident = Ident::new(
-            &format!("{}Input", &self.common.ident),
-            self.common.ident.span(),
+            &format!("{}Input", &self.component.ident),
+            self.component.ident.span(),
         );
         let output_ident = Ident::new(
-            &format!("{}Output", &self.common.ident),
-            self.common.ident.span(),
+            &format!("{}Output", &self.component.ident),
+            self.component.ident.span(),
         );
         let components_ident = Ident::new(
-            &format!("{}Components", &self.common.ident),
-            self.common.ident.span(),
+            &format!("{}Components", &self.component.ident),
+            self.component.ident.span(),
         );
         let components_fields = self.components.field_idents();
         let components_tys = self.components.field_tys();
 
         // Extract generics for impl
-        let (impl_generics, ty_generics, where_clause) = self.common.generics.split_for_impl();
-        let (_, input_ty_generics, _) = &self.common.input.generics.split_for_impl();
-        let (_, output_ty_generics, _) = &self.common.output.generics.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = self.component.generics.split_for_impl();
+        let (_, input_ty_generics, _) = &self.component.input.generics.split_for_impl();
+        let (_, output_ty_generics, _) = &self.component.output.generics.split_for_impl();
         let (components_impl_generics, components_ty_generics, components_where_clause) =
             &self.components.generics.split_for_impl();
 
         // Generate input, output, and components structs
-        let is_bagmux = self.common.rt_engine.is_some();
-        let input_struct = self.common.input.quote(is_bagmux);
-        let output_struct = self.common.output.quote(is_bagmux);
+        let is_bagmux = self.component.rt_engine.is_some();
+        let input_struct = self.component.input.quote(is_bagmux);
+        let output_struct = self.component.output.quote(is_bagmux);
         let components_struct = self.components.quote();
         // Component trait implementation
         let component_impl = impl_component(
             ident,
             &input_ident,
             &output_ident,
-            &self.common.generics,
+            &self.component.generics,
             input_ty_generics,
             output_ty_generics,
         );
 
         // Generate rt_engine code if defined
-        let rt_engine_impl = self.common.quote_rt_engine();
+        let rt_engine_impl = self.component.quote_rt_engine();
 
         // Generate wrapper structs for inner components' inputs and outputs
         // These structs hold all inner components' inputs/outputs,

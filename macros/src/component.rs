@@ -5,18 +5,82 @@ mod port;
 mod rt_engine;
 mod state;
 
+use crate::combine_err;
+
 use self::port::Ports;
 use backend::RtEngine;
 use proc_macro2::TokenStream as TokenStream2;
 use std::collections::HashSet;
 use syn::{
-    parenthesized,
-    parse::{ParseStream, Parser},
-    token::Paren,
+    parse::{Parse, ParseStream},
+    punctuated::Punctuated,
     visit::{self, Visit},
-    Error, Field, GenericParam, Generics, Ident, ItemStruct, Lifetime, Result, Type, TypeGenerics,
-    TypePath,
+    Error, Field, GenericParam, Generics, Ident, ItemStruct, Lifetime, Meta, Result, Token, Type,
+    TypeGenerics, TypePath,
 };
+
+/// Arguments for both the `#[atomic]` and `#[coupled]` attribute macros.
+#[derive(Debug, Default)]
+pub struct ComponentArgs {
+    pub rt_engine: Option<RtEngine>,
+}
+
+impl Parse for ComponentArgs {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let mut acc: Option<Error> = None;
+        let mut args = ComponentArgs::default();
+        let mut rt_engine_seen = false;
+
+        // Parse a comma-separated list of meta items (args)
+        let metas = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
+
+        for meta in metas {
+            // Check if the argument matches what we are looking for
+            if meta.path().is_ident("rt_engine") {
+                if rt_engine_seen {
+                    combine_err(
+                        &mut acc,
+                        Error::new_spanned(&meta, "duplicate argument: rt_engine"),
+                    );
+                } else {
+                    rt_engine_seen = true;
+                    match meta {
+                        // Handles the case with no parenthesis: `#[component(rt_engine)]`
+                        Meta::Path(_) => {
+                            args.rt_engine = Some(RtEngine::default());
+                        }
+                        // Handles the parenthesized case: `#[component(rt_engine(...))]`
+                        Meta::List(list) => match syn::parse2(list.tokens) {
+                            Ok(rt_engine) => args.rt_engine = Some(rt_engine),
+                            Err(err) => combine_err(&mut acc, err),
+                        },
+                        // Reject unsupported format `#[component(rt_engine = value)]`
+                        Meta::NameValue(nv) => {
+                            combine_err(
+                                &mut acc,
+                                Error::new_spanned(
+                                    nv,
+                                    "expected `rt_engine` or `rt_engine(...)`, found `rt_engine = ...`",
+                                ),
+                            );
+                        }
+                    }
+                }
+            } else {
+                combine_err(
+                    &mut acc,
+                    Error::new_spanned(meta, "Unknown component argument"),
+                );
+            }
+        }
+
+        if let Some(err) = acc {
+            return Err(err);
+        }
+
+        Ok(args)
+    }
+}
 
 /// Named struct field extracted from a component declaration.
 pub struct ComponentField {
@@ -25,7 +89,7 @@ pub struct ComponentField {
 }
 
 /// Shared metadata used by atomic and coupled component macro expansions.
-pub struct CommonComponent {
+pub struct Component {
     pub ident: Ident,
     pub generics: Generics,
     pub input: Ports,
@@ -33,46 +97,15 @@ pub struct CommonComponent {
     pub rt_engine: Option<RtEngine>,
 }
 
-impl CommonComponent {
-    fn parse_rt_engine(
-        args: TokenStream2,
-        unknown_arg_error: &'static str,
-    ) -> Result<Option<RtEngine>> {
-        let mut rt_engine = None;
-        Parser::parse2(
-            |input: ParseStream| -> Result<()> {
-                while !input.is_empty() {
-                    let ident: Ident = input.parse()?;
-                    if ident == "rt_engine" {
-                        // Accept both `rt_engine` and `rt_engine(...)`.
-                        if input.peek(Paren) {
-                            let content;
-                            parenthesized!(content in input);
-                            rt_engine = Some(content.parse::<RtEngine>()?);
-                        } else {
-                            rt_engine = Some(RtEngine::default());
-                        }
-                    } else {
-                        return Err(Error::new(ident.span(), unknown_arg_error));
-                    }
-                }
-                Ok(())
-            },
-            args,
-        )?;
-
-        Ok(rt_engine)
-    }
-
+impl Component {
     pub fn new(
         ident: Ident,
         generics: Generics,
         inputs: Vec<ComponentField>,
         outputs: Vec<ComponentField>,
-        args: TokenStream2,
-        unknown_arg_error: &'static str,
+        args: ComponentArgs,
     ) -> Result<Self> {
-        let rt_engine = Self::parse_rt_engine(args, unknown_arg_error)?;
+        let rt_engine = args.rt_engine;
         let input_generics = filter_generics(&inputs, &generics);
         let output_generics = filter_generics(&outputs, &generics);
 
