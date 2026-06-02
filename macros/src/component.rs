@@ -42,21 +42,32 @@ impl Parse for ComponentArgs {
         for meta in metas {
             // Check if the argument matches what we are looking for
             if meta.path().is_ident("rt_engine") {
-                match meta {
-                    // Handles the case with no parenthesis: `#[component(rt_engine)]`
-                    Meta::Path(_) => {
-                        args.rt_engine = Some(RtEngine::default());
-                    }
-                    // Handles the parenthesized case: `#[component(rt_engine(...))]`
-                    Meta::List(list) => {
-                        args.rt_engine = Some(syn::parse2(list.tokens)?);
-                    }
-                    // Reject unsupported format `#[component(rt_engine = value)]`
-                    Meta::NameValue(nv) => {
-                        combine_err(
-                            &mut acc,
-                            Error::new_spanned(nv, "rt_engine does not expect a name-value pair"),
-                        );
+                if args.rt_engine.is_some() {
+                    combine_err(
+                        &mut acc,
+                        Error::new_spanned(&meta, "rt_engine argument already defined"),
+                    );
+                } else {
+                    match meta {
+                        // Handles the case with no parenthesis: `#[component(rt_engine)]`
+                        Meta::Path(_) => {
+                            args.rt_engine = Some(RtEngine::default());
+                        }
+                        // Handles the parenthesized case: `#[component(rt_engine(...))]`
+                        Meta::List(list) => match syn::parse2(list.tokens) {
+                            Ok(rt_engine) => args.rt_engine = Some(rt_engine),
+                            Err(err) => combine_err(&mut acc, err),
+                        },
+                        // Reject unsupported format `#[component(rt_engine = value)]`
+                        Meta::NameValue(nv) => {
+                            combine_err(
+                                &mut acc,
+                                Error::new_spanned(
+                                    nv,
+                                    "rt_engine does not expect a name-value pair",
+                                ),
+                            );
+                        }
                     }
                 }
             } else {
