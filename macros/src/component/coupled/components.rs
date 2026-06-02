@@ -4,26 +4,26 @@ use syn::{Generics, Ident, Type};
 
 /// Parsed inner component fields for coupled2 model generation.
 pub struct Components {
-    pub components: Vec<ComponentField>,
+    pub fields: Vec<ComponentField>,
     pub ident: Ident,
     pub generics: Generics,
 }
 
 impl Components {
-    pub fn new(components: Vec<ComponentField>, ident: Ident, generics: Generics) -> Self {
+    pub fn new(fields: Vec<ComponentField>, ident: Ident, generics: Generics) -> Self {
         Components {
-            components,
+            fields,
             ident,
             generics,
         }
     }
 
     pub fn field_idents(&self) -> Vec<&Ident> {
-        self.components.iter().map(|f| &f.ident).collect()
+        self.fields.iter().map(|f| &f.ident).collect()
     }
 
     pub fn field_tys(&self) -> Vec<&Type> {
-        self.components.iter().map(|f| &f.ty).collect()
+        self.fields.iter().map(|f| &f.ty).collect()
     }
 
     pub fn quote(&self) -> TokenStream2 {

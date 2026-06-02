@@ -1,50 +1,44 @@
+use crate::combine_err;
 use crate::component::ComponentArgs;
 
-use super::filter_generics;
 use super::impl_component;
-use super::state::State;
 use super::Component;
-use super::ParsedComponentFields;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Error, Ident, ItemStruct, Result};
+use syn::{Error, ItemStruct, Result};
 
 /// Parsed representation of an atomic component macro input.
 pub struct Atomic {
     pub component: Component,
-    pub state: State,
 }
 
 impl Atomic {
     pub fn parse(args: ComponentArgs, item: ItemStruct) -> Result<Self> {
-        let ident = item.ident.clone();
-        let ParsedComponentFields {
-            input: inputs,
-            output: outputs,
-            state,
-            components,
-        } = ParsedComponentFields::parse(&item)?;
+        let component = Component::new(&args, &item)?;
+
+        let mut acc: Option<Error> = None;
 
         // Atomic components must not declare inner components.
-        if !components.is_empty() {
-            return Err(Error::new_spanned(
-                &components[0].ident,
-                "Atomic components cannot define #[components] fields",
-            ));
+        if !component.components.fields.is_empty() {
+            for field in &component.components.fields {
+                combine_err(
+                    &mut acc,
+                    Error::new_spanned(
+                        &field.ident,
+                        "Atomic components cannot define #[components] fields",
+                    ),
+                );
+            }
         }
 
         // Check that state is defined
-        if state.is_empty() {
-            return Err(Error::new_spanned(&item, "No state definition found"));
+        if component.state.fields.is_empty() {
+            combine_err(
+                &mut acc,
+                Error::new_spanned(&item, "No state definition found"),
+            );
         }
 
-        // Build shared component metadata (rt_engine + top-level ports).
-        let generics = item.generics.clone();
-        let state_generics = filter_generics(&state, &generics);
-        let state_ident = Ident::new(&format!("{ident}State"), ident.span());
-        let component = Component::new(ident, generics, inputs, outputs, args)?;
-        let state = State::new(state, state_ident, state_generics);
-
-        Ok(Atomic { component, state })
+        Ok(Atomic { component })
     }
 
     pub fn quote(&self) -> TokenStream2 {
@@ -53,21 +47,21 @@ impl Atomic {
         // Prepare identifiers for code generation
         let input_ident = &self.component.input.ident;
         let output_ident = &self.component.output.ident;
-        let state_ident = &self.state.ident;
-        let state_fields = self.state.field_idents();
-        let state_tys = self.state.field_tys();
+        let state_ident = &self.component.state.ident;
+        let state_fields = self.component.state.field_idents();
+        let state_tys = self.component.state.field_tys();
 
         // Extract generics for impl
         let (impl_generics, ty_generics, where_clause) = self.component.generics.split_for_impl();
         let (_, input_generics, _) = &self.component.input.generics.split_for_impl();
         let (_, output_generics, _) = &self.component.output.generics.split_for_impl();
-        let (_, state_generics, _) = &self.state.generics.split_for_impl();
+        let (_, state_generics, _) = &self.component.state.generics.split_for_impl();
 
         // Generate input, output, and state structs
         let is_bagmux = self.component.rt_engine.is_some();
         let input_struct = self.component.input.quote(is_bagmux);
         let output_struct = self.component.output.quote(is_bagmux);
-        let state_struct = self.state.quote();
+        let state_struct = self.component.state.quote();
 
         // Generate rt_engine code if defined
         let rt_engine_impl = self.component.quote_rt_engine();

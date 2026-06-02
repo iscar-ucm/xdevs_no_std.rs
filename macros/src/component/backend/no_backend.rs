@@ -7,7 +7,7 @@ use syn::{
 };
 
 /// Placeholder backend used when no backend feature is enabled.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RtEngineBackend;
 
 impl Default for RtEngineBackend {

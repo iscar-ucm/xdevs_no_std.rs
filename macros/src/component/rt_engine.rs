@@ -32,8 +32,8 @@ impl Component {
             // Extract input and output parameters
             let input_ident = &self.input.ident;
             let output_ident = &self.output.ident;
-            let input_ports = &self.input.ports;
-            let output_ports = &self.output.ports;
+            let input_ports = &self.input.fields;
+            let output_ports = &self.output.fields;
             let (input_impl_generics, input_ty_generics, input_where_clause) =
                 self.input.generics.split_for_impl();
             let (output_impl_generics, output_ty_generics, output_where_clause) =
