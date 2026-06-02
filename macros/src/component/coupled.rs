@@ -36,6 +36,10 @@ impl Coupled {
             combine_err(&mut acc, Error::new_spanned(&item, "No components found"));
         }
 
+        if let Some(err) = acc {
+            return Err(err);
+        }
+
         Ok(Coupled { component })
     }
 

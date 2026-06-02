@@ -38,6 +38,10 @@ impl Atomic {
             );
         }
 
+        if let Some(err) = acc {
+            return Err(err);
+        }
+
         Ok(Atomic { component })
     }
 
