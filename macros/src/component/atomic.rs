@@ -10,7 +10,7 @@ use syn::{parse2, Error, Ident, ItemStruct, Result};
 
 /// Parsed representation of an atomic component macro input.
 pub struct Atomic {
-    pub common: Component,
+    pub component: Component,
     pub state: State,
 }
 
@@ -46,40 +46,43 @@ impl Atomic {
         let common = Component::new(ident, generics, inputs, outputs, args)?;
         let state = State::new(state, state_ident, state_generics);
 
-        Ok(Atomic { common, state })
+        Ok(Atomic {
+            component: common,
+            state,
+        })
     }
 
     pub fn quote(&self) -> TokenStream2 {
-        let ident = &self.common.ident;
+        let ident = &self.component.ident;
 
         // Prepare identifiers for code generation
-        let input_ident = &self.common.input.ident;
-        let output_ident = &self.common.output.ident;
+        let input_ident = &self.component.input.ident;
+        let output_ident = &self.component.output.ident;
         let state_ident = &self.state.ident;
         let state_fields = self.state.field_idents();
         let state_tys = self.state.field_tys();
 
         // Extract generics for impl
-        let (impl_generics, ty_generics, where_clause) = self.common.generics.split_for_impl();
-        let (_, input_generics, _) = &self.common.input.generics.split_for_impl();
-        let (_, output_generics, _) = &self.common.output.generics.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = self.component.generics.split_for_impl();
+        let (_, input_generics, _) = &self.component.input.generics.split_for_impl();
+        let (_, output_generics, _) = &self.component.output.generics.split_for_impl();
         let (_, state_generics, _) = &self.state.generics.split_for_impl();
 
         // Generate input, output, and state structs
-        let is_bagmux = self.common.rt_engine.is_some();
-        let input_struct = self.common.input.quote(is_bagmux);
-        let output_struct = self.common.output.quote(is_bagmux);
+        let is_bagmux = self.component.rt_engine.is_some();
+        let input_struct = self.component.input.quote(is_bagmux);
+        let output_struct = self.component.output.quote(is_bagmux);
         let state_struct = self.state.quote();
 
         // Generate rt_engine code if defined
-        let rt_engine_impl = self.common.quote_rt_engine();
+        let rt_engine_impl = self.component.quote_rt_engine();
 
         // Component trait implementation
         let component_impl = impl_component(
             ident,
             &input_ident,
             &output_ident,
-            &self.common.generics,
+            &self.component.generics,
             input_generics,
             output_generics,
         );

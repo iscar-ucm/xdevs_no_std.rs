@@ -5,6 +5,8 @@ mod port;
 mod rt_engine;
 mod state;
 
+use crate::combine_err;
+
 use self::port::Ports;
 use backend::RtEngine;
 use proc_macro2::TokenStream as TokenStream2;
@@ -16,14 +18,6 @@ use syn::{
     Error, Field, GenericParam, Generics, Ident, ItemStruct, Lifetime, Meta, Result, Token, Type,
     TypeGenerics, TypePath,
 };
-
-/// Function to combine errors when parsing
-pub(crate) fn combine_err(acc: &mut Option<Error>, err: Error) {
-    match acc {
-        Some(e) => e.combine(err),
-        None => *acc = Some(err),
-    }
-}
 
 /// Arguments for both the `#[atomic]` and `#[coupled]` attribute macros.
 #[derive(Debug, Default)]
@@ -45,7 +39,7 @@ impl Parse for ComponentArgs {
                 if args.rt_engine.is_some() {
                     combine_err(
                         &mut acc,
-                        Error::new_spanned(&meta, "rt_engine argument already defined"),
+                        Error::new_spanned(&meta, "duplicate argument: rt_engine"),
                     );
                 } else {
                     match meta {
@@ -64,7 +58,7 @@ impl Parse for ComponentArgs {
                                 &mut acc,
                                 Error::new_spanned(
                                     nv,
-                                    "rt_engine does not expect a name-value pair",
+                                    "expected `rt_engine` or `rt_engine(...)`, found `rt_engine = ...`",
                                 ),
                             );
                         }

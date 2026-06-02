@@ -22,7 +22,7 @@ use syn::{
     Error, Result, Token,
 };
 
-use crate::component::{combine_err, Component};
+use crate::{combine_err, component::Component};
 
 /// Generated token fragments used to construct backend channel code.
 pub struct ChannelTokens {
@@ -93,23 +93,26 @@ impl Parse for RtEngineArgs {
                         let err =
                             Error::new_spanned(&nv.path, "duplicate argument: in_channel_size");
                         combine_err(&mut acc, err);
+                    } else {
+                        args.in_channel_size = Some(value);
                     }
-                    args.in_channel_size = Some(value);
                 }
                 "out_channel_size" => {
                     if args.out_channel_size.is_some() {
                         let err =
                             Error::new_spanned(&nv.path, "duplicate argument: out_channel_size");
                         combine_err(&mut acc, err);
+                    } else {
+                        args.out_channel_size = Some(value);
                     }
-                    args.out_channel_size = Some(value);
                 }
                 "max_out_subs" => {
                     if args.max_out_subs.is_some() {
                         let err = Error::new_spanned(&nv.path, "duplicate argument: max_out_subs");
                         combine_err(&mut acc, err);
+                    } else {
+                        args.max_out_subs = Some(value);
                     }
-                    args.max_out_subs = Some(value);
                 }
                 _ => {
                     let err =
