@@ -1,5 +1,5 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
-use crate::component::Component;
+use crate::component::{port::Ports, Component, ComponentArgs};
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use syn::{
     parse::{Parse, ParseStream},
@@ -43,7 +43,7 @@ impl Parse for RtEngineBackend {
 }
 
 impl Backend for RtEngineBackend {
-    fn check_compatibility(&self, _: &Component) -> Result<()> {
+    fn check_compatibility(&self, _: &ComponentArgs, _: &Ports, _: &Ports) -> Result<()> {
         Ok(())
     }
 

@@ -8,12 +8,6 @@ impl Component {
         if let Some(rt_engine) = &self.rt_engine {
             let mut generated = TokenStream2::new();
 
-            // Check compatibility of the component with the selected rt-engine backend.
-            let compatibility = rt_engine.check_compatibility(&self);
-            if let Err(e) = compatibility {
-                return e.to_compile_error();
-            }
-
             // Generate identifiers for code generation
             let model_ident = &self.ident;
             let input_enum_ident = quote::format_ident!("{}InputEnum", self.ident);

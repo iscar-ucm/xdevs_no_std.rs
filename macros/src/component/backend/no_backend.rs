@@ -1,5 +1,5 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
-use crate::component::Component;
+use crate::component::{port::Ports, Component, ComponentArgs};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{
     parse::{Parse, ParseStream},
@@ -30,9 +30,17 @@ impl Parse for RtEngineBackend {
 }
 
 impl Backend for RtEngineBackend {
-    fn check_compatibility(&self, model: &Component) -> Result<()> {
-        Err(Error::new_spanned(
-            &model.ident,
+    fn check_compatibility(
+        &self,
+        args: &ComponentArgs,
+        _input: &Ports,
+        _output: &Ports,
+    ) -> Result<()> {
+        let span = args
+            .rt_engine_span
+            .unwrap_or_else(|| proc_macro2::Span::call_site());
+        Err(Error::new(
+            span,
             "rt_engine requires enabling one backend feature: `std-backend` or `embassy-backend`",
         ))
     }

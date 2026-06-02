@@ -7,11 +7,12 @@ mod state;
 
 use crate::{
     combine_err,
-    component::{coupled::components::Components, state::State},
+    component::{backend::Backend, coupled::components::Components, state::State},
 };
 
 use self::port::Ports;
 use backend::RtEngine;
+use proc_macro2::Span;
 use proc_macro2::TokenStream as TokenStream2;
 use std::collections::HashSet;
 use syn::{
@@ -32,15 +33,19 @@ pub enum FieldKind {
 }
 
 /// Arguments for both the `#[atomic]` and `#[coupled]` attribute macros.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ComponentArgs {
     pub rt_engine: Option<RtEngine>,
+    pub rt_engine_span: Option<Span>,
 }
 
 impl Parse for ComponentArgs {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut acc: Option<Error> = None;
-        let mut args = ComponentArgs::default();
+        let mut args = ComponentArgs {
+            rt_engine: None,
+            rt_engine_span: None,
+        };
         let mut rt_engine_seen = false;
 
         // Parse a comma-separated list of meta items (args)
@@ -56,6 +61,7 @@ impl Parse for ComponentArgs {
                     );
                 } else {
                     rt_engine_seen = true;
+                    args.rt_engine_span = Some(syn::spanned::Spanned::span(&meta));
                     match meta {
                         // Handles the case with no parenthesis: `#[component(rt_engine)]`
                         Meta::Path(_) => {
@@ -97,7 +103,7 @@ impl Parse for ComponentArgs {
 /// Named struct field extracted from a component declaration.
 pub struct ComponentField {
     pub ident: Ident,
-    pub vis: Visibility,
+    pub _vis: Visibility,
     pub ty: Type,
     pub attr: Attribute,
 }
@@ -147,7 +153,7 @@ impl ComponentField {
         }
         Ok(Self {
             ident,
-            vis: field.vis.clone(),
+            _vis: field.vis.clone(),
             ty: field.ty.clone(),
             attr,
         })
@@ -171,7 +177,7 @@ impl ComponentField {
 /// Shared metadata used by atomic and coupled component macro expansions.
 pub struct Component {
     pub ident: Ident,
-    pub vis: Visibility,
+    pub _vis: Visibility,
     pub generics: Generics,
     pub input: Ports,
     pub output: Ports,
@@ -235,18 +241,32 @@ impl Component {
         let state_ident = Ident::new(&format!("{ident}State"), ident.span());
         let components_ident = Ident::new(&format!("{ident}Components"), ident.span());
 
+        let input = Ports::new(input, input_ident, input_generics);
+        let output = Ports::new(output, output_ident, output_generics);
+        let state = State::new(state, state_ident, state_generics);
+        let components = Components::new(components, components_ident, components_generics);
+
         // Rt-engine argument
         let rt_engine = args.rt_engine.clone();
-        // TODO Move compatibility check from rt_engine codegen to here, so that we can check before generating any code.
+        if let Some(rt_engine) = &rt_engine {
+            // Check compatibility of the component with the selected rt-engine backend.
+            if let Err(err) = rt_engine.check_compatibility(args, &input, &output) {
+                combine_err(&mut acc, err);
+            }
+        }
+
+        if let Some(err) = acc {
+            return Err(err);
+        }
 
         Ok(Self {
             ident: ident.clone(),
-            vis: item.vis.clone(),
+            _vis: item.vis.clone(),
             generics: generics.clone(),
-            input: Ports::new(input, input_ident, input_generics),
-            output: Ports::new(output, output_ident, output_generics),
-            state: State::new(state, state_ident, state_generics),
-            components: Components::new(components, components_ident, components_generics),
+            input,
+            output,
+            state,
+            components,
             rt_engine,
         })
     }

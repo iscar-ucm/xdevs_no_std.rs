@@ -22,7 +22,10 @@ use syn::{
     Error, Result, Token,
 };
 
-use crate::{combine_err, component::Component};
+use crate::{
+    combine_err,
+    component::{port::Ports, Component, ComponentArgs},
+};
 
 /// Generated token fragments used to construct backend channel code.
 pub struct ChannelTokens {
@@ -32,7 +35,7 @@ pub struct ChannelTokens {
 }
 
 /// Generic parsed arguments for `rt_engine(...)` backend configuration.
-#[derive(Default, Debug)] // Added Debug here too!
+#[derive(Default, Debug)]
 pub struct RtEngineArgs {
     pub in_channel_size: Option<usize>,
     pub out_channel_size: Option<usize>,
@@ -131,7 +134,12 @@ impl Parse for RtEngineArgs {
 }
 
 pub trait Backend {
-    fn check_compatibility(&self, model: &Component) -> Result<()>;
+    fn check_compatibility(
+        &self,
+        args: &ComponentArgs,
+        input: &Ports,
+        output: &Ports,
+    ) -> Result<()>;
     fn input_channel(&self, model: &Component) -> ChannelTokens;
     fn output_channel(&self, model: &Component) -> ChannelTokens;
 }

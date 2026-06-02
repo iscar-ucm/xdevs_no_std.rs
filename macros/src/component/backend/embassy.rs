@@ -1,5 +1,5 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
-use crate::component::Component;
+use crate::component::{port::Ports, Component, ComponentArgs};
 use heck::ToShoutySnakeCase;
 use syn::{
     parse::{Parse, ParseStream},
@@ -40,13 +40,21 @@ impl Parse for RtEngineBackend {
 }
 
 impl Backend for RtEngineBackend {
-    fn check_compatibility(&self, model: &Component) -> Result<()> {
-        let has_input_generics = !model.input.generics.params.is_empty();
-        let has_output_generics = !model.output.generics.params.is_empty();
+    fn check_compatibility(
+        &self,
+        args: &ComponentArgs,
+        input: &Ports,
+        output: &Ports,
+    ) -> Result<()> {
+        let has_input_generics = !input.generics.params.is_empty();
+        let has_output_generics = !output.generics.params.is_empty();
 
         if has_input_generics || has_output_generics {
-            Err(Error::new_spanned(
-                &model.ident,
+            let span = args
+                .rt_engine_span
+                .unwrap_or_else(|| proc_macro2::Span::call_site());
+            Err(Error::new(
+                span,
                 "rt_engine with embassy backend does not support generic input/output types",
             ))
         } else {
