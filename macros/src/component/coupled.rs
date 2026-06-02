@@ -8,7 +8,7 @@ use super::Component;
 use super::ParsedComponentFields;
 use components::Components;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{parse2, Error, Ident, ItemStruct, Result};
+use syn::{Error, Ident, ItemStruct, Result};
 
 /// Parsed representation of a coupled component macro input.
 pub struct Coupled {
@@ -17,16 +17,14 @@ pub struct Coupled {
 }
 
 impl Coupled {
-    pub fn parse(args: ComponentArgs, item: TokenStream2) -> Result<Self> {
-        let component: ItemStruct = parse2(item)?;
-
-        let ident = component.ident.clone();
+    pub fn parse(args: ComponentArgs, item: ItemStruct) -> Result<Self> {
+        let ident = item.ident.clone();
         let ParsedComponentFields {
             input: inputs,
             output: outputs,
             state,
             components,
-        } = ParsedComponentFields::parse(&component)?;
+        } = ParsedComponentFields::parse(&item)?;
 
         // Coupled components must not declare state fields.
         if !state.is_empty() {
@@ -38,11 +36,11 @@ impl Coupled {
 
         // Check that components is defined
         if components.is_empty() {
-            return Err(Error::new_spanned(&component, "No components found"));
+            return Err(Error::new_spanned(&item, "No components found"));
         }
 
         // Build variables for generation.
-        let generics = component.generics.clone();
+        let generics = item.generics.clone();
         let components_generics = filter_generics(&components, &generics);
         let components_ident = Ident::new(&format!("{}Components", &ident), ident.span());
 

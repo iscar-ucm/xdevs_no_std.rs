@@ -6,7 +6,7 @@ use super::state::State;
 use super::Component;
 use super::ParsedComponentFields;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{parse2, Error, Ident, ItemStruct, Result};
+use syn::{Error, Ident, ItemStruct, Result};
 
 /// Parsed representation of an atomic component macro input.
 pub struct Atomic {
@@ -15,16 +15,14 @@ pub struct Atomic {
 }
 
 impl Atomic {
-    pub fn parse(args: ComponentArgs, item: TokenStream2) -> Result<Self> {
-        let component: ItemStruct = parse2(item)?;
-
-        let ident = component.ident.clone();
+    pub fn parse(args: ComponentArgs, item: ItemStruct) -> Result<Self> {
+        let ident = item.ident.clone();
         let ParsedComponentFields {
             input: inputs,
             output: outputs,
             state,
             components,
-        } = ParsedComponentFields::parse(&component)?;
+        } = ParsedComponentFields::parse(&item)?;
 
         // Atomic components must not declare inner components.
         if !components.is_empty() {
@@ -36,11 +34,11 @@ impl Atomic {
 
         // Check that state is defined
         if state.is_empty() {
-            return Err(Error::new_spanned(&component, "No state definition found"));
+            return Err(Error::new_spanned(&item, "No state definition found"));
         }
 
         // Build shared component metadata (rt_engine + top-level ports).
-        let generics = component.generics.clone();
+        let generics = item.generics.clone();
         let state_generics = filter_generics(&state, &generics);
         let state_ident = Ident::new(&format!("{ident}State"), ident.span());
         let component = Component::new(ident, generics, inputs, outputs, args)?;
