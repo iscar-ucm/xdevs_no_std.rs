@@ -103,7 +103,7 @@ impl Parse for ComponentArgs {
 /// Named struct field extracted from a component declaration.
 pub struct ComponentField {
     pub ident: Ident,
-    pub _vis: Visibility,
+    pub vis: Visibility,
     pub ty: Type,
     pub attr: Attribute,
 }
@@ -153,7 +153,7 @@ impl ComponentField {
         }
         Ok(Self {
             ident,
-            _vis: field.vis.clone(),
+            vis: field.vis.clone(),
             ty: field.ty.clone(),
             attr,
         })
@@ -177,7 +177,7 @@ impl ComponentField {
 /// Shared metadata used by atomic and coupled component macro expansions.
 pub struct Component {
     pub ident: Ident,
-    pub _vis: Visibility,
+    pub vis: Visibility,
     pub generics: Generics,
     pub input: Ports,
     pub output: Ports,
@@ -261,7 +261,7 @@ impl Component {
 
         Ok(Self {
             ident: ident.clone(),
-            _vis: item.vis.clone(),
+            vis: item.vis.clone(),
             generics: generics.clone(),
             input,
             output,

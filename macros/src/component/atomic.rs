@@ -48,6 +48,7 @@ impl Atomic {
     pub fn quote(&self) -> TokenStream2 {
         let component = &self.component;
 
+        let vis = &component.vis;
         let ident = &component.ident;
 
         // Prepare identifiers for code generation
@@ -93,10 +94,10 @@ impl Atomic {
             #output_struct
             #state_struct
             #rt_engine_impl
-            pub struct #ident #impl_generics #where_clause {
-                pub t_last: f64,
-                pub t_next: f64,
-                pub state: #state_ident #state_generics,
+            #vis struct #ident #impl_generics #where_clause {
+                t_last: f64,
+                t_next: f64,
+                state: #state_ident #state_generics,
             }
             impl #impl_generics #ident #ty_generics #where_clause {
                 #[inline]

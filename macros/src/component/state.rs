@@ -19,6 +19,10 @@ impl State {
         }
     }
 
+    pub fn field_vis(&self) -> Vec<&syn::Visibility> {
+        self.fields.iter().map(|f| &f.vis).collect()
+    }
+
     pub fn field_idents(&self) -> Vec<&Ident> {
         self.fields.iter().map(|f| &f.ident).collect()
     }
@@ -29,13 +33,15 @@ impl State {
 
     pub fn quote(&self) -> TokenStream2 {
         let ident = &self.ident;
+        let fields_vis = self.field_vis();
         let fields_ident = self.field_idents();
         let fields_ty = self.field_tys();
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
 
+        // TODO determine what to do with state struct visibility
         quote::quote! {
             pub struct #ident #impl_generics #where_clause {
-                #(#fields_ident: #fields_ty,)*
+                #(#fields_vis #fields_ident: #fields_ty,)*
             }
             impl #impl_generics #ident #ty_generics #where_clause {
                 #[inline]

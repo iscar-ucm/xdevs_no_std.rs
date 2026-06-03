@@ -46,6 +46,7 @@ impl Coupled {
     pub fn quote(&self) -> TokenStream2 {
         let component = &self.component;
 
+        let vis = &component.vis;
         let ident = &component.ident;
         let span = ident.span();
 
@@ -139,12 +140,12 @@ impl Coupled {
                 #(#components_output_fields),*
             }
 
-            pub struct #ident #impl_generics #where_clause {
-                pub components_input: #components_input_ident #components_ty_generics,
-                pub components_output: #components_output_ident #components_ty_generics,
-                pub t_last: f64,
-                pub t_next: f64,
-                pub components: #components_ident #components_ty_generics,
+            #vis struct #ident #impl_generics #where_clause {
+                components_input: #components_input_ident #components_ty_generics,
+                components_output: #components_output_ident #components_ty_generics,
+                t_last: f64,
+                t_next: f64,
+                components: #components_ident #components_ty_generics,
             }
             impl #impl_generics #ident #ty_generics #where_clause {
                 #[inline]

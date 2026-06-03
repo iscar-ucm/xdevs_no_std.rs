@@ -19,11 +19,15 @@ impl Ports {
         }
     }
 
-    fn field_idents(&self) -> Vec<&Ident> {
+    pub fn field_vis(&self) -> Vec<&syn::Visibility> {
+        self.fields.iter().map(|f| &f.vis).collect()
+    }
+
+    pub fn field_idents(&self) -> Vec<&Ident> {
         self.fields.iter().map(|f| &f.ident).collect()
     }
 
-    fn field_tys(&self) -> Vec<&Type> {
+    pub fn field_tys(&self) -> Vec<&Type> {
         self.fields.iter().map(|f| &f.ty).collect()
     }
 
@@ -42,6 +46,7 @@ impl Ports {
 
     pub fn quote(&self, is_bagmux: bool) -> TokenStream2 {
         let ident = &self.ident;
+        let ports_vis = self.field_vis();
         let ports_ident = self.field_idents();
         let ports_ty = self.field_tys();
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
@@ -54,10 +59,11 @@ impl Ports {
             TokenStream2::new()
         };
 
+        // TODO determine what to do with ports struct visibility
         quote::quote! {
             #[derive(::xdevs::Bag #bagmux)]
             pub struct #ident #impl_generics #where_clause {
-                #(pub #ports_ident: #ports_ty,)*
+                #(#ports_vis #ports_ident: #ports_ty,)*
             }
             impl #impl_generics #ident #ty_generics #where_clause {
                 #[inline]

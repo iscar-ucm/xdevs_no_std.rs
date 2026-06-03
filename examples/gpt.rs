@@ -1,11 +1,11 @@
 /// A simple DEVS GPT model
 mod generator {
     #[xdevs::atomic]
-    struct Generator {
+    pub struct Generator {
         #[input]
-        in_stop: xdevs::port::Port<bool, 1>,
+        pub in_stop: xdevs::port::Port<bool, 1>,
         #[output]
-        out_job: xdevs::port::Port<usize, 1>,
+        pub out_job: xdevs::port::Port<usize, 1>,
         #[state]
         sigma: f64,
         period: f64,
@@ -47,11 +47,11 @@ mod generator {
 
 mod processor {
     #[xdevs::atomic]
-    struct Processor {
+    pub struct Processor {
         #[input]
-        in_job: xdevs::port::Port<usize, 1>,
+        pub in_job: xdevs::port::Port<usize, 1>,
         #[output]
-        out_job: xdevs::port::Port<usize, 1>,
+        pub out_job: xdevs::port::Port<usize, 1>,
         #[state]
         sigma: f64,
         time: f64,
@@ -101,12 +101,12 @@ mod processor {
 
 mod transducer {
     #[xdevs::atomic]
-    struct Transducer {
+    pub struct Transducer {
         #[input]
-        in_generator: xdevs::port::Port<usize, 1>,
-        in_processor: xdevs::port::Port<usize, 1>,
+        pub in_generator: xdevs::port::Port<usize, 1>,
+        pub in_processor: xdevs::port::Port<usize, 1>,
         #[output]
-        out_stop: xdevs::port::Port<bool, 1>,
+        pub out_stop: xdevs::port::Port<bool, 1>,
         #[state]
         sigma: f64,
         clock: f64,
@@ -156,7 +156,7 @@ mod transducer {
 }
 
 #[xdevs::coupled]
-struct GPT {
+pub struct GPT {
     #[components]
     generator: generator::Generator,
     processor: processor::Processor,
@@ -220,7 +220,7 @@ impl xdevs::Coupled for EF {
 }
 
 #[xdevs::coupled]
-struct EFP {
+pub struct EFP {
     #[components]
     ef: EF,
     processor: processor::Processor,
