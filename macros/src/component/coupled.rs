@@ -44,85 +44,82 @@ impl Coupled {
     }
 
     pub fn quote(&self) -> TokenStream2 {
-        let ident = &self.component.ident;
+        let component = &self.component;
+
+        let vis = &component.vis;
+        let ident = &component.ident;
+        let span = ident.span();
 
         // Prepare identifiers for code generation
-        let input_ident = Ident::new(
-            &format!("{}Input", &self.component.ident),
-            self.component.ident.span(),
-        );
-        let output_ident = Ident::new(
-            &format!("{}Output", &self.component.ident),
-            self.component.ident.span(),
-        );
-        let components_ident = Ident::new(
-            &format!("{}Components", &self.component.ident),
-            self.component.ident.span(),
-        );
-        let components_fields = self.component.components.field_idents();
-        let components_tys = self.component.components.field_tys();
+        let input = &component.input;
+        let output = &component.output;
+        let components = &component.components;
+
+        let input_ident = &input.ident;
+        let output_ident = &output.ident;
+        let components_ident = &components.ident;
+
+        let components_fields = components.field_idents();
+        let components_tys = components.field_tys();
 
         // Extract generics for impl
-        let (impl_generics, ty_generics, where_clause) = self.component.generics.split_for_impl();
-        let (_, input_ty_generics, _) = &self.component.input.generics.split_for_impl();
-        let (_, output_ty_generics, _) = &self.component.output.generics.split_for_impl();
+        let (impl_generics, ty_generics, where_clause) = component.generics.split_for_impl();
+        let (_, input_ty_generics, _) = input.generics.split_for_impl();
+        let (_, output_ty_generics, _) = output.generics.split_for_impl();
+
         let (components_impl_generics, components_ty_generics, components_where_clause) =
-            &self.component.components.generics.split_for_impl();
+            components.generics.split_for_impl();
 
         // Generate input, output, and components structs
-        let is_bagmux = self.component.rt_engine.is_some();
-        let input_struct = self.component.input.quote(is_bagmux);
-        let output_struct = self.component.output.quote(is_bagmux);
-        let components_struct = self.component.components.quote();
+        let is_bagmux = component.rt_engine.is_some();
+
+        let input_struct = input.quote(is_bagmux, &vis);
+        let output_struct = output.quote(is_bagmux, &vis);
+        let components_struct = components.quote(&vis);
+
         // Component trait implementation
         let component_impl = impl_component(
             ident,
             &input_ident,
             &output_ident,
-            &self.component.generics,
-            input_ty_generics,
-            output_ty_generics,
+            &component.generics,
+            &input_ty_generics,
+            &output_ty_generics,
         );
 
         // Generate rt_engine code if defined
-        let rt_engine_impl = self.component.quote_rt_engine();
+        let rt_engine_impl = component.quote_rt_engine();
 
-        // Generate wrapper structs for inner components' inputs and outputs
+        // Generate wrapper structs for inner components' inputs and outputs.
         // These structs hold all inner components' inputs/outputs,
         // allowing them to be passed as a single argument to trait methods.
-        let components_input_ident = Ident::new(&format!("{}ComponentsInput", ident), ident.span());
-        let components_output_ident =
-            Ident::new(&format!("{}ComponentsOutput", ident), ident.span());
-
-        let components_input_fields: Vec<TokenStream2> = self
-            .component
-            .components
+        let components_input_ident = Ident::new(&format!("{ident}ComponentsInput"), span);
+        let components_output_ident = Ident::new(&format!("{ident}ComponentsOutput"), span);
+        let components_input_fields: Vec<TokenStream2> = components
             .fields
             .iter()
             .map(|field| {
                 let field_ident = &field.ident;
                 let field_ty = &field.ty;
+
                 quote::quote! {
                     pub #field_ident: <#field_ty as ::xdevs::traits::Component>::Input
                 }
             })
             .collect();
 
-        let components_output_fields: Vec<TokenStream2> = self
-            .component
-            .components
+        let components_output_fields: Vec<TokenStream2> = components
             .fields
             .iter()
             .map(|field| {
                 let field_ident = &field.ident;
                 let field_ty = &field.ty;
+
                 quote::quote! {
                     pub #field_ident: <#field_ty as ::xdevs::traits::Component>::Output
                 }
             })
             .collect();
-
-        // Generate struct definition generics and usage generics for ComponentsInput/ComponentsOutput
 
         // Generate the expanded code
         let expanded = quote::quote! {
@@ -143,12 +140,12 @@ impl Coupled {
                 #(#components_output_fields),*
             }
 
-            pub struct #ident #impl_generics #where_clause {
-                pub components_input: #components_input_ident #components_ty_generics,
-                pub components_output: #components_output_ident #components_ty_generics,
-                pub t_last: f64,
-                pub t_next: f64,
-                pub components: #components_ident #components_ty_generics,
+            #vis struct #ident #impl_generics #where_clause {
+                components_input: #components_input_ident #components_ty_generics,
+                components_output: #components_output_ident #components_ty_generics,
+                t_last: f64,
+                t_next: f64,
+                components: #components_ident #components_ty_generics,
             }
             impl #impl_generics #ident #ty_generics #where_clause {
                 #[inline]
