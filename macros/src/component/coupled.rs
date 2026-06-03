@@ -73,9 +73,9 @@ impl Coupled {
         // Generate input, output, and components structs
         let is_bagmux = component.rt_engine.is_some();
 
-        let input_struct = input.quote(is_bagmux);
-        let output_struct = output.quote(is_bagmux);
-        let components_struct = components.quote();
+        let input_struct = input.quote(is_bagmux, &vis);
+        let output_struct = output.quote(is_bagmux, &vis);
+        let components_struct = components.quote(&vis);
 
         // Component trait implementation
         let component_impl = impl_component(

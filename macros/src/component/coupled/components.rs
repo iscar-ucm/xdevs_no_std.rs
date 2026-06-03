@@ -1,6 +1,6 @@
 use crate::component::ComponentField;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Generics, Ident, Type};
+use syn::{Generics, Ident, Type, Visibility};
 
 /// Parsed inner component fields for coupled2 model generation.
 pub struct Components {
@@ -30,7 +30,7 @@ impl Components {
         self.fields.iter().map(|f| &f.ty).collect()
     }
 
-    pub fn quote(&self) -> TokenStream2 {
+    pub fn quote(&self, vis: &Visibility) -> TokenStream2 {
         let ident = &self.ident;
         let fields_vis = self.field_vis();
         let fields_ident = self.field_idents();
@@ -39,7 +39,7 @@ impl Components {
 
         // TODO determine what to do with components struct visibility
         quote::quote! {
-            pub struct #ident #impl_generics #where_clause{
+            #vis struct #ident #impl_generics #where_clause{
                 #(#fields_vis #fields_ident: #fields_ty,)*
             }
             impl #impl_generics #ident #ty_generics #where_clause {

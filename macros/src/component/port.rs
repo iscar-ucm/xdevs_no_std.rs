@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Expr, ExprLit, Generics, Ident, Lit, PathArguments, Type};
+use syn::{Expr, ExprLit, Generics, Ident, Lit, PathArguments, Type, Visibility};
 
 use super::ComponentField;
 
@@ -44,7 +44,7 @@ impl Ports {
         news
     }
 
-    pub fn quote(&self, is_bagmux: bool) -> TokenStream2 {
+    pub fn quote(&self, is_bagmux: bool, vis: &Visibility) -> TokenStream2 {
         let ident = &self.ident;
         let ports_vis = self.field_vis();
         let ports_ident = self.field_idents();
@@ -62,7 +62,7 @@ impl Ports {
         // TODO determine what to do with ports struct visibility
         quote::quote! {
             #[derive(::xdevs::Bag #bagmux)]
-            pub struct #ident #impl_generics #where_clause {
+            #vis struct #ident #impl_generics #where_clause {
                 #(#ports_vis #ports_ident: #ports_ty,)*
             }
             impl #impl_generics #ident #ty_generics #where_clause {

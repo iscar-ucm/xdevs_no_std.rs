@@ -71,9 +71,9 @@ impl Atomic {
 
         // Generate input, output, and state structs
         let is_bagmux = component.rt_engine.is_some();
-        let input_struct = input.quote(is_bagmux);
-        let output_struct = output.quote(is_bagmux);
-        let state_struct = state.quote();
+        let input_struct = input.quote(is_bagmux, &vis);
+        let output_struct = output.quote(is_bagmux, &vis);
+        let state_struct = state.quote(&vis);
 
         // Generate rt_engine code if defined
         let rt_engine_impl = component.quote_rt_engine();
