@@ -19,8 +19,8 @@ use syn::{
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     visit::{self, Visit},
-    Attribute, Error, Field, Fields, GenericParam, Generics, Ident, ItemStruct, Lifetime, Meta,
-    Result, Token, Type, TypeGenerics, TypePath, Visibility,
+    Attribute, Error, ExprPath, Field, Fields, GenericParam, Generics, Ident, ItemStruct, Lifetime,
+    Meta, Result, Token, Type, TypeGenerics, TypePath, Visibility,
 };
 
 /// Different types of fields supported by `#[atomic]` and `#[coupled]` components.
@@ -274,51 +274,125 @@ impl Component {
 
 /// Internal visitor used to collect generic parameters referenced by fields.
 struct GenericsCollector<'a> {
-    type_idents: HashSet<&'a Ident>,
-    lifetimes: HashSet<&'a Lifetime>,
+    declared_types: &'a HashSet<String>,
+    declared_consts: &'a HashSet<String>,
+    declared_lifetimes: &'a HashSet<String>,
+
+    used_types: HashSet<String>,
+    used_consts: HashSet<String>,
+    used_lifetimes: HashSet<String>,
 }
 
-impl<'a, 'ast: 'a> Visit<'ast> for GenericsCollector<'a> {
-    fn visit_type_path(&mut self, node: &'ast TypePath) {
-        if let Some(ident) = node.path.get_ident() {
-            self.type_idents.insert(ident);
+impl<'a> GenericsCollector<'a> {
+    fn new(
+        declared_types: &'a HashSet<String>,
+        declared_consts: &'a HashSet<String>,
+        declared_lifetimes: &'a HashSet<String>,
+    ) -> Self {
+        Self {
+            declared_types,
+            declared_consts,
+            declared_lifetimes,
+            used_types: HashSet::new(),
+            used_consts: HashSet::new(),
+            used_lifetimes: HashSet::new(),
         }
+    }
+
+    fn maybe_type(&mut self, ident: &Ident) {
+        let name = ident.to_string();
+        if self.declared_types.contains(&name) {
+            self.used_types.insert(name);
+        }
+    }
+
+    fn maybe_const(&mut self, ident: &Ident) {
+        let name = ident.to_string();
+        if self.declared_consts.contains(&name) {
+            self.used_consts.insert(name);
+        }
+    }
+
+    fn maybe_lifetime(&mut self, lifetime: &Lifetime) {
+        let name = lifetime.ident.to_string();
+        if self.declared_lifetimes.contains(&name) {
+            self.used_lifetimes.insert(name);
+        }
+    }
+}
+
+impl<'ast, 'g> Visit<'ast> for GenericsCollector<'g> {
+    fn visit_type_path(&mut self, node: &'ast TypePath) {
+        if node.qself.is_none() {
+            if let Some(ident) = node.path.get_ident() {
+                self.maybe_type(ident);
+            } else if let Some(first) = node.path.segments.first() {
+                self.maybe_type(&first.ident);
+            }
+        }
+
         visit::visit_type_path(self, node);
     }
 
-    fn visit_lifetime(&mut self, lt: &'ast Lifetime) {
-        self.lifetimes.insert(lt);
-        visit::visit_lifetime(self, lt);
+    fn visit_expr_path(&mut self, node: &'ast ExprPath) {
+        if node.qself.is_none() {
+            if let Some(ident) = node.path.get_ident() {
+                self.maybe_const(ident);
+            }
+        }
+
+        visit::visit_expr_path(self, node);
+    }
+
+    fn visit_lifetime(&mut self, lifetime: &'ast Lifetime) {
+        self.maybe_lifetime(lifetime);
     }
 }
 
 pub fn filter_generics(fields: &[ComponentField], all: &Generics) -> Generics {
-    let mut collector = GenericsCollector {
-        type_idents: HashSet::new(),
-        lifetimes: HashSet::new(),
-    };
+    let declared_types = all
+        .type_params()
+        .map(|tp| tp.ident.to_string())
+        .collect::<HashSet<_>>();
+
+    let declared_consts = all
+        .const_params()
+        .map(|cp| cp.ident.to_string())
+        .collect::<HashSet<_>>();
+
+    let declared_lifetimes = all
+        .lifetimes()
+        .map(|lp| lp.lifetime.ident.to_string())
+        .collect::<HashSet<_>>();
+
+    let mut collector =
+        GenericsCollector::new(&declared_types, &declared_consts, &declared_lifetimes);
+
     for field in fields {
         collector.visit_type(&field.ty);
     }
 
     // Filter params
     let mut new_generics = all.clone();
+
     new_generics.params = all
         .params
         .iter()
-        .filter_map(|param| match param {
-            GenericParam::Type(tp) if collector.type_idents.contains(&tp.ident) => {
-                Some(param.clone())
-            }
-            GenericParam::Lifetime(lp) if collector.lifetimes.contains(&lp.lifetime) => {
-                Some(param.clone())
-            }
-            GenericParam::Const(cp) if collector.type_idents.contains(&cp.ident) => {
-                Some(param.clone())
-            }
-            _ => None,
+        .filter(|param| match param {
+            GenericParam::Type(tp) => collector.used_types.contains(&tp.ident.to_string()),
+            GenericParam::Lifetime(lp) => collector
+                .used_lifetimes
+                .contains(&lp.lifetime.ident.to_string()),
+            GenericParam::Const(cp) => collector.used_consts.contains(&cp.ident.to_string()),
         })
+        .cloned()
         .collect();
+
+    if new_generics.params.is_empty() {
+        new_generics.lt_token = None;
+        new_generics.gt_token = None;
+    }
+
     new_generics
 }
 

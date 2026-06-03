@@ -61,6 +61,15 @@ impl Atomic {
         let (_, output_generics, _) = &self.component.output.generics.split_for_impl();
         let (_, state_generics, _) = &self.component.state.generics.split_for_impl();
 
+        let (phantom_field, generate_phantom) = if !self.component.generics.params.is_empty() {
+            let phantom_field =
+                quote::quote! { _phantom_data: ::core::marker::PhantomData #ty_generics, };
+            let generate_phantom = quote::quote! { _phantom_data: ::core::marker::PhantomData, };
+            (phantom_field, generate_phantom)
+        } else {
+            (quote::quote! {}, quote::quote! {})
+        };
+
         // Generate input, output, and state structs
         let is_bagmux = self.component.rt_engine.is_some();
         let input_struct = self.component.input.quote(is_bagmux);
@@ -90,6 +99,7 @@ impl Atomic {
                 pub t_last: f64,
                 pub t_next: f64,
                 pub state: #state_ident #state_generics,
+                #phantom_field
             }
             impl #impl_generics #ident #ty_generics #where_clause {
                 #[inline]
@@ -98,6 +108,7 @@ impl Atomic {
                         t_last: 0.0,
                         t_next: f64::INFINITY,
                         state: #state_ident::new(#(#state_fields),*),
+                        #generate_phantom
                     }
                 }
             }
