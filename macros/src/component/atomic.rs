@@ -112,6 +112,14 @@ impl Atomic {
             #component_impl
             unsafe impl #impl_generics ::xdevs::traits::PartialAtomic for #ident #ty_generics #where_clause {
                 type State = #state_ident #state_generics;
+                #[inline]
+                fn get_state(&self) -> &Self::State {
+                    &self.state
+                }
+                #[inline]
+                fn get_state_mut(&mut self) -> &mut Self::State {
+                    &mut self.state
+                }
             }
             unsafe impl #impl_generics ::xdevs::traits::AbstractSimulator for #ident #ty_generics #where_clause {
                 #[inline]
@@ -119,8 +127,12 @@ impl Atomic {
                     // set t_last to t_start
                     ::xdevs::traits::Component::set_t_last(self, t_start);
                     // start state and get t_next from ta
-                    <Self as ::xdevs::Atomic>::start(&mut self.state);
-                    let t_next = t_start + <Self as ::xdevs::Atomic>::ta(&self.state);
+                    <Self as ::xdevs::Atomic>::start(
+                        <Self as ::xdevs::traits::PartialAtomic>::get_state_mut(self)
+                    );
+                    let t_next = t_start + <Self as ::xdevs::Atomic>::ta(
+                        <Self as ::xdevs::traits::PartialAtomic>::get_state(self)
+                    );
                     ::xdevs::traits::Component::set_t_next(self, t_next);
 
                     t_next
@@ -128,7 +140,9 @@ impl Atomic {
                 #[inline]
                 fn stop(&mut self, t_stop: f64) {
                     // stop state
-                    <Self as ::xdevs::Atomic>::stop(&mut self.state);
+                    <Self as ::xdevs::Atomic>::stop(
+                        <Self as ::xdevs::traits::PartialAtomic>::get_state_mut(self)
+                    );
                     // set t_last to t_stop and t_next to infinity
                     ::xdevs::traits::Component::set_t_last(self, t_stop);
                     ::xdevs::traits::Component::set_t_next(self, f64::INFINITY);
@@ -137,7 +151,10 @@ impl Atomic {
                 fn lambda(&mut self, output: &mut Self::Output, t: f64) {
                     if t >= ::xdevs::traits::Component::get_t_next(self) {
                         // execute atomic model's lambda if applies
-                        <Self as ::xdevs::Atomic>::lambda(&self.state, output);
+                        <Self as ::xdevs::Atomic>::lambda(
+                            <Self as ::xdevs::traits::PartialAtomic>::get_state(self),
+                            output
+                        );
                     }
                 }
                 #[inline]
@@ -146,26 +163,37 @@ impl Atomic {
                     if !::xdevs::traits::Bag::is_empty(input) {
                         if t >= t_next {
                             // confluent transition
-                            <Self as ::xdevs::Atomic>::delta_conf(&mut self.state, input);
+                            <Self as ::xdevs::Atomic>::delta_conf(
+                                <Self as ::xdevs::traits::PartialAtomic>::get_state_mut(self),
+                                input
+                            );
                             // clear output events
                             <Self::Output as ::xdevs::traits::Bag>::clear(output);
                         } else {
                             // external transition
                             let e = t - ::xdevs::traits::Component::get_t_last(self);
-                            <Self as ::xdevs::Atomic>::delta_ext(&mut self.state, e, input);
+                            <Self as ::xdevs::Atomic>::delta_ext(
+                                <Self as ::xdevs::traits::PartialAtomic>::get_state_mut(self),
+                                e,
+                                input
+                            );
                         }
                         // clear input events
                         <Self::Input as ::xdevs::traits::Bag>::clear(input);
                     } else if t >= t_next {
                         // internal transition
-                        <Self as ::xdevs::Atomic>::delta_int(&mut self.state);
+                        <Self as ::xdevs::Atomic>::delta_int(
+                            <Self as ::xdevs::traits::PartialAtomic>::get_state_mut(self)
+                        );
                         // clear output events
                         <Self::Output as ::xdevs::traits::Bag>::clear(output);
                     } else {
                         return t_next; // nothing to do
                     }
                     // get t_next from ta and set new t_last and t_next
-                    t_next = t + <Self as ::xdevs::Atomic>::ta(&self.state);
+                    t_next = t + <Self as ::xdevs::Atomic>::ta(
+                        <Self as ::xdevs::traits::PartialAtomic>::get_state_mut(self)
+                    );
                     ::xdevs::traits::Component::set_t_last(self, t);
                     ::xdevs::traits::Component::set_t_next(self, t_next);
 

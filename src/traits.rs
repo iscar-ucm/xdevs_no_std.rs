@@ -84,6 +84,12 @@ pub unsafe trait Component {
 pub unsafe trait PartialAtomic: Component {
     /// The data type used to represent the state of the model.
     type State;
+
+    /// Returns a reference to the current state of the model.
+    fn get_state(&self) -> &Self::State;
+
+    /// Returns a mutable reference to the current state of the model.
+    fn get_state_mut(&mut self) -> &mut Self::State;
 }
 
 /// Partial interface for DEVS coupled models.
