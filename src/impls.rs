@@ -2,11 +2,7 @@
 #[cfg(any(feature = "std", feature = "alloc"))]
 extern crate alloc;
 
-use crate::traits::sealed::Sealed;
-use crate::traits::AbstractSimulator;
-use crate::traits::AsPort;
-use crate::traits::Bag;
-use crate::traits::Component;
+use crate::traits::{sealed::Sealed, AbstractSimulator, AsPort, Bag, Component, SimTime};
 
 //////////////////////////////////////////////// Arrays //////////////////////////////////////////////
 unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
@@ -32,7 +28,9 @@ impl<T: AsPort, const N: usize> Sealed for [T; N] {}
 unsafe impl<T: Component, const N: usize> Component for [T; N] {
     type Input = [T::Input; N];
     type Output = [T::Output; N];
+}
 
+unsafe impl<T: SimTime, const N: usize> SimTime for [T; N] {
     fn get_t_last(&self) -> f64 {
         self.iter()
             .map(|c| c.get_t_last())
@@ -92,7 +90,9 @@ macro_rules! impl_ref {
         unsafe impl<T: Component> Component for $ty {
             type Input = T::Input;
             type Output = T::Output;
+        }
 
+        unsafe impl<T: SimTime> SimTime for $ty {
             fn get_t_last(&self) -> f64 {
                 (**self).get_t_last()
             }

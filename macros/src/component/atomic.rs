@@ -1,8 +1,6 @@
 use crate::combine_err;
-use crate::component::ComponentArgs;
 
-use super::impl_component;
-use super::Component;
+use super::{impl_component, impl_sim_time, Component, ComponentArgs};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{Error, ItemStruct, Result};
 
@@ -88,6 +86,9 @@ impl Atomic {
             &output_generics,
         );
 
+        // SimTime trait implementation
+        let sim_time_impl = impl_sim_time(ident, &component.generics);
+
         // Generate the expanded code
         let expanded = quote::quote! {
             #input_struct
@@ -110,6 +111,7 @@ impl Atomic {
                 }
             }
             #component_impl
+            #sim_time_impl
             unsafe impl #impl_generics ::xdevs::traits::PartialAtomic for #ident #ty_generics #where_clause {
                 type State = #state_ident #state_generics;
             }
@@ -117,11 +119,11 @@ impl Atomic {
                 #[inline]
                 fn start(&mut self, t_start: f64) -> f64 {
                     // set t_last to t_start
-                    ::xdevs::traits::Component::set_t_last(self, t_start);
+                    ::xdevs::traits::SimTime::set_t_last(self, t_start);
                     // start state and get t_next from ta
                     <Self as ::xdevs::Atomic>::start(&mut self.state);
                     let t_next = t_start + <Self as ::xdevs::Atomic>::ta(&self.state);
-                    ::xdevs::traits::Component::set_t_next(self, t_next);
+                    ::xdevs::traits::SimTime::set_t_next(self, t_next);
 
                     t_next
                 }
@@ -130,19 +132,19 @@ impl Atomic {
                     // stop state
                     <Self as ::xdevs::Atomic>::stop(&mut self.state);
                     // set t_last to t_stop and t_next to infinity
-                    ::xdevs::traits::Component::set_t_last(self, t_stop);
-                    ::xdevs::traits::Component::set_t_next(self, f64::INFINITY);
+                    ::xdevs::traits::SimTime::set_t_last(self, t_stop);
+                    ::xdevs::traits::SimTime::set_t_next(self, f64::INFINITY);
                 }
                 #[inline]
                 fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-                    if t >= ::xdevs::traits::Component::get_t_next(self) {
+                    if t >= ::xdevs::traits::SimTime::get_t_next(self) {
                         // execute atomic model's lambda if applies
                         <Self as ::xdevs::Atomic>::lambda(&self.state, output);
                     }
                 }
                 #[inline]
                 fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-                    let mut t_next = ::xdevs::traits::Component::get_t_next(self);
+                    let mut t_next = ::xdevs::traits::SimTime::get_t_next(self);
                     if !::xdevs::traits::Bag::is_empty(input) {
                         if t >= t_next {
                             // confluent transition
@@ -151,7 +153,7 @@ impl Atomic {
                             <Self::Output as ::xdevs::traits::Bag>::clear(output);
                         } else {
                             // external transition
-                            let e = t - ::xdevs::traits::Component::get_t_last(self);
+                            let e = t - ::xdevs::traits::SimTime::get_t_last(self);
                             <Self as ::xdevs::Atomic>::delta_ext(&mut self.state, e, input);
                         }
                         // clear input events
@@ -166,8 +168,8 @@ impl Atomic {
                     }
                     // get t_next from ta and set new t_last and t_next
                     t_next = t + <Self as ::xdevs::Atomic>::ta(&self.state);
-                    ::xdevs::traits::Component::set_t_last(self, t);
-                    ::xdevs::traits::Component::set_t_next(self, t_next);
+                    ::xdevs::traits::SimTime::set_t_last(self, t);
+                    ::xdevs::traits::SimTime::set_t_next(self, t_next);
 
                     t_next
                 }

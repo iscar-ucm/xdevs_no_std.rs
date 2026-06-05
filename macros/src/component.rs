@@ -335,6 +335,14 @@ fn impl_component(
         unsafe impl #impl_generics xdevs::traits::Component for #ident #ty_generics{
             type Input = #input_ident #input_generics;
             type Output = #output_ident #output_generics;
+        }
+    }
+}
+
+fn impl_sim_time(ident: &Ident, generics: &Generics) -> TokenStream2 {
+    let (impl_generics, ty_generics, _) = generics.split_for_impl();
+    quote::quote! {
+        unsafe impl #impl_generics xdevs::traits::SimTime for #ident #ty_generics{
             #[inline]
             fn get_t_last(&self) -> f64 {
                 self.t_last

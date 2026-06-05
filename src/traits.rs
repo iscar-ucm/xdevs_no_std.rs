@@ -61,18 +61,6 @@ pub unsafe trait Component {
 
     /// Output event bag of the model.
     type Output: Bag;
-
-    /// Returns the last time the component was updated.
-    fn get_t_last(&self) -> f64;
-
-    /// Sets the last time the component was updated.
-    fn set_t_last(&mut self, t_last: f64);
-
-    /// Returns the next time the component will be updated.
-    fn get_t_next(&self) -> f64;
-
-    /// Sets the next time the component will be updated.
-    fn set_t_next(&mut self, t_next: f64);
 }
 
 /// Partial interface for DEVS atomic models.
@@ -100,12 +88,34 @@ pub unsafe trait PartialCoupled: Component {
     type ComponentsOutput: Bag;
 }
 
+/// Trait for handling time during a DEVS simulation.
+///
+/// In order to be able to simulate DEVS models, the simulator needs this trait to
+/// keep track of time and the time of the next state transition of each component.
+///
+/// # Safety
+///
+/// This trait must be implemented via macros. Do not implement it manually.
+pub unsafe trait SimTime {
+    /// Returns the last time the component was updated.
+    fn get_t_last(&self) -> f64;
+
+    /// Sets the last time the component was updated.
+    fn set_t_last(&mut self, t_last: f64);
+
+    /// Returns the next time the component will be updated.
+    fn get_t_next(&self) -> f64;
+
+    /// Sets the next time the component will be updated.
+    fn set_t_next(&mut self, t_next: f64);
+}
+
 /// Interface for simulating DEVS models. All DEVS models must implement this trait.
 ///
 /// # Safety
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
-pub unsafe trait AbstractSimulator: Component {
+pub unsafe trait AbstractSimulator: Component + SimTime {
     /// It starts the simulation, setting the initial time to t_start.
     /// It returns the time for the next state transition of the inner DEVS model.
     fn start(&mut self, t_start: f64) -> f64;
