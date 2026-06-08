@@ -1,10 +1,7 @@
 pub mod components;
 
+use super::{impl_component, impl_sim_time, Component, ComponentArgs};
 use crate::combine_err;
-use crate::component::ComponentArgs;
-
-use super::impl_component;
-use super::Component;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{Error, Ident, ItemStruct, Result};
 
@@ -87,6 +84,9 @@ impl Coupled {
             &output_ty_generics,
         );
 
+        // SimTime trait implementation
+        let sim_time_impl = impl_sim_time(ident, &component.generics);
+
         // Generate rt_engine code if defined
         let rt_engine_impl = component.quote_rt_engine();
 
@@ -160,6 +160,7 @@ impl Coupled {
                 }
             }
             #component_impl
+            #sim_time_impl
             unsafe impl #impl_generics ::xdevs::traits::PartialCoupled for #ident #ty_generics #where_clause {
                 type ComponentsInput = #components_input_ident #components_ty_generics;
                 type ComponentsOutput = #components_output_ident #components_ty_generics;
@@ -168,12 +169,12 @@ impl Coupled {
                 #[inline]
                 fn start(&mut self, t_start: f64) -> f64 {
                     // set t_last to t_start
-                    ::xdevs::traits::Component::set_t_last(self, t_start);
+                    ::xdevs::traits::SimTime::set_t_last(self, t_start);
                     // get minimum t_next from all components
                     let mut t_next = f64::INFINITY;
                     #(t_next = f64::min(t_next, ::xdevs::traits::AbstractSimulator::start(&mut self.components.#components_fields, t_start));)*
                     // set t_next to minimum t_next
-                    ::xdevs::traits::Component::set_t_next(self, t_next);
+                    ::xdevs::traits::SimTime::set_t_next(self, t_next);
 
                     t_next
                 }
@@ -183,13 +184,13 @@ impl Coupled {
                     // stop all components
                     #(::xdevs::traits::AbstractSimulator::stop(&mut self.components.#components_fields, t_stop);)*
                     // set t_last to t_stop and t_next to infinity
-                    ::xdevs::traits::Component::set_t_last(self, t_stop);
-                    ::xdevs::traits::Component::set_t_next(self, f64::INFINITY);
+                    ::xdevs::traits::SimTime::set_t_last(self, t_stop);
+                    ::xdevs::traits::SimTime::set_t_next(self, f64::INFINITY);
                 }
 
                 #[inline]
                 fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-                    if t >= ::xdevs::traits::Component::get_t_next(self) {
+                    if t >= ::xdevs::traits::SimTime::get_t_next(self) {
                         // propagate lambda to all components
                         #(::xdevs::traits::AbstractSimulator::lambda(&mut self.components.#components_fields, &mut self.components_output.#components_fields, t);)*
                         // propagate EOCs via Coupled trait
@@ -212,8 +213,8 @@ impl Coupled {
                          t));)*
 
                     // set t_last to t and t_next to minimum t_next
-                    ::xdevs::traits::Component::set_t_last(self, t);
-                    ::xdevs::traits::Component::set_t_next(self, t_next);
+                    ::xdevs::traits::SimTime::set_t_last(self, t);
+                    ::xdevs::traits::SimTime::set_t_next(self, t_next);
 
                     // clear input and output events
                     <Self::Input as ::xdevs::traits::Bag>::clear(input);
