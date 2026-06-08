@@ -537,3 +537,37 @@ impl<const W: usize> xdevs::Coupled for TopModel<W> {
         let _ = from.generator.out_job.couple(&mut to.ho_model.input_port);
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn expected_n_atomic(width: usize, depth: usize) -> usize {
+        (width - 1) * (depth - 1) + 1
+    }
+
+    //CAMBIAR ESTA ECUACIÓN
+    fn expected_n_events(width: usize, depth: usize) -> usize {
+        1 + (depth - 1) * ((width - 1) * width) / 2
+    }
+
+    #[test]
+    fn test_ho() {
+        const WIDTH: usize = 100;
+        const DEPTH: usize = 100;
+        const W: usize = WIDTH - 1;
+
+        xdevs::generate_ho!(100, 100);
+
+        let generator = JobGenerator::new(5);
+        let top_model: TopModel<W> = TopModel::build(generator, model_ho);
+        let mut simulator = xdevs::simulator::Simulator::new(top_model);
+        let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);
+        simulator.simulate_vt(&config);
+        let top_model = simulator.get_model();
+
+        assert_eq!(expected_n_atomic(WIDTH, DEPTH), top_model.get_n_atomics());
+        assert_eq!(expected_n_events(WIDTH, DEPTH), top_model.get_n_events());
+        assert_eq!(top_model.get_n_internals(), top_model.get_n_externals());
+    }
+}
