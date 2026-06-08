@@ -51,11 +51,7 @@ pub unsafe trait BagMux: Bag {
 }
 
 /// Interface for DEVS components. All DEVS components must implement this trait.
-///
-/// # Safety
-///
-/// This trait must be implemented via macros. Do not implement it manually.
-pub unsafe trait Component {
+pub trait Component {
     /// Input event bag of the model.
     type Input: Bag;
 

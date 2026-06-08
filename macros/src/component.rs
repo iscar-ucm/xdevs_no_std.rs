@@ -332,7 +332,7 @@ fn impl_component(
 ) -> TokenStream2 {
     let (impl_generics, ty_generics, _) = generics.split_for_impl();
     quote::quote! {
-        unsafe impl #impl_generics xdevs::traits::Component for #ident #ty_generics{
+        impl #impl_generics xdevs::traits::Component for #ident #ty_generics{
             type Input = #input_ident #input_generics;
             type Output = #output_ident #output_generics;
         }

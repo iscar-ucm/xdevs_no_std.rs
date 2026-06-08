@@ -25,7 +25,7 @@ impl<T: AsPort, const N: usize> AsPort for [T; N] {
 
 impl<T: AsPort, const N: usize> Sealed for [T; N] {}
 
-unsafe impl<T: Component, const N: usize> Component for [T; N] {
+impl<T: Component, const N: usize> Component for [T; N] {
     type Input = [T::Input; N];
     type Output = [T::Output; N];
 }
@@ -87,7 +87,7 @@ unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for [T; N] {
 
 macro_rules! impl_ref {
     ( $ty:ty ) => {
-        unsafe impl<T: Component> Component for $ty {
+        impl<T: Component> Component for $ty {
             type Input = T::Input;
             type Output = T::Output;
         }
