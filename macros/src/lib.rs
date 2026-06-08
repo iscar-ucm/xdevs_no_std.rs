@@ -3,7 +3,9 @@ use syn::{parse_macro_input, Error};
 
 mod component;
 mod derive;
+mod devstone;
 
+// Main macros to generate DEVS models
 #[proc_macro_attribute]
 pub fn atomic(args: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as component::ComponentArgs);
@@ -51,5 +53,36 @@ pub(crate) fn combine_err(acc: &mut Option<Error>, err: Error) {
     match acc {
         Some(e) => e.combine(err),
         None => *acc = Some(err),
+    }
+}
+
+// DEVStone macros
+#[proc_macro]
+pub fn generate_li(input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(input as devstone::GenerateArgs);
+
+    match devstone::expand_li(args) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+#[proc_macro]
+pub fn generate_hi(input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(input as devstone::GenerateArgs);
+
+    match devstone::expand_hi(args) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+#[proc_macro]
+pub fn generate_ho(input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(input as devstone::GenerateArgs);
+
+    match devstone::expand_ho(args) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
     }
 }

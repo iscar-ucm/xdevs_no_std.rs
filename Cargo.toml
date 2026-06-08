@@ -29,6 +29,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 [features]
 embassy = ["embassy-sync", "xdevs-no-std-macros/embassy-backend"]
 std = [
+    "alloc",
     "tokio/time",
     "xdevs-no-std-macros/std-backend",
     "embassy-time/std",
