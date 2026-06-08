@@ -1,5 +1,3 @@
-extern crate std;
-
 use crate::{
     simulator::Config,
     traits::{AsyncInput, Bag},

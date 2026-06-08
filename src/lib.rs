@@ -1,7 +1,12 @@
 #![no_std]
+#[cfg(feature = "alloc")]
+extern crate alloc;
+extern crate self as xdevs;
+#[cfg(feature = "std")]
+extern crate std;
 
-pub use xdevs_no_std_macros::*;
-
+#[cfg(feature = "alloc")]
+pub mod devstone;
 pub mod export;
 mod impls;
 pub mod port;
@@ -13,6 +18,7 @@ pub mod traits;
 pub use embassy_time::{Duration, Instant};
 pub use port::Port;
 pub use simulator::{Config, Simulator};
+pub use xdevs_no_std_macros::*;
 
 /// Interface for DEVS atomic models. All DEVS atomic models must implement this trait.
 pub trait Atomic: traits::PartialAtomic {
