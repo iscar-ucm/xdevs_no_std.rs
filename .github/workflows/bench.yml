@@ -1,0 +1,53 @@
+name: Benchmarks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run benchmarks
+        run: cargo bench --features alloc | tee bench_output.txt
+
+      - name: Upload Criterion reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: criterion-report
+          path: target/criterion
+          
+      - name: Extract benchmark summary
+        id: summary
+        run: |
+          echo "### Benchmark Summary" > summary.md
+          echo "" >> summary.md
+          grep -E "time:|change:" bench_output.txt | head -n 20 >> summary.md || true
+          echo "" >> summary.md
+          echo "----" >> summary.md
+          echo "**Full Criterion report available as artifact**" >> summary.md
+          echo 'Go to the **Actions tab -> this run -> Artifacts -> download `criterion-report`**' >> summary.md
+        
+      - name: Create PR comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: benchmark-report
+          path: summary.md
+          append: true

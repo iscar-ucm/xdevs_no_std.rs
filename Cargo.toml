@@ -24,9 +24,11 @@ embassy-time = { version = "0.5.0" }
 embassy-sync = { version = "0.7.2", optional = true }
 
 [dev-dependencies]
+criterion = "0.8.2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 
 [features]
+alloc = []
 embassy = ["embassy-sync", "xdevs-no-std-macros/embassy-backend"]
 std = [
     "alloc",
@@ -35,7 +37,11 @@ std = [
     "embassy-time/std",
     "embassy-time/generic-queue-8",
 ]
-alloc = []
+
+[[bench]]
+name = "ho"
+harness = false
+required-features = ["alloc"]
 
 [package.metadata.docs.rs]
 all-features = true
