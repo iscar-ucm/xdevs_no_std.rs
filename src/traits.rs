@@ -1,4 +1,4 @@
-use crate::simulator::Config;
+use crate::simulator::{Config, Simulator};
 use core::future::Future;
 use sealed::Sealed;
 
@@ -59,17 +59,6 @@ pub trait Component {
     type Output: Bag;
 }
 
-/// Partial interface for DEVS atomic models.
-/// It is used as a helper trait to implement the [`crate::Atomic`] trait.
-///
-/// # Safety
-///
-/// This trait must be implemented via macros. Do not implement it manually.
-pub unsafe trait PartialAtomic: Component {
-    /// The data type used to represent the state of the model.
-    type State;
-}
-
 /// Partial interface for DEVS coupled models.
 /// It is used as a helper trait to implement [`crate::Coupled`] trait.
 ///
@@ -84,49 +73,32 @@ pub unsafe trait PartialCoupled: Component {
     type ComponentsOutput: Bag;
 }
 
-/// Trait for handling time during a DEVS simulation.
-///
-/// In order to be able to simulate DEVS models, the simulator needs this trait to
-/// keep track of time and the time of the next state transition of each component.
-///
-/// # Safety
-///
-/// This trait must be implemented via macros. Do not implement it manually.
-pub unsafe trait SimTime {
-    /// Returns the last time the component was updated.
-    fn get_t_last(&self) -> f64;
-
-    /// Sets the last time the component was updated.
-    fn set_t_last(&mut self, t_last: f64);
-
-    /// Returns the next time the component will be updated.
-    fn get_t_next(&self) -> f64;
-
-    /// Sets the next time the component will be updated.
-    fn set_t_next(&mut self, t_next: f64);
-}
-
 /// Interface for simulating DEVS models. All DEVS models must implement this trait.
 ///
 /// # Safety
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
-pub unsafe trait AbstractSimulator: Component + SimTime {
+pub unsafe trait AbstractSimulator: Component + Sized {
     /// It starts the simulation, setting the initial time to t_start.
     /// It returns the time for the next state transition of the inner DEVS model.
-    fn start(&mut self, t_start: f64) -> f64;
+    fn start(simulator: &mut Simulator<Self>, t_start: f64) -> f64;
 
     /// It stops the simulation, setting the last time to t_stop.
-    fn stop(&mut self, t_stop: f64);
+    fn stop(simulator: &mut Simulator<Self>, t_stop: f64);
 
     /// Executes output functions and propagates messages according to EOCs.
     /// Internally, it checks that the model is imminent before executing.
-    fn lambda(&mut self, output: &mut Self::Output, t: f64);
+    fn lambda(simulator: &mut Simulator<Self>, output: &mut Self::Output, t: f64);
 
     /// Propagates messages according to ICs and EICs, and executes state transition functions.
     /// Internally, it checks that the model is imminent before executing.
     /// Finally, it returns the time for the next state transition of the inner DEVS model.
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64;
+    fn delta(
+        simulator: &mut Simulator<Self>,
+        input: &mut Self::Input,
+        output: &mut Self::Output,
+        t: f64,
+    ) -> f64;
 }
 
 /// Interface for handling input events in an asynchronous DEVS simulation.

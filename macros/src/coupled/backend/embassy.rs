@@ -1,9 +1,9 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
-use crate::component::{port::Ports, Component, ComponentArgs};
+use crate::coupled::ComponentArgs;
 use heck::ToShoutySnakeCase;
 use syn::{
     parse::{Parse, ParseStream},
-    Error, Result,
+    ItemStruct, Result,
 };
 
 /// Arguments for the `#[rt_engine]` attribute macro.
@@ -40,31 +40,13 @@ impl Parse for RtEngineBackend {
 }
 
 impl Backend for RtEngineBackend {
-    fn check_compatibility(
-        &self,
-        args: &ComponentArgs,
-        input: &Ports,
-        output: &Ports,
-    ) -> Result<()> {
-        let has_input_generics = !input.generics.params.is_empty();
-        let has_output_generics = !output.generics.params.is_empty();
-
-        if has_input_generics || has_output_generics {
-            let span = args
-                .rt_engine_span
-                .unwrap_or_else(|| proc_macro2::Span::call_site());
-            Err(Error::new(
-                span,
-                "rt_engine with embassy backend does not support generic input/output types",
-            ))
-        } else {
-            Ok(())
-        }
+    fn check_compatibility(&self, _args: &ComponentArgs) -> Result<()> {
+        Ok(())
     }
 
-    fn input_channel(&self, model: &Component) -> ChannelTokens {
+    fn input_channel(&self, model: &ItemStruct) -> ChannelTokens {
         let model_ident = &model.ident;
-        let input_ident = &model.input.ident;
+        let input_ident = quote::format_ident!("{}Input", model_ident);
         let in_channel_size = self.in_channel_size;
 
         let channel_type = quote::quote! { ::xdevs::export::InputChannel<'static,
@@ -90,9 +72,9 @@ impl Backend for RtEngineBackend {
         }
     }
 
-    fn output_channel(&self, model: &Component) -> ChannelTokens {
+    fn output_channel(&self, model: &ItemStruct) -> ChannelTokens {
         let model_ident = &model.ident;
-        let output_ident = &model.output.ident;
+        let output_ident = quote::format_ident!("{}Output", model_ident);
         let out_channel_size = self.out_channel_size;
         let max_out_subs = self.max_out_subs;
 

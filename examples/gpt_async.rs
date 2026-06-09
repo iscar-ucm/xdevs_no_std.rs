@@ -2,39 +2,37 @@
 use xdevs::simulator::{std::SleepAsync, Config, Simulator};
 
 mod generator {
-    #[xdevs::atomic]
     pub struct Generator {
-        #[input]
-        pub in_stop: xdevs::port::Port<bool, 1>,
-        #[output]
-        pub out_job: xdevs::port::Port<usize, 1>,
-        #[state]
         sigma: f64,
         period: f64,
         count: usize,
     }
 
+    impl xdevs::traits::Component for Generator {
+        type Input = xdevs::port::Port<bool, 1>;
+        type Output = xdevs::port::Port<usize, 1>;
+    }
     impl xdevs::Atomic for Generator {
-        fn delta_int(state: &mut Self::State) {
-            state.count += 1;
-            state.sigma = state.period;
+        fn delta_int(&mut self) {
+            self.count += 1;
+            self.sigma = self.period;
         }
 
-        fn lambda(state: &Self::State, output: &mut Self::Output) {
-            println!("[G] sending job {}", state.count);
-            output.out_job.add_value(state.count).unwrap();
+        fn lambda(&self, output: &mut Self::Output) {
+            println!("[G] sending job {}", self.count);
+            output.add_value(self.count).unwrap();
         }
 
-        fn ta(state: &Self::State) -> f64 {
-            state.sigma
+        fn ta(&self) -> f64 {
+            self.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
-            state.sigma -= elapsed;
-            if let Some(&stop) = input.in_stop.get_values().last() {
+        fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+            self.sigma -= elapsed;
+            if let Some(&stop) = input.get_values().last() {
                 println!("[G] received stop: {}", stop);
                 if stop {
-                    state.sigma = f64::INFINITY;
+                    self.sigma = f64::INFINITY;
                 }
             }
         }
@@ -42,51 +40,52 @@ mod generator {
 
     impl Generator {
         pub fn new(period: f64) -> Self {
-            Self::build(0.0, period, 0)
+            Self {
+                sigma: 0.0,
+                period,
+                count: 0,
+            }
         }
     }
 }
-
 mod processor {
-    #[xdevs::atomic]
     pub struct Processor {
-        #[input]
-        pub in_job: xdevs::port::Port<usize, 1>,
-        #[output]
-        pub out_job: xdevs::port::Port<usize, 1>,
-        #[state]
         sigma: f64,
         time: f64,
         job: Option<usize>,
     }
 
+    impl xdevs::traits::Component for Processor {
+        type Input = xdevs::port::Port<usize, 1>;
+        type Output = xdevs::port::Port<usize, 1>;
+    }
     impl xdevs::Atomic for Processor {
-        fn delta_int(state: &mut Self::State) {
-            state.sigma = f64::INFINITY;
-            if let Some(job) = state.job {
+        fn delta_int(&mut self) {
+            self.sigma = f64::INFINITY;
+            if let Some(job) = self.job {
                 println!("[P] processed job {}", job);
-                state.job = None;
+                self.job = None;
             }
         }
 
-        fn lambda(state: &Self::State, output: &mut Self::Output) {
-            if let Some(job) = state.job {
-                output.out_job.add_value(job).unwrap();
+        fn lambda(&self, output: &mut Self::Output) {
+            if let Some(job) = self.job {
+                output.add_value(job).unwrap();
             }
         }
 
-        fn ta(state: &Self::State) -> f64 {
-            state.sigma
+        fn ta(&self) -> f64 {
+            self.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
-            state.sigma -= elapsed;
-            if let Some(&job) = input.in_job.get_values().last() {
+        fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+            self.sigma -= elapsed;
+            if let Some(&job) = input.get_values().last() {
                 print!("[P] received job {}", job);
-                if state.job.is_none() {
+                if self.job.is_none() {
                     println!(" (idle)");
-                    state.job = Some(job);
-                    state.sigma = state.time;
+                    self.job = Some(job);
+                    self.sigma = self.time;
                 } else {
                     println!(" (busy)");
                 }
@@ -96,33 +95,41 @@ mod processor {
 
     impl Processor {
         pub fn new(time: f64) -> Self {
-            Self::build(0.0, time, None)
+            Self {
+                sigma: 0.0,
+                time,
+                job: None,
+            }
         }
     }
 }
 
 mod transducer {
-    #[xdevs::atomic]
-    pub struct Transducer {
-        #[input]
+    #[derive(xdevs::Bag)]
+    pub struct TransducerInput {
         pub in_generator: xdevs::port::Port<usize, 1>,
         pub in_processor: xdevs::port::Port<usize, 1>,
-        #[output]
-        pub out_stop: xdevs::port::Port<bool, 1>,
-        #[state]
+    }
+
+    pub struct Transducer {
         sigma: f64,
         clock: f64,
         n_generated: usize,
         n_processed: usize,
     }
 
+    impl xdevs::traits::Component for Transducer {
+        type Input = TransducerInput;
+        type Output = xdevs::port::Port<bool, 1>;
+    }
+
     impl xdevs::Atomic for Transducer {
-        fn delta_int(state: &mut Self::State) {
-            state.clock += state.sigma;
-            let (acceptance, throughput) = if state.n_processed > 0 {
+        fn delta_int(&mut self) {
+            self.clock += self.sigma;
+            let (acceptance, throughput) = if self.n_processed > 0 {
                 (
-                    state.n_processed as f64 / state.n_generated as f64,
-                    state.n_processed as f64 / state.clock,
+                    self.n_processed as f64 / self.n_generated as f64,
+                    self.n_processed as f64 / self.clock,
                 )
             } else {
                 (0.0, 0.0)
@@ -131,116 +138,104 @@ mod transducer {
                 "[T] acceptance: {:.2}, throughput: {:.2}",
                 acceptance, throughput
             );
-            state.sigma = f64::INFINITY;
+            self.sigma = f64::INFINITY;
         }
 
-        fn lambda(_state: &Self::State, output: &mut Self::Output) {
-            output.out_stop.add_value(true).unwrap();
+        fn lambda(&self, output: &mut Self::Output) {
+            output.add_value(true).unwrap();
         }
 
-        fn ta(state: &Self::State) -> f64 {
-            state.sigma
+        fn ta(&self) -> f64 {
+            self.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
-            state.sigma -= elapsed;
-            state.clock += elapsed;
-            state.n_generated += input.in_generator.get_values().len();
-            state.n_processed += input.in_processor.get_values().len();
+        fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+            self.sigma -= elapsed;
+            self.clock += elapsed;
+            self.n_generated += input.in_generator.get_values().len();
+            self.n_processed += input.in_processor.get_values().len();
         }
     }
 
     impl Transducer {
         pub fn new(obs_time: f64) -> Self {
-            Self::build(obs_time, 0.0, 0, 0)
+            Self {
+                sigma: obs_time,
+                clock: 0.0,
+                n_generated: 0,
+                n_processed: 0,
+            }
         }
     }
 }
 
 #[xdevs::coupled]
 pub struct GPT {
-    #[components]
     generator: generator::Generator,
     processor: processor::Processor,
     transducer: transducer::Transducer,
 }
 
+impl xdevs::traits::Component for GPT {
+    type Input = ();
+    type Output = ();
+}
+
 impl xdevs::Coupled for GPT {
     fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
-        from.generator
-            .out_job
-            .couple(&mut to.processor.in_job)
-            .unwrap();
+        from.generator.couple(&mut to.processor).unwrap();
         from.processor
-            .out_job
             .couple(&mut to.transducer.in_processor)
             .unwrap();
         from.generator
-            .out_job
             .couple(&mut to.transducer.in_generator)
             .unwrap();
-        from.transducer
-            .out_stop
-            .couple(&mut to.generator.in_stop)
-            .unwrap();
+        from.transducer.couple(&mut to.generator).unwrap();
     }
 }
 
 #[xdevs::coupled]
 struct EF {
-    #[input]
-    in_processor: xdevs::port::Port<usize, 1>,
-    #[output]
-    out_generator: xdevs::port::Port<usize, 1>,
-    #[components]
     generator: generator::Generator,
     transducer: transducer::Transducer,
+}
+
+impl xdevs::traits::Component for EF {
+    type Input = xdevs::port::Port<usize, 1>;
+    type Output = xdevs::port::Port<usize, 1>;
 }
 
 impl xdevs::Coupled for EF {
     fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
         from.generator
-            .out_job
             .couple(&mut to.transducer.in_generator)
             .unwrap();
-        from.transducer
-            .out_stop
-            .couple(&mut to.generator.in_stop)
-            .unwrap();
+        from.transducer.couple(&mut to.generator).unwrap();
     }
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
-        from.in_processor
-            .couple(&mut to.transducer.in_processor)
-            .unwrap();
+        from.couple(&mut to.transducer.in_processor).unwrap();
     }
     fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {
-        from.generator
-            .out_job
-            .couple(&mut to.out_generator)
-            .unwrap();
+        from.generator.couple(to).unwrap();
     }
 }
 
 #[xdevs::coupled]
 pub struct EFP {
-    #[components]
     ef: EF,
     processor: processor::Processor,
 }
 
+impl xdevs::traits::Component for EFP {
+    type Input = ();
+    type Output = ();
+}
 impl xdevs::Coupled for EFP {
     fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
-        from.ef
-            .out_generator
-            .couple(&mut to.processor.in_job)
-            .unwrap();
-        from.processor
-            .out_job
-            .couple(&mut to.ef.in_processor)
-            .unwrap();
+        from.ef.couple(&mut to.processor).unwrap();
+        from.processor.couple(&mut to.ef).unwrap();
     }
 }
-
 #[tokio::main]
 async fn main() {
     let period = 1.;

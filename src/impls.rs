@@ -2,8 +2,75 @@
 #[cfg(any(feature = "std", feature = "alloc"))]
 extern crate alloc;
 
-use crate::traits::{sealed::Sealed, AbstractSimulator, AsPort, Bag, Component, SimTime};
+use crate::simulator::Simulator;
+use crate::traits::{sealed::Sealed, AbstractSimulator, AsPort, Bag, Component};
+use crate::Atomic;
 
+////////////////////////////////////////////////// Atomic //////////////////////////////////////////////
+unsafe impl<T: Atomic> AbstractSimulator for T {
+    #[inline]
+    fn start(simulator: &mut Simulator<Self>, t_start: f64) -> f64 {
+        // set t_last to t_start
+        simulator.set_t_last(t_start);
+        // start state and get t_next from ta
+        simulator.start();
+        let t_next = t_start + simulator.ta();
+        simulator.set_t_next(t_next);
+
+        t_next
+    }
+    #[inline]
+    fn stop(simulator: &mut Simulator<Self>, t_stop: f64) {
+        // stop state
+        simulator.stop();
+        // set t_last to t_stop and t_next to infinity
+        simulator.set_t_last(t_stop);
+        simulator.set_t_next(f64::INFINITY);
+    }
+    #[inline]
+    fn lambda(simulator: &mut Simulator<Self>, output: &mut Self::Output, t: f64) {
+        if t >= simulator.get_t_next() {
+            // execute atomic model's lambda if applies
+            simulator.lambda(output);
+        }
+    }
+    #[inline]
+    fn delta(
+        simulator: &mut Simulator<Self>,
+        input: &mut Self::Input,
+        output: &mut Self::Output,
+        t: f64,
+    ) -> f64 {
+        let mut t_next = simulator.get_t_next();
+        if !::xdevs::traits::Bag::is_empty(input) {
+            if t >= t_next {
+                // confluent transition
+                simulator.delta_conf(input);
+                // clear output events
+                output.clear();
+            } else {
+                // external transition
+                let e = t - simulator.get_t_last();
+                simulator.delta_ext(e, input);
+            }
+            // clear input events
+            input.clear();
+        } else if t >= t_next {
+            // internal transition
+            simulator.delta_int();
+            // clear output events
+            output.clear();
+        } else {
+            return t_next; // nothing to do
+        }
+        // get t_next from ta and set new t_last and t_next
+        t_next = t + simulator.ta();
+        simulator.set_t_last(t);
+        simulator.set_t_next(t_next);
+
+        t_next
+    }
+}
 //////////////////////////////////////////////// Arrays //////////////////////////////////////////////
 unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
     fn build() -> Self {
@@ -30,84 +97,44 @@ impl<T: Component, const N: usize> Component for [T; N] {
     type Output = [T::Output; N];
 }
 
-unsafe impl<T: SimTime, const N: usize> SimTime for [T; N] {
-    fn get_t_last(&self) -> f64 {
+impl<T: Atomic, const N: usize> Atomic for [T; N] {
+    #[inline]
+    fn delta_int(&mut self) {
+        for component in self.iter_mut() {
+            component.delta_int();
+        }
+    }
+
+    #[inline]
+    fn lambda(&self, output: &mut Self::Output) {
+        for (component, output_bag) in self.iter().zip(output.iter_mut()) {
+            component.lambda(output_bag);
+        }
+    }
+
+    #[inline]
+    fn ta(&self) -> f64 {
         self.iter()
-            .map(|c| c.get_t_last())
+            .map(|component| component.ta())
             .fold(f64::INFINITY, f64::min)
     }
 
-    fn set_t_last(&mut self, t_last: f64) {
-        self.iter_mut().for_each(|c| c.set_t_last(t_last));
-    }
-
-    fn get_t_next(&self) -> f64 {
-        self.iter()
-            .map(|c| c.get_t_next())
-            .fold(f64::INFINITY, f64::min)
-    }
-
-    fn set_t_next(&mut self, t_next: f64) {
-        self.iter_mut().for_each(|c| c.set_t_next(t_next));
-    }
-}
-
-unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for [T; N] {
     #[inline]
-    fn start(&mut self, t_start: f64) -> f64 {
-        self.iter_mut().fold(f64::INFINITY, |t_next, c| {
-            f64::min(t_next, c.start(t_start))
-        })
-    }
-
-    #[inline]
-    fn stop(&mut self, t_stop: f64) {
-        self.iter_mut().for_each(|c| c.stop(t_stop));
-    }
-
-    #[inline]
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        self.iter_mut()
-            .zip(output.iter_mut())
-            .for_each(|(c, out)| c.lambda(out, t));
-    }
-
-    #[inline]
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        self.iter_mut()
-            .zip(input.iter_mut())
-            .zip(output.iter_mut())
-            .fold(f64::INFINITY, |t_next, ((c, inp), out)| {
-                f64::min(t_next, c.delta(inp, out, t))
-            })
+    fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+        for (component, input_bag) in self.iter_mut().zip(input.iter()) {
+            component.delta_ext(elapsed, input_bag);
+        }
     }
 }
 
 //////////////////////////////////////////////// References //////////////////////////////////////////////
 
+/*
 macro_rules! impl_ref {
     ( $ty:ty ) => {
         impl<T: Component> Component for $ty {
             type Input = T::Input;
             type Output = T::Output;
-        }
-
-        unsafe impl<T: SimTime> SimTime for $ty {
-            fn get_t_last(&self) -> f64 {
-                (**self).get_t_last()
-            }
-
-            fn set_t_last(&mut self, t_last: f64) {
-                (**self).set_t_last(t_last)
-            }
-
-            fn get_t_next(&self) -> f64 {
-                (**self).get_t_next()
-            }
-
-            fn set_t_next(&mut self, t_next: f64) {
-                (**self).set_t_next(t_next)
-            }
         }
 
         unsafe impl<T: AbstractSimulator> AbstractSimulator for $ty {
@@ -134,6 +161,7 @@ impl_ref!(&mut T);
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 impl_ref!(alloc::boxed::Box<T>);
+*/
 
 //////////////////////////////////////////////// Empty Tuple //////////////////////////////////////////////
 unsafe impl Bag for () {

@@ -1,4 +1,5 @@
 use crate::traits::{AbstractSimulator, AsyncInput, Bag};
+use core::ops::{Deref, DerefMut};
 use core::time::Duration;
 
 #[cfg(feature = "std")]
@@ -52,21 +53,41 @@ impl Default for Config {
 }
 
 /// A DEVS simulator.
-#[repr(transparent)]
 pub struct Simulator<M: AbstractSimulator> {
     model: M,
+    t_last: f64,
+    t_next: f64,
 }
 
 impl<M: AbstractSimulator> Simulator<M> {
     /// Creates a new `Simulator` with the given DEVS model.
     #[inline]
     pub const fn new(model: M) -> Self {
-        Self { model }
+        Self {
+            model,
+            t_last: 0.0,
+            t_next: 0.0,
+        }
     }
 
-    /// Returns a reference to the inner DEVS model.
-    pub fn get_model(&self) -> &M {
-        &self.model
+    /// Returns the last time the component was updated.
+    pub fn get_t_last(&self) -> f64 {
+        self.t_last
+    }
+
+    /// Sets the last time the component was updated.
+    pub fn set_t_last(&mut self, t_last: f64) {
+        self.t_last = t_last;
+    }
+
+    /// Returns the next time the component will be updated.
+    pub fn get_t_next(&self) -> f64 {
+        self.t_next
+    }
+
+    /// Sets the next time the component will be updated.
+    pub fn set_t_next(&mut self, t_next: f64) {
+        self.t_next = t_next;
     }
 
     /// It executes the simulation of the inner DEVS model from `t_start` to `t_stop`.
@@ -90,23 +111,21 @@ impl<M: AbstractSimulator> Simulator<M> {
         let t_start = config.t_start;
         let t_stop = config.t_stop;
         let mut t = t_start;
-        let mut t_next_internal = self.model.start(t);
+        let mut t_next_internal = M::start(self, t);
         let mut component_input = <M::Input>::build();
         let mut component_output = <M::Output>::build();
         while t < t_stop {
             let t_until = f64::min(t_next_internal, t_stop);
             t = wait_until(t, t_until, &mut component_input);
             if t >= t_next_internal {
-                self.model.lambda(&mut component_output, t);
+                M::lambda(self, &mut component_output, t);
                 propagate_output(&component_output);
             } else if component_input.is_empty() {
                 continue; // avoid spurious external transitions
             }
-            t_next_internal = self
-                .model
-                .delta(&mut component_input, &mut component_output, t);
+            t_next_internal = M::delta(self, &mut component_input, &mut component_output, t);
         }
-        self.model.stop(t_stop);
+        M::stop(self, t_stop);
     }
 
     /// It executes the simulation of the inner DEVS model from `t_start` to `t_stop`.
@@ -127,7 +146,7 @@ impl<M: AbstractSimulator> Simulator<M> {
         mut propagate_output: impl FnMut(&M::Output),
     ) {
         let mut t = config.t_start;
-        let mut t_next_internal = self.model.start(t);
+        let mut t_next_internal = M::start(self, t);
         let mut component_input = <M::Input>::build();
         let mut component_output = <M::Output>::build();
         while t < config.t_stop {
@@ -136,15 +155,29 @@ impl<M: AbstractSimulator> Simulator<M> {
                 .handle(config, t, t_until, &mut component_input)
                 .await;
             if t >= t_next_internal {
-                self.model.lambda(&mut component_output, t);
+                M::lambda(self, &mut component_output, t);
                 propagate_output(&component_output);
             } else if component_input.is_empty() {
                 continue; // avoid spurious external transitions
             }
-            t_next_internal = self
-                .model
-                .delta(&mut component_input, &mut component_output, t);
+            t_next_internal = M::delta(self, &mut component_input, &mut component_output, t);
         }
-        self.model.stop(config.t_stop);
+        M::stop(self, config.t_stop);
+    }
+}
+
+impl<M: AbstractSimulator> Deref for Simulator<M> {
+    type Target = M;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.model
+    }
+}
+
+impl<M: AbstractSimulator> DerefMut for Simulator<M> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.model
     }
 }
