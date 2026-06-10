@@ -7,6 +7,7 @@ mod generator {
     }
 
     impl xdevs::traits::Component for Generator {
+        type Kind = xdevs::AtomicKind;
         type Input = xdevs::port::Port<bool, 1>;
         type Output = xdevs::port::Port<usize, 1>;
     }
@@ -54,6 +55,7 @@ mod processor {
     }
 
     impl xdevs::traits::Component for Processor {
+        type Kind = xdevs::AtomicKind;
         type Input = xdevs::port::Port<usize, 1>;
         type Output = xdevs::port::Port<usize, 1>;
     }
@@ -117,6 +119,7 @@ mod transducer {
     }
 
     impl xdevs::traits::Component for Transducer {
+        type Kind = xdevs::AtomicKind;
         type Input = TransducerInput;
         type Output = xdevs::port::Port<bool, 1>;
     }
@@ -175,6 +178,7 @@ pub struct GPT {
 }
 
 impl xdevs::traits::Component for GPT {
+    type Kind = xdevs::CoupledKind;
     type Input = ();
     type Output = ();
 }
@@ -199,6 +203,7 @@ struct EF {
 }
 
 impl xdevs::traits::Component for EF {
+    type Kind = xdevs::CoupledKind;
     type Input = xdevs::port::Port<usize, 1>;
     type Output = xdevs::port::Port<usize, 1>;
 }
@@ -225,6 +230,7 @@ pub struct EFP {
 }
 
 impl xdevs::traits::Component for EFP {
+    type Kind = xdevs::CoupledKind;
     type Input = ();
     type Output = ();
 }

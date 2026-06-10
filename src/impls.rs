@@ -2,75 +2,10 @@
 #[cfg(any(feature = "std", feature = "alloc"))]
 extern crate alloc;
 
-use crate::simulator::Simulator;
-use crate::traits::{sealed::Sealed, AbstractSimulator, AsPort, Bag, Component};
-use crate::Atomic;
+use crate::traits::AsProcessor;
+use crate::traits::{sealed::Sealed, AsPort, Bag, Component, PartialCoupled};
+use crate::Coupled;
 
-////////////////////////////////////////////////// Atomic //////////////////////////////////////////////
-unsafe impl<T: Atomic> AbstractSimulator for T {
-    #[inline]
-    fn start(simulator: &mut Simulator<Self>, t_start: f64) -> f64 {
-        // set t_last to t_start
-        simulator.set_t_last(t_start);
-        // start state and get t_next from ta
-        simulator.start();
-        let t_next = t_start + simulator.ta();
-        simulator.set_t_next(t_next);
-
-        t_next
-    }
-    #[inline]
-    fn stop(simulator: &mut Simulator<Self>, t_stop: f64) {
-        // stop state
-        simulator.stop();
-        // set t_last to t_stop and t_next to infinity
-        simulator.set_t_last(t_stop);
-        simulator.set_t_next(f64::INFINITY);
-    }
-    #[inline]
-    fn lambda(simulator: &mut Simulator<Self>, output: &mut Self::Output, t: f64) {
-        if t >= simulator.get_t_next() {
-            // execute atomic model's lambda if applies
-            simulator.lambda(output);
-        }
-    }
-    #[inline]
-    fn delta(
-        simulator: &mut Simulator<Self>,
-        input: &mut Self::Input,
-        output: &mut Self::Output,
-        t: f64,
-    ) -> f64 {
-        let mut t_next = simulator.get_t_next();
-        if !::xdevs::traits::Bag::is_empty(input) {
-            if t >= t_next {
-                // confluent transition
-                simulator.delta_conf(input);
-                // clear output events
-                output.clear();
-            } else {
-                // external transition
-                let e = t - simulator.get_t_last();
-                simulator.delta_ext(e, input);
-            }
-            // clear input events
-            input.clear();
-        } else if t >= t_next {
-            // internal transition
-            simulator.delta_int();
-            // clear output events
-            output.clear();
-        } else {
-            return t_next; // nothing to do
-        }
-        // get t_next from ta and set new t_last and t_next
-        t_next = t + simulator.ta();
-        simulator.set_t_last(t);
-        simulator.set_t_next(t_next);
-
-        t_next
-    }
-}
 //////////////////////////////////////////////// Arrays //////////////////////////////////////////////
 unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
     fn build() -> Self {
@@ -93,65 +28,92 @@ impl<T: AsPort, const N: usize> AsPort for [T; N] {
 impl<T: AsPort, const N: usize> Sealed for [T; N] {}
 
 impl<T: Component, const N: usize> Component for [T; N] {
+    type Kind = T::Kind;
     type Input = [T::Input; N];
     type Output = [T::Output; N];
 }
 
-impl<T: Atomic, const N: usize> Atomic for [T; N] {
-    #[inline]
-    fn delta_int(&mut self) {
-        for component in self.iter_mut() {
-            component.delta_int();
-        }
-    }
-
-    #[inline]
-    fn lambda(&self, output: &mut Self::Output) {
-        for (component, output_bag) in self.iter().zip(output.iter_mut()) {
-            component.lambda(output_bag);
-        }
-    }
-
-    #[inline]
-    fn ta(&self) -> f64 {
-        self.iter()
-            .map(|component| component.ta())
+unsafe impl<T: AsProcessor, const N: usize> AsProcessor for [T; N] {
+    #[inline(always)]
+    fn starts(&mut self, t_start: f64) -> f64 {
+        self.iter_mut()
+            .map(|component| component.starts(t_start))
             .fold(f64::INFINITY, f64::min)
     }
 
-    #[inline]
-    fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
-        for (component, input_bag) in self.iter_mut().zip(input.iter()) {
-            component.delta_ext(elapsed, input_bag);
+    #[inline(always)]
+    fn stops(&mut self) {
+        self.iter_mut().for_each(|component| component.stops());
+    }
+
+    #[inline(always)]
+    fn lambdas(&mut self, output: &mut Self::Output, t: f64) {
+        for (component, output_bag) in self.iter_mut().zip(output.iter_mut()) {
+            component.lambdas(output_bag, t);
         }
+    }
+
+    #[inline(always)]
+    fn deltas(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+        self.iter_mut()
+            .zip(input.iter_mut())
+            .zip(output.iter_mut())
+            .map(|((component, input_bag), output_bag)| component.deltas(input_bag, output_bag, t))
+            .fold(f64::INFINITY, f64::min)
     }
 }
 
 //////////////////////////////////////////////// References //////////////////////////////////////////////
 
-/*
 macro_rules! impl_ref {
     ( $ty:ty ) => {
         impl<T: Component> Component for $ty {
             type Input = T::Input;
             type Output = T::Output;
+            type Kind = T::Kind;
         }
 
-        unsafe impl<T: AbstractSimulator> AbstractSimulator for $ty {
-            fn start(&mut self, t_start: f64) -> f64 {
-                (**self).start(t_start)
-            }
+        unsafe impl<T: PartialCoupled> PartialCoupled for $ty {
+            type Components = T::Components;
+            type ComponentsInput = T::ComponentsInput;
+            type ComponentsOutput = T::ComponentsOutput;
 
-            fn stop(&mut self, t_stop: f64) {
-                (**self).stop(t_stop);
+            #[inline]
+            fn components(&mut self) -> &mut Self::Components {
+                (**self).components()
             }
-
-            fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-                (**self).lambda(output, t);
+            #[inline]
+            fn inputs(&mut self) -> &mut Self::ComponentsInput {
+                (**self).inputs()
             }
+            #[inline]
+            fn outputs(&mut self) -> &mut Self::ComponentsOutput {
+                (**self).outputs()
+            }
+            #[inline]
+            fn split(
+                &mut self,
+            ) -> (
+                &mut Self::Components,
+                &mut Self::ComponentsInput,
+                &mut Self::ComponentsOutput,
+            ) {
+                (**self).split()
+            }
+        }
 
-            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-                (**self).delta(input, output, t)
+        impl<T: Coupled> Coupled for $ty {
+            #[inline]
+            fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
+                T::eic(from, to);
+            }
+            #[inline]
+            fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
+                T::ic(from, to);
+            }
+            #[inline]
+            fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {
+                T::eoc(from, to);
             }
         }
     };
@@ -161,7 +123,6 @@ impl_ref!(&mut T);
 
 #[cfg(any(feature = "std", feature = "alloc"))]
 impl_ref!(alloc::boxed::Box<T>);
-*/
 
 //////////////////////////////////////////////// Empty Tuple //////////////////////////////////////////////
 unsafe impl Bag for () {

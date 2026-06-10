@@ -43,16 +43,13 @@ impl Parse for ComponentArgs {
                     rt_engine_seen = true;
                     args.rt_engine_span = Some(syn::spanned::Spanned::span(&meta));
                     match meta {
-                        // Handles the case with no parenthesis: `#[component(rt_engine)]`
                         Meta::Path(_) => {
                             args.rt_engine = Some(RtEngine::default());
                         }
-                        // Handles the parenthesized case: `#[component(rt_engine(...))]`
                         Meta::List(list) => match syn::parse2(list.tokens) {
                             Ok(rt_engine) => args.rt_engine = Some(rt_engine),
                             Err(err) => combine_err(&mut acc, err),
                         },
-                        // Reject unsupported format `#[component(rt_engine = value)]`
                         Meta::NameValue(nv) => {
                             combine_err(
                                 &mut acc,
@@ -112,7 +109,6 @@ pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2>
                 item_tys.push(field.ty.clone());
             }
         }
-
         _ => {
             combine_err(
                 &mut acc,
@@ -128,20 +124,17 @@ pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2>
         return Err(err);
     }
 
-    // Generate the components struct
+    // Generate the components struct (with recursive unwrapping)
     let components_struct = {
         let mut item = item.clone();
         item.ident = Ident::new(&format!("{}Components", item.ident), item.ident.span());
         for field in item.fields.iter_mut() {
-            let original_ty = field.ty.clone();
-            field.ty = syn::parse_quote! {
-                ::xdevs::simulator::Simulator<#original_ty>
-            };
+            field.ty = wrap_processor(&field.ty);
         }
         item
     };
 
-    // Generate the components input wrapper struct
+    // Generate the components input wrapper struct (wrapping the outermost type)
     let components_input_struct = {
         let mut item = item.clone();
         item.attrs = Vec::new();
@@ -155,7 +148,7 @@ pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2>
         item
     };
 
-    // Generate the components output wrapper struct
+    // Generate the components output wrapper struct (wrapping the outermost type)
     let components_output_struct = {
         let mut item = item.clone();
         item.attrs = Vec::new();
@@ -172,8 +165,20 @@ pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2>
         item
     };
 
+    // Construct the initialization fields iteratively to handle arrays.
+    let mut init_fields = Vec::new();
+    for (ident, ty) in item_fields.iter().zip(item_tys.iter()) {
+        let init_expr = build_init_expr(quote::quote!(#ident), ty, 0);
+        init_fields.push(quote::quote! { #ident: #init_expr });
+    }
+
     // Modify the original struct fields
     let components_ident = &components_struct.ident;
+    let components_fields_idents: Vec<Ident> = components_struct
+        .fields
+        .iter()
+        .filter_map(|field| field.ident.clone())
+        .collect();
     let components_input_ident = &components_input_struct.ident;
     let components_output_ident = &components_output_struct.ident;
 
@@ -192,6 +197,41 @@ pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2>
 
         /// Struct holding all inner components as fields.
         #components_struct
+        impl #impl_generics ::xdevs::traits::Component for #components_ident #ty_generics #where_clause {
+            type Input = #components_input_ident #ty_generics;
+            type Output = #components_output_ident #ty_generics;
+            type Kind = ::xdevs::CoupledKind;
+        }
+        unsafe impl #impl_generics ::xdevs::traits::AsProcessor for #components_ident #ty_generics #where_clause {
+            #[inline(always)]
+            fn starts(&mut self, t_start: f64) -> f64 {
+                let mut t_next = f64::INFINITY;
+                #(t_next = f64::min(t_next, ::xdevs::traits::AsProcessor::starts(&mut self.#components_fields_idents, t_start));)*
+                t_next
+            }
+
+            #[inline(always)]
+            fn stops(&mut self) {
+                #(::xdevs::traits::AsProcessor::stops(&mut self.#components_fields_idents);)*
+            }
+
+            #[inline(always)]
+            fn lambdas(&mut self, output: &mut Self::Output, t: f64) {
+                #(::xdevs::traits::AsProcessor::lambdas(&mut self.#components_fields_idents, &mut output.#components_fields_idents, t);)*
+
+            }
+
+            #[inline(always)]
+            fn deltas(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+                let mut t_next = f64::INFINITY;
+                #(t_next = f64::min(t_next, ::xdevs::traits::AsProcessor::deltas(
+                        &mut self.#components_fields_idents,
+                        &mut input.#components_fields_idents,
+                        &mut output.#components_fields_idents,
+                         t));)*
+                t_next
+            }
+        }
 
         /// Wrapper struct holding mutable references to all inner components' inputs.
         #[derive(::xdevs::Bag)]
@@ -210,76 +250,69 @@ pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2>
                 Self {
                     components_input: <#components_input_ident #ty_generics as ::xdevs::traits::Bag>::build(),
                     components_output: <#components_output_ident #ty_generics as ::xdevs::traits::Bag>::build(),
-                    components: #components_ident #ty_generics_turbofish {#(#item_fields: ::xdevs::simulator::Simulator::new(#item_fields)),*},
+                    components: #components_ident #ty_generics_turbofish {
+                        #(#init_fields),*
+                    },
                 }
             }
         }
 
         unsafe impl #impl_generics ::xdevs::traits::PartialCoupled for #item_ident #ty_generics #where_clause {
+            type Components = #components_ident #ty_generics;
             type ComponentsInput = #components_input_ident #ty_generics;
             type ComponentsOutput = #components_output_ident #ty_generics;
-        }
-        unsafe impl #impl_generics ::xdevs::traits::AbstractSimulator for #item_ident #ty_generics #where_clause {
-            #[inline]
-            fn start(simulator: &mut ::xdevs::simulator::Simulator<Self>, t_start: f64) -> f64 {
-                // set t_last to t_start
-                simulator.set_t_last(t_start);
-                // get minimum t_next from all components
-                let mut t_next = f64::INFINITY;
-                #(t_next = f64::min(t_next, ::xdevs::traits::AbstractSimulator::start(&mut simulator.components.#item_fields, t_start));)*
-                // set t_next to minimum t_next
-                simulator.set_t_next(t_next);
 
-                t_next
+            #[inline]
+            fn components(&mut self) -> &mut Self::Components {
+                &mut self.components
             }
-
             #[inline]
-            fn stop(simulator: &mut ::xdevs::simulator::Simulator<Self>, t_stop: f64) {
-                // stop all components
-                #(::xdevs::traits::AbstractSimulator::stop(&mut simulator.components.#item_fields, t_stop);)*
-                // set t_last to t_stop and t_next to infinity
-                simulator.set_t_last(t_stop);
-                simulator.set_t_next(f64::INFINITY);
+            fn inputs(&mut self) -> &mut Self::ComponentsInput {
+                &mut self.components_input
             }
-
             #[inline]
-            fn lambda(simulator: &mut ::xdevs::simulator::Simulator<Self>, output: &mut Self::Output, t: f64) {
-                if t >= simulator.get_t_next() {
-                    let model = &mut **simulator;
-                    // propagate lambda to all components
-                    #(::xdevs::traits::AbstractSimulator::lambda(&mut model.components.#item_fields, &mut model.components_output.#item_fields, t);)*
-                    // propagate EOCs via Coupled trait
-                    <Self as ::xdevs::Coupled>::eoc(&simulator.components_output, output);
-                }
+            fn outputs(&mut self) -> &mut Self::ComponentsOutput {
+                &mut self.components_output
             }
-
             #[inline]
-            fn delta(simulator: &mut ::xdevs::simulator::Simulator<Self>, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-                let model = &mut **simulator;
-
-                // propagate EICs and ICs via Coupled trait
-                <Self as ::xdevs::Coupled>::eic(input, &mut model.components_input);
-                <Self as ::xdevs::Coupled>::ic(&model.components_output, &mut model.components_input);
-
-                // get minimum t_next from all components after executing their delta
-                let mut t_next = f64::INFINITY;
-                #(t_next = f64::min(t_next, ::xdevs::traits::AbstractSimulator::delta(
-                    &mut model.components.#item_fields,
-                    &mut model.components_input.#item_fields,
-                    &mut model.components_output.#item_fields,
-                     t));)*
-
-                // set t_last to t and t_next to minimum t_next
-                simulator.set_t_last(t);
-                simulator.set_t_next(t_next);
-
-                // clear input and output events
-                <Self::Input as ::xdevs::traits::Bag>::clear(input);
-                <Self::Output as ::xdevs::traits::Bag>::clear(output);
-
-                t_next
+            fn split(
+                &mut self,
+            ) -> (
+                &mut Self::Components,
+                &mut Self::ComponentsInput,
+                &mut Self::ComponentsOutput,
+            ) {
+                (&mut self.components, &mut self.components_input, &mut self.components_output)
             }
         }
     };
     Ok(expanded.into())
+}
+
+// Recursively wrap only the innermost type in Processor<T> for Components
+fn wrap_processor(ty: &syn::Type) -> syn::Type {
+    match ty {
+        syn::Type::Array(arr) => {
+            let mut new_arr = arr.clone();
+            *new_arr.elem = wrap_processor(&arr.elem);
+            syn::Type::Array(new_arr)
+        }
+        _ => syn::parse_quote! { ::xdevs::processor::Processor<#ty> },
+    }
+}
+
+// Generate nested .map(|x| ...) closure initializations for N-dimensional arrays
+fn build_init_expr(expr: TokenStream2, ty: &syn::Type, level: usize) -> TokenStream2 {
+    match ty {
+        syn::Type::Array(arr) => {
+            let var_name = Ident::new(&format!("x_{}", level), Span::call_site());
+            let inner_expr = build_init_expr(quote::quote!(#var_name), &arr.elem, level + 1);
+            quote::quote! {
+                #expr.map(|#var_name| #inner_expr)
+            }
+        }
+        _ => quote::quote! {
+            ::xdevs::processor::Processor::new(#expr)
+        },
+    }
 }

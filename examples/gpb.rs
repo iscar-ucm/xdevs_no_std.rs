@@ -11,6 +11,7 @@ mod generator {
     impl xdevs::traits::Component for Generator {
         type Input = ();
         type Output = xdevs::port::Port<usize, 1>;
+        type Kind = xdevs::AtomicKind;
     }
 
     impl xdevs::Atomic for Generator {
@@ -53,6 +54,7 @@ mod processor {
     impl xdevs::traits::Component for Processor {
         type Input = xdevs::port::Port<usize, 1>;
         type Output = xdevs::port::Port<usize, 1>;
+        type Kind = xdevs::AtomicKind;
     }
 
     impl xdevs::Atomic for Processor {
@@ -108,6 +110,7 @@ mod buffer {
     impl<'a, T: Clone + Debug> xdevs::traits::Component for Buffer<'a, T> {
         type Input = xdevs::port::Port<T, 1>;
         type Output = xdevs::port::Port<T, 1>;
+        type Kind = xdevs::AtomicKind;
     }
     impl<'a, T: Clone + Debug> xdevs::Atomic for Buffer<'a, T> {
         fn delta_int(&mut self) {
@@ -172,6 +175,7 @@ struct GPB<'a> {
 }
 
 impl xdevs::traits::Component for GPB<'_> {
+    type Kind = xdevs::CoupledKind;
     type Input = ();
     type Output = ();
 }

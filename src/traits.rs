@@ -1,4 +1,4 @@
-use crate::simulator::{Config, Simulator};
+use crate::{processor::Processor, simulator::Config, traits::sealedkind::SealedKind, CoupledKind};
 use core::future::Future;
 use sealed::Sealed;
 
@@ -52,6 +52,9 @@ pub unsafe trait BagMux: Bag {
 
 /// Interface for DEVS components. All DEVS components must implement this trait.
 pub trait Component {
+    /// Kind of DEVS model.
+    type Kind: SealedKind;
+
     /// Input event bag of the model.
     type Input: Bag;
 
@@ -65,12 +68,24 @@ pub trait Component {
 /// # Safety
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
-pub unsafe trait PartialCoupled: Component {
-    /// Wrapper type holding all inner components' inputs.
+pub unsafe trait PartialCoupled: Component<Kind = CoupledKind>
+where
+    Self::Components: AsProcessor<Input = Self::ComponentsInput, Output = Self::ComponentsOutput>,
+{
+    type Components: AsProcessor;
     type ComponentsInput: Bag;
-
-    /// Wrapper type holding all inner components' outputs.
     type ComponentsOutput: Bag;
+
+    fn components(&mut self) -> &mut Self::Components;
+    fn inputs(&mut self) -> &mut Self::ComponentsInput;
+    fn outputs(&mut self) -> &mut Self::ComponentsOutput;
+    fn split(
+        &mut self,
+    ) -> (
+        &mut Self::Components,
+        &mut Self::ComponentsInput,
+        &mut Self::ComponentsOutput,
+    );
 }
 
 /// Interface for simulating DEVS models. All DEVS models must implement this trait.
@@ -78,27 +93,42 @@ pub unsafe trait PartialCoupled: Component {
 /// # Safety
 ///
 /// This trait must be implemented via macros. Do not implement it manually.
-pub unsafe trait AbstractSimulator: Component + Sized {
+pub unsafe trait AbstractSimulator<K>: Component<Kind = K>
+where
+    Self: Sized,
+{
     /// It starts the simulation, setting the initial time to t_start.
     /// It returns the time for the next state transition of the inner DEVS model.
-    fn start(simulator: &mut Simulator<Self>, t_start: f64) -> f64;
+    fn start(simulator: &mut Processor<Self>, t_start: f64) -> f64;
 
     /// It stops the simulation, setting the last time to t_stop.
-    fn stop(simulator: &mut Simulator<Self>, t_stop: f64);
+    fn stop(simulator: &mut Processor<Self>);
 
     /// Executes output functions and propagates messages according to EOCs.
     /// Internally, it checks that the model is imminent before executing.
-    fn lambda(simulator: &mut Simulator<Self>, output: &mut Self::Output, t: f64);
+    fn lambda(simulator: &mut Processor<Self>, output: &mut Self::Output, t: f64);
 
     /// Propagates messages according to ICs and EICs, and executes state transition functions.
     /// Internally, it checks that the model is imminent before executing.
     /// Finally, it returns the time for the next state transition of the inner DEVS model.
     fn delta(
-        simulator: &mut Simulator<Self>,
+        simulator: &mut Processor<Self>,
         input: &mut Self::Input,
         output: &mut Self::Output,
         t: f64,
     ) -> f64;
+}
+
+/// Interface for handling collections of DEVS models.
+///
+/// # Safety
+///
+/// This trait must be implemented via macros. Do not implement it manually.
+pub unsafe trait AsProcessor: Component {
+    fn starts(&mut self, t_start: f64) -> f64;
+    fn stops(&mut self);
+    fn lambdas(&mut self, output: &mut Self::Output, t: f64);
+    fn deltas(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64;
 }
 
 /// Interface for handling input events in an asynchronous DEVS simulation.
@@ -126,4 +156,9 @@ pub trait AsyncInput {
 pub(crate) mod sealed {
     /// Trait used to prevent users from implementing certain traits manually.
     pub trait Sealed {}
+}
+
+pub(crate) mod sealedkind {
+    /// Trait used to prevent users from implementing certain traits manually.
+    pub trait SealedKind {}
 }

@@ -7,17 +7,17 @@ use crate::{Duration, Instant, Simulator};
 
 /// Automated simulation engine for real-time execution of DEVS models.
 /// Its interfaces are created through the use of the `rt_engine` macro.
-pub struct RtEngine<M: AbstractSimulator>
+pub struct RtEngine<M: AbstractSimulator<M>>
 where
     M::Input: InjectInput,
     M::Output: EjectOutput,
 {
-    simulator: Simulator<M>,
+    simulator: Simulator<M::Kind, M>,
     input_channel: <M::Input as InjectInput>::InputChannel,
     output_channel: <M::Output as EjectOutput>::OutputChannel,
 }
 
-impl<M: AbstractSimulator> RtEngine<M>
+impl<M: AbstractSimulator<M>> RtEngine<M>
 where
     M::Input: InjectInput,
     M::Output: EjectOutput,
@@ -46,7 +46,7 @@ where
 
 /// Specialized implementation: Only exists if IC is a &'static Channel.
 /// Note how I and N are declared here, not on the struct.
-impl<M: AbstractSimulator> RtEngine<M>
+impl<M: AbstractSimulator<M>> RtEngine<M>
 where
     M::Input: InjectInput,
     M::Output: EjectOutput,
@@ -61,7 +61,7 @@ where
 
 /// Specialized implementation: Only exists if OC is a &'static PubSubChannel.
 /// Note how O, CAP, and SUBS are declared here.
-impl<M: AbstractSimulator> RtEngine<M>
+impl<M: AbstractSimulator<M>> RtEngine<M>
 where
     M::Input: InjectInput,
     M::Output: EjectOutput,
@@ -77,7 +77,7 @@ where
     }
 }
 
-struct RtEngineInputHandler<'a, M: AbstractSimulator>
+struct RtEngineInputHandler<'a, M: AbstractSimulator<M>>
 where
     M::Input: InjectInput,
 {
@@ -85,7 +85,7 @@ where
     last_rt: Option<crate::Instant>,
 }
 
-impl<'a, M: AbstractSimulator> RtEngineInputHandler<'a, M>
+impl<'a, M: AbstractSimulator<M>> RtEngineInputHandler<'a, M>
 where
     M::Input: InjectInput,
 {
@@ -97,7 +97,7 @@ where
     }
 }
 
-impl<'a, M: AbstractSimulator> crate::traits::AsyncInput for RtEngineInputHandler<'a, M>
+impl<'a, M: AbstractSimulator<M>> crate::traits::AsyncInput for RtEngineInputHandler<'a, M>
 where
     M::Input: InjectInput,
 {

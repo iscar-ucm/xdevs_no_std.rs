@@ -10,6 +10,7 @@ extern crate std;
 pub mod export;
 mod impls;
 pub mod port;
+pub mod processor;
 #[cfg(any(feature = "embassy", feature = "std"))]
 pub mod rt_engine;
 pub mod simulator;
@@ -20,8 +21,16 @@ pub use port::Port;
 pub use simulator::{Config, Simulator};
 pub use xdevs_no_std_macros::*;
 
+use crate::traits::sealedkind::SealedKind;
+
+pub struct AtomicKind;
+impl SealedKind for AtomicKind {}
+
+pub struct CoupledKind;
+impl SealedKind for CoupledKind {}
+
 /// Interface for DEVS atomic models. All DEVS atomic models must implement this trait.
-pub trait Atomic: xdevs::traits::Component {
+pub trait Atomic: xdevs::traits::Component<Kind = AtomicKind> {
     /// Method for performing any operation before simulating. By default, it does nothing.
     #[allow(unused_variables)]
     #[inline]

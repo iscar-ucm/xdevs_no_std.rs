@@ -10,6 +10,7 @@ mod processor {
     }
 
     impl xdevs::traits::Component for Processor {
+        type Kind = xdevs::AtomicKind;
         type Input = xdevs::port::Port<usize, 1>;
         type Output = xdevs::port::Port<usize, 1>;
     }
@@ -66,6 +67,7 @@ mod load_balancer {
     }
 
     impl xdevs::traits::Component for LoadBalancer {
+        type Kind = xdevs::AtomicKind;
         type Input = xdevs::port::Port<usize, 1>;
         type Output = [xdevs::port::Port<usize, 1>; 3];
     }
@@ -119,6 +121,7 @@ mod generator {
     }
 
     impl xdevs::traits::Component for Generator {
+        type Kind = xdevs::AtomicKind;
         type Input = ();
         type Output = xdevs::port::Port<usize, 1>;
     }
@@ -167,6 +170,7 @@ mod collector {
     }
 
     impl xdevs::traits::Component for Collector {
+        type Kind = xdevs::AtomicKind;
         type Input = xdevs::port::Port<usize, 3>;
         type Output = ();
     }
@@ -215,6 +219,7 @@ struct MultiProcessor {
 }
 
 impl xdevs::traits::Component for MultiProcessor {
+    type Kind = xdevs::CoupledKind;
     type Input = ();
     type Output = ();
 }
