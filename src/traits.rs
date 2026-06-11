@@ -11,7 +11,7 @@ pub use crate::rt_engine::traits::{
 ///
 /// # Safety
 ///
-/// This trait must be implemented via macros. Do not implement it manually.
+/// This trait must be implemented via the [`Bag`](crate::Bag) macro. Do not implement it manually.
 pub unsafe trait Bag {
     /// Build a new instance of the bag.
     fn build() -> Self;
@@ -25,9 +25,9 @@ pub unsafe trait Bag {
 
 /// Trait that defines the type inside of a Bag for rt_engine enums.
 ///
-/// # Safety
+/// # Note
 ///
-/// This trait is implemented internally. Do not implement it manually.
+/// This trait is sealed and cannot be implemented by the user
 pub trait AsPort: Bag + Sealed {
     /// The type of the values contained in the bag.
     type Item;
@@ -38,7 +38,7 @@ pub trait AsPort: Bag + Sealed {
 ///
 /// # Safety
 ///
-/// This trait must be implemented via macros. Do not implement it manually.
+/// This trait must be implemented via the [`Bag`](crate::Bag) macro. Do not implement it manually.
 pub unsafe trait BagMux: Bag {
     /// The type that represents the ports of the model. Each variant corresponds to a port.
     type Mux;
@@ -51,11 +51,11 @@ pub unsafe trait BagMux: Bag {
 }
 
 /// Partial interface for DEVS coupled models.
-/// It is used as a helper trait to implement [`crate::Coupled`] trait.
+/// It is used as a helper trait to implement the [`Coupled`](crate::Coupled) trait.
 ///
 /// # Safety
 ///
-/// This trait must be implemented via macros. Do not implement it manually.
+/// This trait must be implemented via the [`coupled`](crate::coupled) macro. Do not implement it manually.
 pub unsafe trait PartialCoupled: Component<Kind = CoupledKind>
 where
     Self::Components: AsProcessor<Input = Self::ComponentsInput, Output = Self::ComponentsOutput>,
@@ -107,7 +107,7 @@ where
     ) -> f64;
 }
 
-/// Interface for handling collections of DEVS models.
+/// Interface for handling collections of DEVS models during simulation.
 ///
 /// # Safety
 ///
@@ -144,9 +144,4 @@ pub trait AsyncInput {
 pub(crate) mod sealed {
     /// Trait used to prevent users from implementing certain traits manually.
     pub trait Sealed {}
-}
-
-pub(crate) mod sealedkind {
-    /// Trait used to prevent users from implementing certain traits manually.
-    pub trait SealedKind {}
 }
