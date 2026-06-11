@@ -1,14 +1,17 @@
 pub use crate::export::{RecvError, SubscribeError};
 pub mod traits;
 use crate::traits::{
-    AbstractSimulator, EjectOutput, InjectInput, RtEngineInputChannel, RtEngineOutputChannel,
+    AbstractSimulator, Component, EjectOutput, InjectInput, RtEngineInputChannel,
+    RtEngineOutputChannel,
 };
 use crate::{Duration, Instant, Simulator};
 
 /// Automated simulation engine for real-time execution of DEVS models.
 /// Its interfaces are created through the use of the `rt_engine` macro.
-pub struct RtEngine<M: AbstractSimulator<M>>
+pub struct RtEngine<K, M>
 where
+    M: Component<Kind = K>,
+    M: AbstractSimulator<K>,
     M::Input: InjectInput,
     M::Output: EjectOutput,
 {
@@ -17,8 +20,10 @@ where
     output_channel: <M::Output as EjectOutput>::OutputChannel,
 }
 
-impl<M: AbstractSimulator<M>> RtEngine<M>
+impl<K, M> RtEngine<K, M>
 where
+    M: Component<Kind = K>,
+    M: AbstractSimulator<K>,
     M::Input: InjectInput,
     M::Output: EjectOutput,
 {
@@ -35,7 +40,7 @@ where
     }
 
     pub async fn simulate_rt_async(&mut self, config: &crate::Config) {
-        let input_handler = RtEngineInputHandler::<M>::new(&mut self.input_channel);
+        let input_handler = RtEngineInputHandler::<K, M>::new(&mut self.input_channel);
         self.simulator
             .simulate_rt_async(config, input_handler, |output| {
                 output.map_output(&self.output_channel);
@@ -46,8 +51,10 @@ where
 
 /// Specialized implementation: Only exists if IC is a &'static Channel.
 /// Note how I and N are declared here, not on the struct.
-impl<M: AbstractSimulator<M>> RtEngine<M>
+impl<K, M> RtEngine<K, M>
 where
+    M: Component<Kind = K>,
+    M: AbstractSimulator<K>,
     M::Input: InjectInput,
     M::Output: EjectOutput,
     <M::Input as InjectInput>::InputChannel: RtEngineInputChannel,
@@ -61,8 +68,10 @@ where
 
 /// Specialized implementation: Only exists if OC is a &'static PubSubChannel.
 /// Note how O, CAP, and SUBS are declared here.
-impl<M: AbstractSimulator<M>> RtEngine<M>
+impl<K, M> RtEngine<K, M>
 where
+    M: Component<Kind = K>,
+    M: AbstractSimulator<K>,
     M::Input: InjectInput,
     M::Output: EjectOutput,
     <M::Output as EjectOutput>::OutputChannel: RtEngineOutputChannel,
@@ -77,16 +86,20 @@ where
     }
 }
 
-struct RtEngineInputHandler<'a, M: AbstractSimulator<M>>
+struct RtEngineInputHandler<'a, K, M>
 where
+    M: Component<Kind = K>,
+    M: AbstractSimulator<K>,
     M::Input: InjectInput,
 {
     input_channel: &'a mut <M::Input as InjectInput>::InputChannel,
     last_rt: Option<crate::Instant>,
 }
 
-impl<'a, M: AbstractSimulator<M>> RtEngineInputHandler<'a, M>
+impl<'a, K, M> RtEngineInputHandler<'a, K, M>
 where
+    M: Component<Kind = K>,
+    M: AbstractSimulator<K>,
     M::Input: InjectInput,
 {
     fn new(input_channel: &'a mut <M::Input as InjectInput>::InputChannel) -> Self {
@@ -97,8 +110,10 @@ where
     }
 }
 
-impl<'a, M: AbstractSimulator<M>> crate::traits::AsyncInput for RtEngineInputHandler<'a, M>
+impl<'a, K, M> crate::traits::AsyncInput for RtEngineInputHandler<'a, K, M>
 where
+    M: Component<Kind = K>,
+    M: AbstractSimulator<K>,
     M::Input: InjectInput,
 {
     type Input = M::Input;

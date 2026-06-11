@@ -19,6 +19,7 @@ pub struct TransparentAtomic {
 }
 
 impl xdevs::traits::Component for TransparentAtomic {
+    type Kind = xdevs::AtomicKind;
     type Input = TransparentInput;
     type Output = TransparentOutput;
 }
@@ -70,6 +71,7 @@ pub struct Transparent {
 }
 
 impl xdevs::traits::Component for Transparent {
+    type Kind = xdevs::CoupledKind;
     type Input = TransparentInput;
     type Output = TransparentOutput;
 }

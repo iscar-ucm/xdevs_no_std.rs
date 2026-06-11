@@ -101,7 +101,7 @@ pub fn expand_rt_engine(args: &ComponentArgs, item: &ItemStruct) -> Result<Token
 
                 impl #model_impl_generics #model_ident #model_ty_generics #model_where_clause {
                     /// Constructor for RtEngine.
-                    pub fn into_rt_engine(self) -> ::xdevs::rt_engine::RtEngine<Self> {
+                    pub fn into_rt_engine(self) -> ::xdevs::rt_engine::RtEngine<<Self as ::xdevs::traits::Component>::Kind,Self> {
                         use #private_mod_ident::*;
                         ::xdevs::rt_engine::RtEngine::new(
                             self,
