@@ -5,8 +5,8 @@ extern crate self as xdevs;
 #[cfg(feature = "std")]
 extern crate std;
 
-//#[cfg(feature = "alloc")]
-//pub mod devstone;
+#[cfg(feature = "alloc")]
+pub mod devstone;
 pub mod export;
 mod impls;
 pub mod port;

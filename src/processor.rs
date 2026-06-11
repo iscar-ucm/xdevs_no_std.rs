@@ -1,10 +1,12 @@
+use core::ops::{Deref, DerefMut};
+
 use crate::{
     traits::{AbstractSimulator, AsProcessor, Bag, Component},
     Atomic, AtomicKind, Coupled, CoupledKind,
 };
 
 pub struct Processor<T: Component> {
-    component: T,
+    pub(crate) component: T,
     t_last: f64,
     t_next: f64,
 }
@@ -135,5 +137,18 @@ unsafe impl<T: Coupled> AbstractSimulator<CoupledKind> for T {
         output.clear();
 
         t_next
+    }
+}
+
+impl<T: Component> Deref for Processor<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.component
+    }
+}
+impl<T: Component> DerefMut for Processor<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.component
     }
 }

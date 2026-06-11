@@ -2,7 +2,10 @@ use crate::{
     processor::Processor,
     traits::{AbstractSimulator, AsyncInput, Bag, Component},
 };
-use core::time::Duration;
+use core::{
+    ops::{Deref, DerefMut},
+    time::Duration,
+};
 
 #[cfg(feature = "std")]
 pub mod std;
@@ -160,5 +163,29 @@ where
             );
         }
         M::stop(&mut self.processor);
+    }
+}
+
+impl<K, M> Deref for Simulator<K, M>
+where
+    M: Component<Kind = K>,
+    M: AbstractSimulator<K>,
+{
+    type Target = M;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.processor.component
+    }
+}
+
+impl<K, M> DerefMut for Simulator<K, M>
+where
+    M: Component<Kind = K>,
+    M: AbstractSimulator<K>,
+{
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.processor.component
     }
 }

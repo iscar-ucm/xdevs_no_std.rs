@@ -99,20 +99,20 @@ where
 {
     /// It starts the simulation, setting the initial time to t_start.
     /// It returns the time for the next state transition of the inner DEVS model.
-    fn start(simulator: &mut Processor<Self>, t_start: f64) -> f64;
+    fn start(processor: &mut Processor<Self>, t_start: f64) -> f64;
 
     /// It stops the simulation, setting the last time to t_stop.
-    fn stop(simulator: &mut Processor<Self>);
+    fn stop(processor: &mut Processor<Self>);
 
     /// Executes output functions and propagates messages according to EOCs.
     /// Internally, it checks that the model is imminent before executing.
-    fn lambda(simulator: &mut Processor<Self>, output: &mut Self::Output, t: f64);
+    fn lambda(processor: &mut Processor<Self>, output: &mut Self::Output, t: f64);
 
     /// Propagates messages according to ICs and EICs, and executes state transition functions.
     /// Internally, it checks that the model is imminent before executing.
     /// Finally, it returns the time for the next state transition of the inner DEVS model.
     fn delta(
-        simulator: &mut Processor<Self>,
+        processor: &mut Processor<Self>,
         input: &mut Self::Input,
         output: &mut Self::Output,
         t: f64,
