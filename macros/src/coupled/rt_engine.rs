@@ -28,12 +28,12 @@ pub fn expand_rt_engine(args: &ComponentArgs, item: &ItemStruct) -> Result<Token
         // Input generation
         generated.extend(quote::quote! {
                     // Auto-generated sender type alias for the RtEngine implementation.
-                    pub type #sender_ident #model_ty_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
+                    pub type #sender_ident #model_ty_generics = <<<#model_ident #model_ty_generics as ::xdevs::Component>::
                     Input as ::xdevs::traits::InjectInput>::
                     InputChannel as ::xdevs::traits::RtEngineInputChannel>::Sender;
 
                     /// Auto-generated input enum for channel communication alias.
-                    pub type #input_enum_ident #model_ty_generics = <<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
+                    pub type #input_enum_ident #model_ty_generics = <<#model_ident #model_ty_generics as ::xdevs::Component>::
                     Input as ::xdevs::traits::BagMux>::Mux;
                 });
 
@@ -51,12 +51,12 @@ pub fn expand_rt_engine(args: &ComponentArgs, item: &ItemStruct) -> Result<Token
         // Output generation
         generated.extend(quote::quote! {
                     /// Auto-generated output receiver type alias.
-                    pub type #receiver_ident #model_ty_generics = <<<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
+                    pub type #receiver_ident #model_ty_generics = <<<#model_ident #model_ty_generics as ::xdevs::Component>::
                     Output as ::xdevs::traits::EjectOutput>::OutputChannel as
                     ::xdevs::traits::RtEngineOutputChannel>::Receiver;
 
                     /// Auto-generated output enum for channel communication alias.
-                    pub type #output_enum_ident #model_ty_generics = <<#model_ident #model_ty_generics as ::xdevs::traits::Component>::
+                    pub type #output_enum_ident #model_ty_generics = <<#model_ident #model_ty_generics as ::xdevs::Component>::
                     Output as ::xdevs::traits::BagMux>::Mux;
                 });
         let output_channel_tokens = rt_engine.output_channel(&item);
@@ -77,7 +77,7 @@ pub fn expand_rt_engine(args: &ComponentArgs, item: &ItemStruct) -> Result<Token
         // RtEngine trait implementation
         generated.extend(quote::quote! {
                 /// Auto-generated `InjectInput` implementation for the top-level component input.
-                unsafe impl #model_impl_generics ::xdevs::traits::InjectInput for <#model_ident #model_ty_generics as ::xdevs::traits::Component>::Input #model_where_clause {
+                unsafe impl #model_impl_generics ::xdevs::traits::InjectInput for <#model_ident #model_ty_generics as ::xdevs::Component>::Input #model_where_clause {
                     type InputChannel = #input_channel_type;
                     async fn map_input(
                         &mut self,
@@ -88,7 +88,7 @@ pub fn expand_rt_engine(args: &ComponentArgs, item: &ItemStruct) -> Result<Token
                 }
 
                 /// Auto-generated `EjectOutput` implementation for the top-level component output.
-                unsafe impl #model_impl_generics ::xdevs::traits::EjectOutput for <#model_ident #model_ty_generics as ::xdevs::traits::Component>::Output #model_where_clause {
+                unsafe impl #model_impl_generics ::xdevs::traits::EjectOutput for <#model_ident #model_ty_generics as ::xdevs::Component>::Output #model_where_clause {
                     type OutputChannel = #output_channel_type;
 
                     fn map_output(
@@ -101,7 +101,7 @@ pub fn expand_rt_engine(args: &ComponentArgs, item: &ItemStruct) -> Result<Token
 
                 impl #model_impl_generics #model_ident #model_ty_generics #model_where_clause {
                     /// Constructor for RtEngine.
-                    pub fn into_rt_engine(self) -> ::xdevs::rt_engine::RtEngine<<Self as ::xdevs::traits::Component>::Kind,Self> {
+                    pub fn into_rt_engine(self) -> ::xdevs::rt_engine::RtEngine<<Self as ::xdevs::Component>::Kind,Self> {
                         use #private_mod_ident::*;
                         ::xdevs::rt_engine::RtEngine::new(
                             self,

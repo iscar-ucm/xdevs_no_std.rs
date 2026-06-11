@@ -8,7 +8,7 @@ mod generator {
         count: usize,
     }
 
-    impl xdevs::traits::Component for Generator {
+    impl xdevs::Component for Generator {
         type Input = ();
         type Output = xdevs::port::Port<usize, 1>;
         type Kind = xdevs::AtomicKind;
@@ -51,7 +51,7 @@ mod processor {
         job: Option<usize>,
     }
 
-    impl xdevs::traits::Component for Processor {
+    impl xdevs::Component for Processor {
         type Input = xdevs::port::Port<usize, 1>;
         type Output = xdevs::port::Port<usize, 1>;
         type Kind = xdevs::AtomicKind;
@@ -107,7 +107,7 @@ mod buffer {
         config: Option<&'a str>,
     }
 
-    impl<'a, T: Clone + Debug> xdevs::traits::Component for Buffer<'a, T> {
+    impl<'a, T: Clone + Debug> xdevs::Component for Buffer<'a, T> {
         type Input = xdevs::port::Port<T, 1>;
         type Output = xdevs::port::Port<T, 1>;
         type Kind = xdevs::AtomicKind;
@@ -174,7 +174,7 @@ struct GPB<'a> {
     processor: processor::Processor,
 }
 
-impl xdevs::traits::Component for GPB<'_> {
+impl xdevs::Component for GPB<'_> {
     type Kind = xdevs::CoupledKind;
     type Input = ();
     type Output = ();

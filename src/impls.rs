@@ -2,9 +2,10 @@
 #[cfg(any(feature = "std", feature = "alloc"))]
 extern crate alloc;
 
-use crate::traits::AsProcessor;
-use crate::traits::{sealed::Sealed, AsPort, Bag, Component, PartialCoupled};
-use crate::Coupled;
+use crate::{
+    traits::{sealed::Sealed, AsPort, AsProcessor, Bag, PartialCoupled},
+    Component, Coupled,
+};
 
 //////////////////////////////////////////////// Arrays //////////////////////////////////////////////
 unsafe impl<T: Bag, const N: usize> Bag for [T; N] {

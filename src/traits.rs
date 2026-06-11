@@ -1,4 +1,4 @@
-use crate::{processor::Processor, simulator::Config, traits::sealedkind::SealedKind, CoupledKind};
+use crate::{processor::Processor, simulator::Config, Component, CoupledKind};
 use core::future::Future;
 use sealed::Sealed;
 
@@ -48,18 +48,6 @@ pub unsafe trait BagMux: Bag {
 
     /// Maps the type to the corresponding port, allowing to receive events from the bag.
     fn eject_events(&self, ejector: impl FnMut(Self::Mux));
-}
-
-/// Interface for DEVS components. All DEVS components must implement this trait.
-pub trait Component {
-    /// Kind of DEVS model.
-    type Kind: SealedKind;
-
-    /// Input event bag of the model.
-    type Input: Bag;
-
-    /// Output event bag of the model.
-    type Output: Bag;
 }
 
 /// Partial interface for DEVS coupled models.

@@ -8,7 +8,7 @@ mod generator {
         count: usize,
     }
 
-    impl xdevs::traits::Component for Generator {
+    impl xdevs::Component for Generator {
         type Kind = xdevs::AtomicKind;
         type Input = xdevs::port::Port<bool, 1>;
         type Output = xdevs::port::Port<usize, 1>;
@@ -56,7 +56,7 @@ mod processor {
         job: Option<usize>,
     }
 
-    impl xdevs::traits::Component for Processor {
+    impl xdevs::Component for Processor {
         type Kind = xdevs::AtomicKind;
         type Input = xdevs::port::Port<usize, 1>;
         type Output = xdevs::port::Port<usize, 1>;
@@ -120,7 +120,7 @@ mod transducer {
         n_processed: usize,
     }
 
-    impl xdevs::traits::Component for Transducer {
+    impl xdevs::Component for Transducer {
         type Kind = xdevs::AtomicKind;
         type Input = TransducerInput;
         type Output = xdevs::port::Port<bool, 1>;
@@ -179,7 +179,7 @@ pub struct GPT {
     transducer: transducer::Transducer,
 }
 
-impl xdevs::traits::Component for GPT {
+impl xdevs::Component for GPT {
     type Kind = xdevs::CoupledKind;
     type Input = ();
     type Output = ();
@@ -204,7 +204,7 @@ struct EF {
     transducer: transducer::Transducer,
 }
 
-impl xdevs::traits::Component for EF {
+impl xdevs::Component for EF {
     type Kind = xdevs::CoupledKind;
     type Input = xdevs::port::Port<usize, 1>;
     type Output = xdevs::port::Port<usize, 1>;
@@ -231,7 +231,7 @@ pub struct EFP {
     processor: processor::Processor,
 }
 
-impl xdevs::traits::Component for EFP {
+impl xdevs::Component for EFP {
     type Kind = xdevs::CoupledKind;
     type Input = ();
     type Output = ();

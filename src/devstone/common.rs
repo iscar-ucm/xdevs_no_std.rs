@@ -6,7 +6,7 @@ pub struct JobGenerator {
     count: usize,
 }
 
-impl xdevs::traits::Component for JobGenerator {
+impl xdevs::Component for JobGenerator {
     type Kind = xdevs::AtomicKind;
     type Input = ();
     type Output = xdevs::port::Port<usize, 1>;
@@ -45,7 +45,7 @@ pub struct AtomicModel {
     n_events: usize,
 }
 
-impl xdevs::traits::Component for AtomicModel {
+impl xdevs::Component for AtomicModel {
     type Kind = xdevs::AtomicKind;
     type Input = xdevs::port::Port<usize, 1>;
     type Output = xdevs::port::Port<usize, 1>;
@@ -111,7 +111,7 @@ pub struct LeafModel {
     atomic: AtomicModel,
 }
 
-impl xdevs::traits::Component for LeafModel {
+impl xdevs::Component for LeafModel {
     type Kind = xdevs::CoupledKind;
     type Input = xdevs::Port<usize, 1>;
     type Output = xdevs::Port<usize, 1>;

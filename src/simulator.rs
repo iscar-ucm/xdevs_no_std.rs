@@ -1,6 +1,7 @@
 use crate::{
     processor::Processor,
-    traits::{AbstractSimulator, AsyncInput, Bag, Component},
+    traits::{AbstractSimulator, AsyncInput, Bag},
+    Component,
 };
 use core::{
     ops::{Deref, DerefMut},

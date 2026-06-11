@@ -9,7 +9,7 @@ mod processor {
         job: Option<usize>,
     }
 
-    impl xdevs::traits::Component for Processor {
+    impl xdevs::Component for Processor {
         type Kind = xdevs::AtomicKind;
         type Input = xdevs::port::Port<usize, 1>;
         type Output = xdevs::port::Port<usize, 1>;
@@ -66,7 +66,7 @@ mod load_balancer {
         pending_job: Option<usize>,
     }
 
-    impl xdevs::traits::Component for LoadBalancer {
+    impl xdevs::Component for LoadBalancer {
         type Kind = xdevs::AtomicKind;
         type Input = xdevs::port::Port<usize, 1>;
         type Output = [xdevs::port::Port<usize, 1>; 3];
@@ -120,7 +120,7 @@ mod generator {
         max_jobs: usize,
     }
 
-    impl xdevs::traits::Component for Generator {
+    impl xdevs::Component for Generator {
         type Kind = xdevs::AtomicKind;
         type Input = ();
         type Output = xdevs::port::Port<usize, 1>;
@@ -169,7 +169,7 @@ mod collector {
         total_collected: usize,
     }
 
-    impl xdevs::traits::Component for Collector {
+    impl xdevs::Component for Collector {
         type Kind = xdevs::AtomicKind;
         type Input = xdevs::port::Port<usize, 3>;
         type Output = ();
@@ -218,7 +218,7 @@ struct MultiProcessor {
     collector: collector::Collector,
 }
 
-impl xdevs::traits::Component for MultiProcessor {
+impl xdevs::Component for MultiProcessor {
     type Kind = xdevs::CoupledKind;
     type Input = ();
     type Output = ();

@@ -1,8 +1,10 @@
 pub use crate::export::{RecvError, SubscribeError};
 pub mod traits;
-use crate::traits::{
-    AbstractSimulator, Component, EjectOutput, InjectInput, RtEngineInputChannel,
-    RtEngineOutputChannel,
+use crate::{
+    traits::{
+        AbstractSimulator, EjectOutput, InjectInput, RtEngineInputChannel, RtEngineOutputChannel,
+    },
+    Component,
 };
 use crate::{Duration, Instant, Simulator};
 

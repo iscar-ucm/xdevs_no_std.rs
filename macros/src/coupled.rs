@@ -142,7 +142,7 @@ pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2>
         for field in item.fields.iter_mut() {
             let original_ty = field.ty.clone();
             field.ty = syn::parse_quote! {
-                <#original_ty as ::xdevs::traits::Component>::Input
+                <#original_ty as ::xdevs::Component>::Input
             };
         }
         item
@@ -159,7 +159,7 @@ pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2>
         for field in item.fields.iter_mut() {
             let original_ty = field.ty.clone();
             field.ty = syn::parse_quote! {
-                <#original_ty as ::xdevs::traits::Component>::Output
+                <#original_ty as ::xdevs::Component>::Output
             };
         }
         item
@@ -197,7 +197,7 @@ pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2>
 
         /// Struct holding all inner components as fields.
         #components_struct
-        impl #impl_generics ::xdevs::traits::Component for #components_ident #ty_generics #where_clause {
+        impl #impl_generics ::xdevs::Component for #components_ident #ty_generics #where_clause {
             type Input = #components_input_ident #ty_generics;
             type Output = #components_output_ident #ty_generics;
             type Kind = ::xdevs::CoupledKind;

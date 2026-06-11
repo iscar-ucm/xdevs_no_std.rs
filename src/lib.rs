@@ -29,8 +29,20 @@ impl SealedKind for AtomicKind {}
 pub struct CoupledKind;
 impl SealedKind for CoupledKind {}
 
+/// Interface for DEVS components. All DEVS components must implement this trait.
+pub trait Component {
+    /// Kind of DEVS model.
+    type Kind: SealedKind;
+
+    /// Input event bag of the model.
+    type Input: xdevs::traits::Bag;
+
+    /// Output event bag of the model.
+    type Output: xdevs::traits::Bag;
+}
+
 /// Interface for DEVS atomic models. All DEVS atomic models must implement this trait.
-pub trait Atomic: xdevs::traits::Component<Kind = AtomicKind> {
+pub trait Atomic: xdevs::Component<Kind = AtomicKind> {
     /// Method for performing any operation before simulating. By default, it does nothing.
     #[allow(unused_variables)]
     #[inline]

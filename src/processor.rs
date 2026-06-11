@@ -1,8 +1,8 @@
 use core::ops::{Deref, DerefMut};
 
 use crate::{
-    traits::{AbstractSimulator, AsProcessor, Bag, Component},
-    Atomic, AtomicKind, Coupled, CoupledKind,
+    traits::{AbstractSimulator, AsProcessor, Bag},
+    Atomic, AtomicKind, Component, Coupled, CoupledKind,
 };
 
 pub struct Processor<T: Component> {

@@ -11,7 +11,7 @@ pub fn coupled(args: TokenStream, item: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as coupled::ComponentArgs);
     let item = parse_macro_input!(item as syn::ItemStruct);
 
-    match coupled::expand(args, item.into()) {
+    match coupled::expand(args, item) {
         Ok(component) => component.into(),
         Err(err) => err.to_compile_error().into(),
     }

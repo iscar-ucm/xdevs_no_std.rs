@@ -1,7 +1,7 @@
 use crate::processor::Processor;
 
 use super::common::*;
-use xdevs::traits::{AbstractSimulator, Component};
+use xdevs::{traits::AbstractSimulator, Component};
 
 use alloc::boxed::Box;
 
@@ -159,7 +159,7 @@ pub struct HIModel<const W: usize> {
     inner: Box<HIEnum<W>>,
 }
 
-impl<const W: usize> xdevs::traits::Component for HIModel<W> {
+impl<const W: usize> xdevs::Component for HIModel<W> {
     type Kind = xdevs::CoupledKind;
     type Input = xdevs::Port<usize, 1>;
     type Output = xdevs::Port<usize, 1>;

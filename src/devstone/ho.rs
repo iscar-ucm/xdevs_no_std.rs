@@ -2,7 +2,7 @@ use crate::processor::Processor;
 
 use super::common::{AtomicModel, JobGenerator};
 use alloc::boxed::Box;
-use xdevs::traits::{AbstractSimulator, Component};
+use xdevs::{traits::AbstractSimulator, Component};
 
 /// Output struct for HO models
 #[derive(Debug, Default, xdevs::Bag)]
@@ -26,7 +26,7 @@ pub struct LeafModel<const W: usize> {
     atomic: AtomicModel,
 }
 
-impl<const W: usize> xdevs::traits::Component for LeafModel<W> {
+impl<const W: usize> xdevs::Component for LeafModel<W> {
     type Kind = xdevs::CoupledKind;
     type Input = xdevs::port::Port<usize, 1>;
     type Output = HOModelOutput<W>;
@@ -34,10 +34,10 @@ impl<const W: usize> xdevs::traits::Component for LeafModel<W> {
 
 impl<const W: usize> xdevs::Coupled for LeafModel<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
-        from.couple(&mut to.atomic).unwrap();
+        let _ = from.couple(&mut to.atomic);
     }
     fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {
-        from.atomic.couple(&mut to.output_port_1).unwrap();
+        let _ = from.atomic.couple(&mut to.output_port_1);
     }
 }
 
@@ -268,7 +268,7 @@ impl<const W: usize> HOModel<W> {
         Processor::new(Self::new(inner))
     }
 }
-impl<const W: usize> xdevs::traits::Component for HOModel<W> {
+impl<const W: usize> xdevs::Component for HOModel<W> {
     type Kind = xdevs::CoupledKind;
     type Input = xdevs::port::Port<usize, 1>;
     type Output = HOModelOutput<W>;
