@@ -5,6 +5,7 @@ use crate::{
     Atomic, AtomicKind, Component, Coupled, CoupledKind,
 };
 
+/// Processor that wraps a DEVS component and implements the logic for simulating it.
 pub struct Processor<T: Component> {
     pub(crate) component: T,
     t_last: f64,
@@ -12,6 +13,7 @@ pub struct Processor<T: Component> {
 }
 
 impl<T: Component> Processor<T> {
+    /// Creates a new processor for the given component.
     pub const fn new(component: T) -> Self {
         Self {
             component,
@@ -53,6 +55,7 @@ where
 }
 
 unsafe impl<T: Atomic> AbstractSimulator<AtomicKind> for T {
+    #[inline(always)]
     fn start(processor: &mut Processor<Self>, t_start: f64) -> f64 {
         processor.t_last = t_start;
         processor.component.start();
@@ -60,14 +63,17 @@ unsafe impl<T: Atomic> AbstractSimulator<AtomicKind> for T {
         processor.t_next = t_next;
         t_next
     }
+    #[inline(always)]
     fn stop(processor: &mut Processor<Self>) {
         processor.component.stop();
     }
+    #[inline(always)]
     fn lambda(processor: &mut Processor<Self>, output: &mut Self::Output, t: f64) {
         if t >= processor.t_next {
             processor.component.lambda(output);
         }
     }
+    #[inline(always)]
     fn delta(
         processor: &mut Processor<Self>,
         input: &mut Self::Input,
@@ -98,17 +104,18 @@ unsafe impl<T: Atomic> AbstractSimulator<AtomicKind> for T {
 }
 
 unsafe impl<T: Coupled> AbstractSimulator<CoupledKind> for T {
+    #[inline(always)]
     fn start(processor: &mut Processor<Self>, t_start: f64) -> f64 {
         processor.t_last = t_start;
         let t_next = processor.component.components().starts(t_start);
         processor.t_next = t_next;
         t_next
     }
+    #[inline(always)]
     fn stop(processor: &mut Processor<Self>) {
         processor.component.components().stops();
-        processor.t_last = f64::INFINITY;
-        processor.t_next = f64::INFINITY;
     }
+    #[inline(always)]
     fn lambda(processor: &mut Processor<Self>, output: &mut Self::Output, t: f64) {
         if t >= processor.t_next {
             let (components, _, outputs) = processor.component.split();
@@ -116,6 +123,7 @@ unsafe impl<T: Coupled> AbstractSimulator<CoupledKind> for T {
             Self::eoc(outputs, output);
         }
     }
+    #[inline(always)]
     fn delta(
         processor: &mut Processor<Self>,
         input: &mut Self::Input,

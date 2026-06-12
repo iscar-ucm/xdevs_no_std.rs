@@ -21,24 +21,28 @@ pub use port::Port;
 pub use simulator::{Config, Simulator};
 pub use xdevs_no_std_macros::*;
 
-use crate::traits::sealedkind::SealedKind;
+use crate::traits::sealed::Sealed;
 
+/// Marker type for atomic DEVS models.
 pub struct AtomicKind;
-impl SealedKind for AtomicKind {}
 
+impl Sealed for AtomicKind {}
+
+/// Marker type for coupled DEVS models.
 pub struct CoupledKind;
-impl SealedKind for CoupledKind {}
+
+impl Sealed for CoupledKind {}
 
 /// Interface for DEVS components. All DEVS components must implement this trait.
 pub trait Component {
-    /// Kind of DEVS model.
-    type Kind: SealedKind;
+    /// Kind of DEVS model. It can be either [`AtomicKind`] or [`CoupledKind`].
+    type Kind: Sealed;
 
     /// Input event bag of the model.
-    type Input: xdevs::traits::Bag;
+    type Input: traits::Bag;
 
     /// Output event bag of the model.
-    type Output: xdevs::traits::Bag;
+    type Output: traits::Bag;
 }
 
 /// Interface for DEVS atomic models. All DEVS atomic models must implement this trait.
