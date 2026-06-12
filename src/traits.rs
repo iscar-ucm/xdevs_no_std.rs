@@ -1,4 +1,4 @@
-use crate::{processor::Processor, simulator::Config, Component, CoupledKind};
+use crate::{processor::Processor, simulator::Config, Component};
 use core::future::Future;
 use sealed::Sealed;
 
@@ -48,32 +48,6 @@ pub unsafe trait BagMux: Bag {
 
     /// Maps the type to the corresponding port, allowing to receive events from the bag.
     fn eject_events(&self, ejector: impl FnMut(Self::Mux));
-}
-
-/// Partial interface for DEVS coupled models.
-/// It is used as a helper trait to implement the [`Coupled`](crate::Coupled) trait.
-///
-/// # Safety
-///
-/// This trait must be implemented via the [`coupled`](macro@crate::coupled) macro. Do not implement it manually.
-pub unsafe trait PartialCoupled: Component<Kind = CoupledKind>
-where
-    Self::Components: AsProcessor<Input = Self::ComponentsInput, Output = Self::ComponentsOutput>,
-{
-    type Components: AsProcessor;
-    type ComponentsInput: Bag;
-    type ComponentsOutput: Bag;
-
-    fn components(&mut self) -> &mut Self::Components;
-    fn inputs(&mut self) -> &mut Self::ComponentsInput;
-    fn outputs(&mut self) -> &mut Self::ComponentsOutput;
-    fn split(
-        &mut self,
-    ) -> (
-        &mut Self::Components,
-        &mut Self::ComponentsInput,
-        &mut Self::ComponentsOutput,
-    );
 }
 
 /// Interface for simulating DEVS models. All DEVS models must implement this trait.

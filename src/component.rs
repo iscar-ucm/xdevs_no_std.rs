@@ -1,3 +1,6 @@
+pub mod atomic;
+pub mod coupled;
+
 use xdevs::traits;
 
 /// Marker type for atomic DEVS models.

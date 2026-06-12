@@ -257,7 +257,7 @@ pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2>
             }
         }
 
-        unsafe impl #impl_generics ::xdevs::traits::PartialCoupled for #item_ident #ty_generics #where_clause {
+        unsafe impl #impl_generics ::xdevs::component::coupled::PartialCoupled for #item_ident #ty_generics #where_clause {
             type Components = #components_ident #ty_generics;
             type ComponentsInput = #components_input_ident #ty_generics;
             type ComponentsOutput = #components_output_ident #ty_generics;

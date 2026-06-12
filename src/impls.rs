@@ -3,7 +3,8 @@
 extern crate alloc;
 
 use crate::{
-    traits::{sealed::Sealed, AsPort, AsProcessor, Bag, PartialCoupled},
+    component::coupled::PartialCoupled,
+    traits::{sealed::Sealed, AsPort, AsProcessor, Bag},
     Component, Coupled,
 };
 

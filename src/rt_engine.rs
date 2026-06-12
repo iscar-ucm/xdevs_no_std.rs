@@ -51,8 +51,7 @@ where
     }
 }
 
-/// Specialized implementation: Only exists if IC is a &'static Channel.
-/// Note how I and N are declared here, not on the struct.
+/// Specialized implementation: Only exists if IC is RtEngineInputChannel.
 impl<K, M> RtEngine<K, M>
 where
     M: Component<Kind = K>,
@@ -68,8 +67,7 @@ where
     }
 }
 
-/// Specialized implementation: Only exists if OC is a &'static PubSubChannel.
-/// Note how O, CAP, and SUBS are declared here.
+/// Specialized implementation: Only exists if OC is RtEngineOutputChannel.
 impl<K, M> RtEngine<K, M>
 where
     M: Component<Kind = K>,
