@@ -12,19 +12,20 @@ pub struct TransparentOutput {
     pub out_job: xdevs::Port<usize, 1>,
 }
 
-pub struct TransparentAtomic {
+pub struct Transparent {
     next_processor: usize,
     next_value: usize,
     sigma: f64,
 }
 
-impl xdevs::Component for TransparentAtomic {
+#[xdevs::rt_engine(in_channel_size = 3, out_channel_size = 1)]
+impl xdevs::Component for Transparent {
     type Kind = xdevs::AtomicKind;
     type Input = TransparentInput;
     type Output = TransparentOutput;
 }
 
-impl xdevs::Atomic for TransparentAtomic {
+impl xdevs::Atomic for Transparent {
     fn delta_int(&mut self) {
         self.sigma = f64::INFINITY; // Passive state (wait for external input)
     }
@@ -55,35 +56,13 @@ impl xdevs::Atomic for TransparentAtomic {
     }
 }
 
-impl TransparentAtomic {
+impl Transparent {
     fn new() -> Self {
         Self {
             next_processor: 0,
             next_value: 0,
             sigma: f64::INFINITY,
         }
-    }
-}
-
-#[xdevs::coupled(rt_engine(in_channel_size = 3, out_channel_size = 1))]
-pub struct Transparent {
-    atomic: TransparentAtomic,
-}
-
-impl xdevs::Component for Transparent {
-    type Kind = xdevs::CoupledKind;
-    type Input = TransparentInput;
-    type Output = TransparentOutput;
-}
-
-impl xdevs::Coupled for Transparent {
-    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
-        for (external, internal) in from.in_job.iter().zip(to.atomic.in_job.iter_mut()) {
-            external.couple(internal).unwrap();
-        }
-    }
-    fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {
-        from.atomic.out_job.couple(&mut to.out_job).unwrap();
     }
 }
 
@@ -122,8 +101,7 @@ async fn receiver(mut receiver: TransparentReceiver) {
 
 #[tokio::main]
 async fn main() {
-    let transparent = TransparentAtomic::new();
-    let transparent = Transparent::build(transparent);
+    let transparent = Transparent::new();
     let mut engine = transparent.into_rt_engine();
     let config = xdevs::simulator::Config::new(0.0, 15.0, 1.0, None);
 

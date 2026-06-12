@@ -1,53 +1,28 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
-use crate::coupled::ComponentArgs;
 use heck::ToShoutySnakeCase;
-use syn::{
-    parse::{Parse, ParseStream},
-    ItemStruct, Result,
-};
+use syn::{Ident, ItemImpl, Result};
 
 /// Arguments for the `#[rt_engine]` attribute macro.
 #[derive(Debug, Clone)]
-pub struct RtEngineBackend {
-    /// Capacity of the input channel (`in_channel_size = ...`).
-    in_channel_size: usize,
-    /// Capacity of the output channel (`out_channel_size = ...`).
-    out_channel_size: usize,
-    /// Number of subscribers for the output PubSubChannel (`max_out_subs = ...`).
-    max_out_subs: usize,
-}
-
-impl Default for RtEngineBackend {
-    fn default() -> Self {
-        Self {
-            in_channel_size: 1,
-            out_channel_size: 1,
-            max_out_subs: 1,
-        }
-    }
-}
-
-impl Parse for RtEngineBackend {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let parsed_args: RtEngineArgs = input.parse()?;
-
-        Ok(RtEngineBackend {
-            in_channel_size: parsed_args.in_channel_size.unwrap_or(1),
-            out_channel_size: parsed_args.out_channel_size.unwrap_or(1),
-            max_out_subs: parsed_args.max_out_subs.unwrap_or(1),
-        })
-    }
-}
+pub struct RtEngineBackend;
 
 impl Backend for RtEngineBackend {
-    fn check_compatibility(&self, _args: &ComponentArgs) -> Result<()> {
+    fn check_args_compatibility(_max_out_subs: Option<usize>) -> Result<()> {
         Ok(())
     }
-
-    fn input_channel(&self, model: &ItemStruct) -> ChannelTokens {
-        let model_ident = &model.ident;
+    fn check_item_compatibility(item: &ItemImpl) -> Result<()> {
+        if item.generics.params.len() > 0 {
+            return Err(syn::Error::new_spanned(
+                &item.generics,
+                "The `#[rt_engine]` macro embassy backend does not support generic parameters.",
+            ));
+        } else {
+            Ok(())
+        }
+    }
+    fn input_channel(args: &RtEngineArgs, model_ident: &Ident) -> ChannelTokens {
         let input_ident = quote::format_ident!("{}Input", model_ident);
-        let in_channel_size = self.in_channel_size;
+        let in_channel_size = args.in_channel_size;
 
         let channel_type = quote::quote! { ::xdevs::export::InputChannel<'static,
             <Self as ::xdevs::port::BagMux>::Mux,
@@ -72,11 +47,10 @@ impl Backend for RtEngineBackend {
         }
     }
 
-    fn output_channel(&self, model: &ItemStruct) -> ChannelTokens {
-        let model_ident = &model.ident;
+    fn output_channel(args: &RtEngineArgs, model_ident: &Ident) -> ChannelTokens {
         let output_ident = quote::format_ident!("{}Output", model_ident);
-        let out_channel_size = self.out_channel_size;
-        let max_out_subs = self.max_out_subs;
+        let out_channel_size = args.out_channel_size;
+        let max_out_subs = args.max_out_subs;
 
         let channel_type = quote::quote! { ::xdevs::export::OutputChannel<'static,
             <Self as ::xdevs::port::BagMux>::Mux,

@@ -1,93 +1,9 @@
-mod backend;
-mod rt_engine;
-
-use crate::{
-    combine_err,
-    coupled::{backend::RtEngine, rt_engine::expand_rt_engine},
-};
+use crate::combine_err;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use syn::{
-    parse::{Parse, ParseStream},
-    punctuated::Punctuated,
-    Error, FieldsNamed, Ident, ItemStruct, Meta, Result, Token,
-};
+use syn::{Error, FieldsNamed, Ident, ItemStruct, Result};
 
-/// Arguments for both the `#[atomic]` and `#[coupled]` attribute macros.
-#[derive(Debug)]
-pub struct ComponentArgs {
-    pub rt_engine: Option<RtEngine>,
-    pub rt_engine_span: Option<Span>,
-}
-
-impl Parse for ComponentArgs {
-    fn parse(input: ParseStream) -> Result<Self> {
-        let mut acc: Option<Error> = None;
-        let mut args = ComponentArgs {
-            rt_engine: None,
-            rt_engine_span: None,
-        };
-        let mut rt_engine_seen = false;
-
-        // Parse a comma-separated list of meta items (args)
-        let metas = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
-
-        for meta in metas {
-            // Check if the argument matches what we are looking for
-            if meta.path().is_ident("rt_engine") {
-                if rt_engine_seen {
-                    combine_err(
-                        &mut acc,
-                        Error::new_spanned(&meta, "duplicate argument: rt_engine"),
-                    );
-                } else {
-                    rt_engine_seen = true;
-                    args.rt_engine_span = Some(syn::spanned::Spanned::span(&meta));
-                    match meta {
-                        Meta::Path(_) => {
-                            args.rt_engine = Some(RtEngine::default());
-                        }
-                        Meta::List(list) => match syn::parse2(list.tokens) {
-                            Ok(rt_engine) => args.rt_engine = Some(rt_engine),
-                            Err(err) => combine_err(&mut acc, err),
-                        },
-                        Meta::NameValue(nv) => {
-                            combine_err(
-                                &mut acc,
-                                Error::new_spanned(
-                                    nv,
-                                    "expected `rt_engine` or `rt_engine(...)`, found `rt_engine = ...`",
-                                ),
-                            );
-                        }
-                    }
-                }
-            } else {
-                combine_err(
-                    &mut acc,
-                    Error::new_spanned(meta, "Unknown component argument"),
-                );
-            }
-        }
-
-        if let Some(err) = acc {
-            return Err(err);
-        }
-
-        Ok(args)
-    }
-}
-
-pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2> {
+pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
     let mut acc: Option<Error> = None;
-
-    //TODO Remove this rt_engine generation and create its own #[derive] macro for it
-    let rt_engine_impl = match expand_rt_engine(&args, &item) {
-        Ok(tokens) => tokens,
-        Err(err) => {
-            combine_err(&mut acc, err);
-            TokenStream2::new()
-        }
-    };
 
     // Generate initial variables for code generation
     let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
@@ -193,8 +109,6 @@ pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2>
 
     // Generate the expanded code
     let expanded = quote::quote! {
-        #rt_engine_impl
-
         /// Struct holding all inner components as fields.
         #components_struct
         impl #impl_generics ::xdevs::Component for #components_ident #ty_generics #where_clause {
