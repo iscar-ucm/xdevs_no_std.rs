@@ -202,29 +202,29 @@ pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2>
             type Output = #components_output_ident #ty_generics;
             type Kind = ::xdevs::CoupledKind;
         }
-        unsafe impl #impl_generics ::xdevs::traits::AsProcessor for #components_ident #ty_generics #where_clause {
+        unsafe impl #impl_generics ::xdevs::processor::AsProcessor for #components_ident #ty_generics #where_clause {
             #[inline(always)]
             fn starts(&mut self, t_start: f64) -> f64 {
                 let mut t_next = f64::INFINITY;
-                #(t_next = f64::min(t_next, ::xdevs::traits::AsProcessor::starts(&mut self.#components_fields_idents, t_start));)*
+                #(t_next = f64::min(t_next, ::xdevs::processor::AsProcessor::starts(&mut self.#components_fields_idents, t_start));)*
                 t_next
             }
 
             #[inline(always)]
             fn stops(&mut self) {
-                #(::xdevs::traits::AsProcessor::stops(&mut self.#components_fields_idents);)*
+                #(::xdevs::processor::AsProcessor::stops(&mut self.#components_fields_idents);)*
             }
 
             #[inline(always)]
             fn lambdas(&mut self, output: &mut Self::Output, t: f64) {
-                #(::xdevs::traits::AsProcessor::lambdas(&mut self.#components_fields_idents, &mut output.#components_fields_idents, t);)*
+                #(::xdevs::processor::AsProcessor::lambdas(&mut self.#components_fields_idents, &mut output.#components_fields_idents, t);)*
 
             }
 
             #[inline(always)]
             fn deltas(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
                 let mut t_next = f64::INFINITY;
-                #(t_next = f64::min(t_next, ::xdevs::traits::AsProcessor::deltas(
+                #(t_next = f64::min(t_next, ::xdevs::processor::AsProcessor::deltas(
                         &mut self.#components_fields_idents,
                         &mut input.#components_fields_idents,
                         &mut output.#components_fields_idents,
@@ -248,8 +248,8 @@ pub fn expand(args: ComponentArgs, mut item: ItemStruct) -> Result<TokenStream2>
             #[inline]
             pub fn build(#(#item_fields: #item_tys),*) -> Self {
                 Self {
-                    components_input: <#components_input_ident #ty_generics as ::xdevs::traits::Bag>::build(),
-                    components_output: <#components_output_ident #ty_generics as ::xdevs::traits::Bag>::build(),
+                    components_input: <#components_input_ident #ty_generics as ::xdevs::port::Bag>::build(),
+                    components_output: <#components_output_ident #ty_generics as ::xdevs::port::Bag>::build(),
                     components: #components_ident #ty_generics_turbofish {
                         #(#init_fields),*
                     },

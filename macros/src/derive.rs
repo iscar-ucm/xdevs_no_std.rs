@@ -43,7 +43,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
             let build_fields = fields.named.iter().map(|field| {
                 let field_ident = field.ident.as_ref().expect("named field must have ident");
                 let field_ty = &field.ty;
-                quote::quote!(#field_ident: <#field_ty as ::xdevs::traits::Bag>::build())
+                quote::quote!(#field_ident: <#field_ty as ::xdevs::port::Bag>::build())
             });
             quote::quote! {
                 Self {
@@ -54,7 +54,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
         Fields::Unnamed(fields) => {
             let build_elems = fields.unnamed.iter().map(|field| {
                 let field_ty = &field.ty;
-                quote::quote!(<#field_ty as ::xdevs::traits::Bag>::build())
+                quote::quote!(<#field_ty as ::xdevs::port::Bag>::build())
             });
             quote::quote! {
                 Self(
@@ -78,7 +78,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
     };
 
     Ok(quote::quote! {
-        unsafe impl #impl_generics ::xdevs::traits::Bag for #ident #ty_generics #where_clause {
+        unsafe impl #impl_generics ::xdevs::port::Bag for #ident #ty_generics #where_clause {
             #[inline]
             fn build() -> Self {
                 #build_body
@@ -126,7 +126,7 @@ pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
         )),
         Fields::Unit => {
             Ok(quote::quote! {
-            unsafe impl #impl_generics ::xdevs::traits::BagMux for #ident #ty_generics #where_clause {
+            unsafe impl #impl_generics ::xdevs::port::BagMux for #ident #ty_generics #where_clause {
                 type Mux = ();
                 fn inject_event(&mut self, _event: Self::Mux) {
                     // No ports to receive input
@@ -147,7 +147,7 @@ pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
                         info.ident.as_ref().expect("named field must have ident"),
                     );
                     let ty = &info.ty;
-                    quote::quote! { #variant(<#ty as ::xdevs::traits::AsPort>::Item) }
+                    quote::quote! { #variant(<#ty as ::xdevs::port::AsPort>::Item) }
                 })
                 .collect();
 
@@ -194,7 +194,7 @@ pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
             };
 
             Ok(quote::quote! {
-                unsafe impl #impl_generics ::xdevs::traits::BagMux for #ident #ty_generics #where_clause {
+                unsafe impl #impl_generics ::xdevs::port::BagMux for #ident #ty_generics #where_clause {
                     type Mux = #private_mod_ident::PortMux #ty_generics;
                     #inject_event_body
                     #eject_events_body

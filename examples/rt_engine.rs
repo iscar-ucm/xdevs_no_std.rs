@@ -4,12 +4,12 @@
 
 #[derive(xdevs::Bag, xdevs::BagMux)]
 pub struct TransparentInput {
-    pub in_job: [xdevs::port::Port<usize, 1>; 3],
+    pub in_job: [xdevs::Port<usize, 1>; 3],
 }
 
 #[derive(xdevs::Bag, xdevs::BagMux)]
 pub struct TransparentOutput {
-    pub out_job: xdevs::port::Port<usize, 1>,
+    pub out_job: xdevs::Port<usize, 1>,
 }
 
 pub struct TransparentAtomic {

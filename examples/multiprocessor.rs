@@ -1,4 +1,4 @@
-/// Example demonstrating multiple models with xdevs::port::Port and component arrays for coupling.
+/// Example demonstrating multiple models with xdevs::Port and component arrays for coupling.
 /// This example shows a load balancer that distributes jobs to multiple processors.
 mod processor {
 
@@ -11,8 +11,8 @@ mod processor {
 
     impl xdevs::Component for Processor {
         type Kind = xdevs::AtomicKind;
-        type Input = xdevs::port::Port<usize, 1>;
-        type Output = xdevs::port::Port<usize, 1>;
+        type Input = xdevs::Port<usize, 1>;
+        type Output = xdevs::Port<usize, 1>;
     }
     impl xdevs::Atomic for Processor {
         fn delta_int(&mut self) {
@@ -59,7 +59,7 @@ mod processor {
 }
 
 mod load_balancer {
-    /// A load balancer that receives jobs and distributes them round-robin to 3 output xdevs::port::Ports.
+    /// A load balancer that receives jobs and distributes them round-robin to 3 output xdevs::Ports.
     pub struct LoadBalancer {
         sigma: f64,
         next_processor: usize,
@@ -68,8 +68,8 @@ mod load_balancer {
 
     impl xdevs::Component for LoadBalancer {
         type Kind = xdevs::AtomicKind;
-        type Input = xdevs::port::Port<usize, 1>;
-        type Output = [xdevs::port::Port<usize, 1>; 3];
+        type Input = xdevs::Port<usize, 1>;
+        type Output = [xdevs::Port<usize, 1>; 3];
     }
 
     impl xdevs::Atomic for LoadBalancer {
@@ -123,7 +123,7 @@ mod generator {
     impl xdevs::Component for Generator {
         type Kind = xdevs::AtomicKind;
         type Input = ();
-        type Output = xdevs::port::Port<usize, 1>;
+        type Output = xdevs::Port<usize, 1>;
     }
 
     impl xdevs::Atomic for Generator {
@@ -163,7 +163,7 @@ mod generator {
 }
 
 mod collector {
-    /// Collects processed jobs from multiple processors via a single input xdevs::port::Port.
+    /// Collects processed jobs from multiple processors via a single input xdevs::Port.
     pub struct Collector {
         sigma: f64,
         total_collected: usize,
@@ -171,7 +171,7 @@ mod collector {
 
     impl xdevs::Component for Collector {
         type Kind = xdevs::AtomicKind;
-        type Input = xdevs::port::Port<usize, 3>;
+        type Input = xdevs::Port<usize, 3>;
         type Output = ();
     }
 

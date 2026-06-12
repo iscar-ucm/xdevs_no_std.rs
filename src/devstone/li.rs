@@ -1,7 +1,7 @@
 use super::common::*;
 use alloc::boxed::Box;
 use xdevs::processor::Processor;
-use xdevs::{traits::AbstractSimulator, Component};
+use xdevs::{component::AbstractSimulator, Component};
 
 pub enum LIEnum<const W: usize> {
     Leaf(Processor<LeafModel>),

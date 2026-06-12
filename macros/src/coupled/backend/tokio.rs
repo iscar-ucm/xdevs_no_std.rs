@@ -50,7 +50,7 @@ impl Backend for RtEngineBackend {
     fn input_channel(&self, _model: &ItemStruct) -> ChannelTokens {
         let in_channel_size = self.in_channel_size;
         let channel_type = quote::quote! { ::xdevs::export::InputChannel<
-            <Self as ::xdevs::traits::BagMux>::Mux,
+            <Self as ::xdevs::port::BagMux>::Mux,
             #in_channel_size
         > };
         let channel_call = quote::quote! {::xdevs::export::InputChannel::new() };
@@ -65,7 +65,7 @@ impl Backend for RtEngineBackend {
     fn output_channel(&self, _model: &ItemStruct) -> ChannelTokens {
         let out_channel_size = self.out_channel_size;
         let channel_type = quote::quote! { ::xdevs::export::OutputChannel<
-            <Self as ::xdevs::traits::BagMux>::Mux,
+            <Self as ::xdevs::port::BagMux>::Mux,
             #out_channel_size
         > };
         let channel_call = quote::quote! {::xdevs::export::OutputChannel::new() };

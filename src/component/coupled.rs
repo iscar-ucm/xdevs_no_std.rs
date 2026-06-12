@@ -1,7 +1,6 @@
 use crate::{
-    processor::Processor,
-    traits::{AbstractSimulator, AsProcessor, Bag},
-    Atomic, AtomicKind, Component, CoupledKind,
+    component::AbstractSimulator, port::Bag, processor::AsProcessor, processor::Processor,
+    Component, CoupledKind,
 };
 
 /// Interface for DEVS coupled models. All DEVS coupled models must implement this trait.
@@ -48,55 +47,6 @@ where
     );
 }
 
-unsafe impl<T: Atomic> AbstractSimulator<AtomicKind> for T {
-    #[inline(always)]
-    fn start(processor: &mut Processor<Self>, t_start: f64) -> f64 {
-        processor.t_last = t_start;
-        processor.component.start();
-        let t_next = t_start + processor.component.ta();
-        processor.t_next = t_next;
-        t_next
-    }
-    #[inline(always)]
-    fn stop(processor: &mut Processor<Self>) {
-        processor.component.stop();
-    }
-    #[inline(always)]
-    fn lambda(processor: &mut Processor<Self>, output: &mut Self::Output, t: f64) {
-        if t >= processor.t_next {
-            processor.component.lambda(output);
-        }
-    }
-    #[inline(always)]
-    fn delta(
-        processor: &mut Processor<Self>,
-        input: &mut Self::Input,
-        output: &mut Self::Output,
-        t: f64,
-    ) -> f64 {
-        let t_next = processor.t_next;
-        if !input.is_empty() {
-            if t >= t_next {
-                processor.component.delta_conf(input);
-                output.clear();
-            } else {
-                let e = t - processor.t_last;
-                processor.component.delta_ext(e, input);
-            }
-            input.clear();
-        } else if t >= t_next {
-            processor.component.delta_int();
-            output.clear();
-        } else {
-            return t_next;
-        }
-        let t_next = t + processor.component.ta();
-        processor.t_last = t;
-        processor.t_next = t_next;
-        t_next
-    }
-}
-
 unsafe impl<T: Coupled> AbstractSimulator<CoupledKind> for T {
     #[inline(always)]
     fn start(processor: &mut Processor<Self>, t_start: f64) -> f64 {
@@ -139,5 +89,95 @@ unsafe impl<T: Coupled> AbstractSimulator<CoupledKind> for T {
         output.clear();
 
         t_next
+    }
+}
+
+unsafe impl<T: PartialCoupled> PartialCoupled for &mut T {
+    type Components = T::Components;
+    type ComponentsInput = T::ComponentsInput;
+    type ComponentsOutput = T::ComponentsOutput;
+
+    #[inline]
+    fn components(&mut self) -> &mut Self::Components {
+        (**self).components()
+    }
+    #[inline]
+    fn inputs(&mut self) -> &mut Self::ComponentsInput {
+        (**self).inputs()
+    }
+    #[inline]
+    fn outputs(&mut self) -> &mut Self::ComponentsOutput {
+        (**self).outputs()
+    }
+    #[inline]
+    fn split(
+        &mut self,
+    ) -> (
+        &mut Self::Components,
+        &mut Self::ComponentsInput,
+        &mut Self::ComponentsOutput,
+    ) {
+        (**self).split()
+    }
+}
+
+impl<T: Coupled> Coupled for &mut T {
+    #[inline]
+    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
+        T::eic(from, to);
+    }
+    #[inline]
+    fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
+        T::ic(from, to);
+    }
+    #[inline]
+    fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {
+        T::eoc(from, to);
+    }
+}
+
+#[cfg(feature = "alloc")]
+unsafe impl<T: PartialCoupled> PartialCoupled for alloc::boxed::Box<T> {
+    type Components = T::Components;
+    type ComponentsInput = T::ComponentsInput;
+    type ComponentsOutput = T::ComponentsOutput;
+
+    #[inline]
+    fn components(&mut self) -> &mut Self::Components {
+        (**self).components()
+    }
+    #[inline]
+    fn inputs(&mut self) -> &mut Self::ComponentsInput {
+        (**self).inputs()
+    }
+    #[inline]
+    fn outputs(&mut self) -> &mut Self::ComponentsOutput {
+        (**self).outputs()
+    }
+    #[inline]
+    fn split(
+        &mut self,
+    ) -> (
+        &mut Self::Components,
+        &mut Self::ComponentsInput,
+        &mut Self::ComponentsOutput,
+    ) {
+        (**self).split()
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl<T: Coupled> Coupled for alloc::boxed::Box<T> {
+    #[inline]
+    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
+        T::eic(from, to);
+    }
+    #[inline]
+    fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
+        T::ic(from, to);
+    }
+    #[inline]
+    fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {
+        T::eoc(from, to);
     }
 }

@@ -9,13 +9,11 @@ pub mod component;
 #[cfg(feature = "alloc")]
 pub mod devstone;
 pub mod export;
-mod impls;
 pub mod port;
 pub mod processor;
 #[cfg(any(feature = "embassy", feature = "std"))]
 pub mod rt_engine;
 pub mod simulator;
-pub mod traits;
 
 pub use component::{atomic::Atomic, coupled::Coupled, AtomicKind, Component, CoupledKind};
 pub use embassy_time::{Duration, Instant};

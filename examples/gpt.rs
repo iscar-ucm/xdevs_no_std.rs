@@ -8,8 +8,8 @@ mod generator {
 
     impl xdevs::Component for Generator {
         type Kind = xdevs::AtomicKind;
-        type Input = xdevs::port::Port<bool, 1>;
-        type Output = xdevs::port::Port<usize, 1>;
+        type Input = xdevs::Port<bool, 1>;
+        type Output = xdevs::Port<usize, 1>;
     }
     impl xdevs::Atomic for Generator {
         fn delta_int(&mut self) {
@@ -56,8 +56,8 @@ mod processor {
 
     impl xdevs::Component for Processor {
         type Kind = xdevs::AtomicKind;
-        type Input = xdevs::port::Port<usize, 1>;
-        type Output = xdevs::port::Port<usize, 1>;
+        type Input = xdevs::Port<usize, 1>;
+        type Output = xdevs::Port<usize, 1>;
     }
     impl xdevs::Atomic for Processor {
         fn delta_int(&mut self) {
@@ -107,8 +107,8 @@ mod processor {
 mod transducer {
     #[derive(xdevs::Bag)]
     pub struct TransducerInput {
-        pub in_generator: xdevs::port::Port<usize, 1>,
-        pub in_processor: xdevs::port::Port<usize, 1>,
+        pub in_generator: xdevs::Port<usize, 1>,
+        pub in_processor: xdevs::Port<usize, 1>,
     }
 
     pub struct Transducer {
@@ -121,7 +121,7 @@ mod transducer {
     impl xdevs::Component for Transducer {
         type Kind = xdevs::AtomicKind;
         type Input = TransducerInput;
-        type Output = xdevs::port::Port<bool, 1>;
+        type Output = xdevs::Port<bool, 1>;
     }
 
     impl xdevs::Atomic for Transducer {
@@ -204,8 +204,8 @@ struct EF {
 
 impl xdevs::Component for EF {
     type Kind = xdevs::CoupledKind;
-    type Input = xdevs::port::Port<usize, 1>;
-    type Output = xdevs::port::Port<usize, 1>;
+    type Input = xdevs::Port<usize, 1>;
+    type Output = xdevs::Port<usize, 1>;
 }
 
 impl xdevs::Coupled for EF {

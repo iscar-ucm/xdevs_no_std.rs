@@ -1,3 +1,5 @@
+use crate::{component::AbstractSimulator, port::Bag, processor::Processor, AtomicKind};
+
 /// Interface for DEVS atomic models. All DEVS atomic models must implement this trait.
 pub trait Atomic: xdevs::Component<Kind = xdevs::AtomicKind> {
     /// Method for performing any operation before simulating. By default, it does nothing.
@@ -30,4 +32,53 @@ pub trait Atomic: xdevs::Component<Kind = xdevs::AtomicKind> {
 
     /// Time advance function. It returns the time until the next internal event happens.
     fn ta(&self) -> f64;
+}
+
+unsafe impl<T: Atomic> AbstractSimulator<AtomicKind> for T {
+    #[inline(always)]
+    fn start(processor: &mut Processor<Self>, t_start: f64) -> f64 {
+        processor.t_last = t_start;
+        processor.component.start();
+        let t_next = t_start + processor.component.ta();
+        processor.t_next = t_next;
+        t_next
+    }
+    #[inline(always)]
+    fn stop(processor: &mut Processor<Self>) {
+        processor.component.stop();
+    }
+    #[inline(always)]
+    fn lambda(processor: &mut Processor<Self>, output: &mut Self::Output, t: f64) {
+        if t >= processor.t_next {
+            processor.component.lambda(output);
+        }
+    }
+    #[inline(always)]
+    fn delta(
+        processor: &mut Processor<Self>,
+        input: &mut Self::Input,
+        output: &mut Self::Output,
+        t: f64,
+    ) -> f64 {
+        let t_next = processor.t_next;
+        if !input.is_empty() {
+            if t >= t_next {
+                processor.component.delta_conf(input);
+                output.clear();
+            } else {
+                let e = t - processor.t_last;
+                processor.component.delta_ext(e, input);
+            }
+            input.clear();
+        } else if t >= t_next {
+            processor.component.delta_int();
+            output.clear();
+        } else {
+            return t_next;
+        }
+        let t_next = t + processor.component.ta();
+        processor.t_last = t;
+        processor.t_next = t_next;
+        t_next
+    }
 }

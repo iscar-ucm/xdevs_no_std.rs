@@ -1,7 +1,7 @@
 use crate::processor::Processor;
 
 use super::common::*;
-use xdevs::{traits::AbstractSimulator, Component};
+use xdevs::{component::AbstractSimulator, Component};
 
 use alloc::boxed::Box;
 

@@ -2,20 +2,20 @@ use crate::processor::Processor;
 
 use super::common::{AtomicModel, JobGenerator};
 use alloc::boxed::Box;
-use xdevs::{traits::AbstractSimulator, Component};
+use xdevs::{component::AbstractSimulator, Component};
 
 /// Output struct for HO models
 #[derive(Debug, Default, xdevs::Bag)]
 pub struct HOModelOutput<const W: usize> {
-    pub output_port_1: xdevs::port::Port<usize, 1>,
-    pub output_port_2: xdevs::port::Port<usize, W>,
+    pub output_port_1: xdevs::Port<usize, 1>,
+    pub output_port_2: xdevs::Port<usize, W>,
 }
 impl<const W: usize> HOModelOutput<W> {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            output_port_1: xdevs::port::Port::new(),
-            output_port_2: xdevs::port::Port::new(),
+            output_port_1: xdevs::Port::new(),
+            output_port_2: xdevs::Port::new(),
         }
     }
 }
@@ -28,7 +28,7 @@ pub struct LeafModel<const W: usize> {
 
 impl<const W: usize> xdevs::Component for LeafModel<W> {
     type Kind = xdevs::CoupledKind;
-    type Input = xdevs::port::Port<usize, 1>;
+    type Input = xdevs::Port<usize, 1>;
     type Output = HOModelOutput<W>;
 }
 
@@ -132,7 +132,7 @@ unsafe impl<const W: usize> AbstractSimulator<xdevs::CoupledKind> for HOEnum<W> 
 /// Manual implementation of `Component` for HO enum
 impl<const W: usize> Component for HOEnum<W> {
     type Kind = xdevs::CoupledKind;
-    type Input = xdevs::port::Port<usize, 1>;
+    type Input = xdevs::Port<usize, 1>;
     type Output = HOModelOutput<W>;
 }
 
@@ -270,7 +270,7 @@ impl<const W: usize> HOModel<W> {
 }
 impl<const W: usize> xdevs::Component for HOModel<W> {
     type Kind = xdevs::CoupledKind;
-    type Input = xdevs::port::Port<usize, 1>;
+    type Input = xdevs::Port<usize, 1>;
     type Output = HOModelOutput<W>;
 }
 
@@ -307,8 +307,8 @@ pub struct TopModel<const W: usize> {
 
 impl<const W: usize> Component for TopModel<W> {
     type Kind = xdevs::CoupledKind;
-    type Input = xdevs::port::Port<usize, 1>;
-    type Output = xdevs::port::Port<usize, 1>;
+    type Input = xdevs::Port<usize, 1>;
+    type Output = xdevs::Port<usize, 1>;
 }
 
 impl<const W: usize> TopModel<W> {

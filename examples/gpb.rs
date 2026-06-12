@@ -10,7 +10,7 @@ mod generator {
 
     impl xdevs::Component for Generator {
         type Input = ();
-        type Output = xdevs::port::Port<usize, 1>;
+        type Output = xdevs::Port<usize, 1>;
         type Kind = xdevs::AtomicKind;
     }
 
@@ -52,8 +52,8 @@ mod processor {
     }
 
     impl xdevs::Component for Processor {
-        type Input = xdevs::port::Port<usize, 1>;
-        type Output = xdevs::port::Port<usize, 1>;
+        type Input = xdevs::Port<usize, 1>;
+        type Output = xdevs::Port<usize, 1>;
         type Kind = xdevs::AtomicKind;
     }
 
@@ -108,8 +108,8 @@ mod buffer {
     }
 
     impl<'a, T: Clone + Debug> xdevs::Component for Buffer<'a, T> {
-        type Input = xdevs::port::Port<T, 1>;
-        type Output = xdevs::port::Port<T, 1>;
+        type Input = xdevs::Port<T, 1>;
+        type Output = xdevs::Port<T, 1>;
         type Kind = xdevs::AtomicKind;
     }
     impl<'a, T: Clone + Debug> xdevs::Atomic for Buffer<'a, T> {

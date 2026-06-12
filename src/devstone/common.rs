@@ -9,7 +9,7 @@ pub struct JobGenerator {
 impl xdevs::Component for JobGenerator {
     type Kind = xdevs::AtomicKind;
     type Input = ();
-    type Output = xdevs::port::Port<usize, 1>;
+    type Output = xdevs::Port<usize, 1>;
 }
 
 impl xdevs::Atomic for JobGenerator {
@@ -47,8 +47,8 @@ pub struct AtomicModel {
 
 impl xdevs::Component for AtomicModel {
     type Kind = xdevs::AtomicKind;
-    type Input = xdevs::port::Port<usize, 1>;
-    type Output = xdevs::port::Port<usize, 1>;
+    type Input = xdevs::Port<usize, 1>;
+    type Output = xdevs::Port<usize, 1>;
 }
 
 impl xdevs::Atomic for AtomicModel {
