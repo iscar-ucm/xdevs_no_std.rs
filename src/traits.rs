@@ -55,7 +55,7 @@ pub unsafe trait BagMux: Bag {
 ///
 /// # Safety
 ///
-/// This trait must be implemented via the [`coupled`](crate::coupled) macro. Do not implement it manually.
+/// This trait must be implemented via the [`coupled`](macro@crate::coupled) macro. Do not implement it manually.
 pub unsafe trait PartialCoupled: Component<Kind = CoupledKind>
 where
     Self::Components: AsProcessor<Input = Self::ComponentsInput, Output = Self::ComponentsOutput>,
@@ -80,7 +80,7 @@ where
 ///
 /// # Safety
 ///
-/// This trait must be implemented via macros. Do not implement it manually.
+/// This trait is implemented internally. Do not implement it manually.
 pub unsafe trait AbstractSimulator<K>: Component<Kind = K>
 where
     Self: Sized,
