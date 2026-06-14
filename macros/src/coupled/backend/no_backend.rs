@@ -1,9 +1,9 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
-use crate::component::{port::Ports, Component, ComponentArgs};
+use crate::coupled::ComponentArgs;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{
     parse::{Parse, ParseStream},
-    Error, Result,
+    Error, ItemStruct, Result,
 };
 
 /// Placeholder backend used when no backend feature is enabled.
@@ -30,12 +30,7 @@ impl Parse for RtEngineBackend {
 }
 
 impl Backend for RtEngineBackend {
-    fn check_compatibility(
-        &self,
-        args: &ComponentArgs,
-        _input: &Ports,
-        _output: &Ports,
-    ) -> Result<()> {
+    fn check_compatibility(&self, args: &ComponentArgs) -> Result<()> {
         let span = args
             .rt_engine_span
             .unwrap_or_else(|| proc_macro2::Span::call_site());
@@ -45,7 +40,7 @@ impl Backend for RtEngineBackend {
         ))
     }
 
-    fn input_channel(&self, _model: &Component) -> ChannelTokens {
+    fn input_channel(&self, _model: &ItemStruct) -> ChannelTokens {
         ChannelTokens {
             channel_type: quote::quote! { () },
             channel_call: quote::quote! { () },
@@ -53,7 +48,7 @@ impl Backend for RtEngineBackend {
         }
     }
 
-    fn output_channel(&self, _model: &Component) -> ChannelTokens {
+    fn output_channel(&self, _model: &ItemStruct) -> ChannelTokens {
         ChannelTokens {
             channel_type: quote::quote! { () },
             channel_call: quote::quote! { () },

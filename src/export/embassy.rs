@@ -1,4 +1,4 @@
-use crate::traits::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel};
+use crate::rt_engine::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel};
 use core::convert::Infallible;
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex as Mutex;
 

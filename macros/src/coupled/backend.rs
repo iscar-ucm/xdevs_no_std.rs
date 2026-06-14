@@ -19,13 +19,10 @@ pub use no_backend::RtEngineBackend as RtEngine;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{
     parse::{Parse, ParseStream},
-    Error, Result, Token,
+    Error, ItemStruct, Result, Token,
 };
 
-use crate::{
-    combine_err,
-    component::{port::Ports, Component, ComponentArgs},
-};
+use crate::{combine_err, coupled::ComponentArgs};
 
 /// Generated token fragments used to construct backend channel code.
 pub struct ChannelTokens {
@@ -134,12 +131,7 @@ impl Parse for RtEngineArgs {
 }
 
 pub trait Backend {
-    fn check_compatibility(
-        &self,
-        args: &ComponentArgs,
-        input: &Ports,
-        output: &Ports,
-    ) -> Result<()>;
-    fn input_channel(&self, model: &Component) -> ChannelTokens;
-    fn output_channel(&self, model: &Component) -> ChannelTokens;
+    fn check_compatibility(&self, args: &ComponentArgs) -> Result<()>;
+    fn input_channel(&self, model: &ItemStruct) -> ChannelTokens;
+    fn output_channel(&self, model: &ItemStruct) -> ChannelTokens;
 }

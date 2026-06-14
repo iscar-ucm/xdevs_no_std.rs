@@ -1,128 +1,43 @@
+use crate::processor::Processor;
+
 use super::common::{AtomicModel, JobGenerator};
 use alloc::boxed::Box;
-use xdevs::traits::{AbstractSimulator, Component, SimTime};
+use xdevs::{component::AbstractSimulator, Component};
 
-/// Manual implementation of the leaf coupled model with only one atomic in HO models
-pub struct LeafModelComponents {
+/// Output struct for HO models
+#[derive(Debug, Default, xdevs::Bag)]
+pub struct HOModelOutput<const W: usize> {
+    pub output_port_1: xdevs::Port<usize, 1>,
+    pub output_port_2: xdevs::Port<usize, W>,
+}
+impl<const W: usize> HOModelOutput<W> {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            output_port_1: xdevs::Port::new(),
+            output_port_2: xdevs::Port::new(),
+        }
+    }
+}
+
+/// Leaf coupled model with only one atomic in HO models
+#[xdevs::coupled]
+pub struct LeafModel<const W: usize> {
     atomic: AtomicModel,
 }
-impl LeafModelComponents {
-    #[inline]
-    pub fn new(atomic: AtomicModel) -> Self {
-        Self { atomic }
-    }
-}
-#[doc = r" Wrapper struct holding all inner components' inputs."]
-#[derive(xdevs::Bag)]
-pub struct LeafModelComponentsInput {
-    pub atomic: <AtomicModel as xdevs::traits::Component>::Input,
-}
-#[doc = r" Wrapper struct holding all inner components' outputs."]
-#[derive(xdevs::Bag)]
-pub struct LeafModelComponentsOutput {
-    pub atomic: <AtomicModel as xdevs::traits::Component>::Output,
-}
-pub struct LeafModel<const W: usize> {
-    pub t_last: f64,
-    pub t_next: f64,
-    pub components: LeafModelComponents,
-    pub components_input: LeafModelComponentsInput,
-    pub components_output: LeafModelComponentsOutput,
-}
-impl<const W: usize> LeafModel<W> {
-    #[inline]
-    pub fn build(atomic: AtomicModel) -> Self {
-        Self {
-            t_last: 0.0,
-            t_next: f64::INFINITY,
-            components: LeafModelComponents::new(atomic),
-            components_input: <LeafModelComponentsInput as xdevs::traits::Bag>::build(),
-            components_output: <LeafModelComponentsOutput as xdevs::traits::Bag>::build(),
-        }
-    }
-}
-impl<const W: usize> xdevs::traits::Component for LeafModel<W> {
-    type Input = HOModelInput;
+
+impl<const W: usize> xdevs::Component for LeafModel<W> {
+    type Kind = xdevs::CoupledKind;
+    type Input = xdevs::Port<usize, 1>;
     type Output = HOModelOutput<W>;
 }
-unsafe impl<const W: usize> xdevs::traits::SimTime for LeafModel<W> {
-    #[inline]
-    fn get_t_last(&self) -> f64 {
-        self.t_last
-    }
-    #[inline]
-    fn set_t_last(&mut self, t_last: f64) {
-        self.t_last = t_last;
-    }
-    #[inline]
-    fn get_t_next(&self) -> f64 {
-        self.t_next
-    }
-    #[inline]
-    fn set_t_next(&mut self, t_next: f64) {
-        self.t_next = t_next;
-    }
-}
-unsafe impl<const W: usize> xdevs::traits::PartialCoupled for LeafModel<W> {
-    type ComponentsInput = LeafModelComponentsInput;
-    type ComponentsOutput = LeafModelComponentsOutput;
-}
-unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for LeafModel<W> {
-    #[inline]
-    fn start(&mut self, t_start: f64) -> f64 {
-        xdevs::traits::SimTime::set_t_last(self, t_start);
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
-            t_next,
-            xdevs::traits::AbstractSimulator::start(&mut self.components.atomic, t_start),
-        );
-        xdevs::traits::SimTime::set_t_next(self, t_next);
-        t_next
-    }
-    #[inline]
-    fn stop(&mut self, t_stop: f64) {
-        xdevs::traits::AbstractSimulator::stop(&mut self.components.atomic, t_stop);
-        xdevs::traits::SimTime::set_t_last(self, t_stop);
-        xdevs::traits::SimTime::set_t_next(self, f64::INFINITY);
-    }
-    #[inline]
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        if t >= xdevs::traits::SimTime::get_t_next(self) {
-            xdevs::traits::AbstractSimulator::lambda(
-                &mut self.components.atomic,
-                &mut self.components_output.atomic,
-                t,
-            );
-            <Self as xdevs::Coupled>::eoc(&self.components_output, output);
-        }
-    }
-    #[inline]
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        // propagate EICs and ICs via Coupled trait
-        <Self as xdevs::Coupled>::eic(input, &mut self.components_input);
-        <Self as xdevs::Coupled>::ic(&self.components_output, &mut self.components_input);
 
-        // get minimum t_next from all components after executing their delta
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
-            t_next,
-            xdevs::traits::AbstractSimulator::delta(
-                &mut self.components.atomic,
-                &mut self.components_input.atomic,
-                &mut self.components_output.atomic,
-                t,
-            ),
-        );
-
-        // set t_last to t and t_next to minimum t_next
-        xdevs::traits::SimTime::set_t_last(self, t);
-        xdevs::traits::SimTime::set_t_next(self, t_next);
-
-        // clear input and output events
-        <Self::Input as ::xdevs::traits::Bag>::clear(input);
-        <Self::Output as ::xdevs::traits::Bag>::clear(output);
-
-        t_next
+impl<const W: usize> xdevs::Coupled for LeafModel<W> {
+    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
+        let _ = from.couple(&mut to.atomic);
+    }
+    fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {
+        let _ = from.atomic.couple(&mut to.output_port_1);
     }
 }
 
@@ -131,16 +46,6 @@ impl<const W: usize> Default for LeafModel<W> {
         Self::new()
     }
 }
-
-impl<const W: usize> xdevs::Coupled for LeafModel<W> {
-    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
-        let _ = from.input_port.couple(&mut to.atomic.input_port);
-    }
-    fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {
-        let _ = from.atomic.output_port.couple(&mut to.output_port_1);
-    }
-}
-
 impl<const W: usize> LeafModel<W> {
     pub fn new() -> Self {
         Self::build(AtomicModel::default())
@@ -161,81 +66,74 @@ impl<const W: usize> LeafModel<W> {
     pub fn get_n_atomics(&self) -> usize {
         self.components.atomic.get_n_atomics()
     }
+    pub fn new_processor() -> Processor<Self> {
+        Processor::new(Self::new())
+    }
 }
 
 /// HO model enum
 pub enum HOEnum<const W: usize> {
-    Leaf(LeafModel<W>),
-    Branch(HOModel<W>),
+    Leaf(Processor<LeafModel<W>>),
+    Branch(Processor<HOModel<W>>),
 }
 
 /// Manual implementation of `AbstractSimulator` for HO enum
-unsafe impl<const W: usize> AbstractSimulator for HOEnum<W> {
-    fn start(&mut self, t_start: f64) -> f64 {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.start(t_start),
-            HOEnum::Branch(branch) => branch.start(t_start),
+unsafe impl<const W: usize> AbstractSimulator<xdevs::CoupledKind> for HOEnum<W> {
+    fn start(processor: &mut Processor<Self>, t_start: f64) -> f64 {
+        match &mut **processor {
+            HOEnum::Leaf(leaf) => {
+                <LeafModel<W> as AbstractSimulator<xdevs::CoupledKind>>::start(leaf, t_start)
+            }
+            HOEnum::Branch(branch) => {
+                <HOModel<W> as AbstractSimulator<xdevs::CoupledKind>>::start(branch, t_start)
+            }
         }
     }
 
-    fn stop(&mut self, t_stop: f64) {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.stop(t_stop),
-            HOEnum::Branch(branch) => branch.stop(t_stop),
+    fn stop(processor: &mut Processor<Self>) {
+        match &mut **processor {
+            HOEnum::Leaf(leaf) => {
+                <LeafModel<W> as AbstractSimulator<xdevs::CoupledKind>>::stop(leaf)
+            }
+            HOEnum::Branch(branch) => {
+                <HOModel<W> as AbstractSimulator<xdevs::CoupledKind>>::stop(branch)
+            }
         }
     }
 
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.lambda(output, t),
-            HOEnum::Branch(branch) => branch.lambda(output, t),
+    fn lambda(processor: &mut Processor<Self>, output: &mut Self::Output, t: f64) {
+        match &mut **processor {
+            HOEnum::Leaf(leaf) => {
+                <LeafModel<W> as AbstractSimulator<xdevs::CoupledKind>>::lambda(leaf, output, t)
+            }
+            HOEnum::Branch(branch) => {
+                <HOModel<W> as AbstractSimulator<xdevs::CoupledKind>>::lambda(branch, output, t)
+            }
         }
     }
 
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.delta(input, output, t),
-            HOEnum::Branch(branch) => branch.delta(input, output, t),
+    fn delta(
+        processor: &mut Processor<Self>,
+        input: &mut Self::Input,
+        output: &mut Self::Output,
+        t: f64,
+    ) -> f64 {
+        match &mut **processor {
+            HOEnum::Leaf(leaf) => <LeafModel<W> as AbstractSimulator<xdevs::CoupledKind>>::delta(
+                leaf, input, output, t,
+            ),
+            HOEnum::Branch(branch) => <HOModel<W> as AbstractSimulator<xdevs::CoupledKind>>::delta(
+                branch, input, output, t,
+            ),
         }
     }
 }
 
 /// Manual implementation of `Component` for HO enum
 impl<const W: usize> Component for HOEnum<W> {
-    type Input = HOModelInput;
-
+    type Kind = xdevs::CoupledKind;
+    type Input = xdevs::Port<usize, 1>;
     type Output = HOModelOutput<W>;
-}
-
-/// Manual implementation of `SimTime` for HO enum
-unsafe impl<const W: usize> SimTime for HOEnum<W> {
-    fn get_t_last(&self) -> f64 {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.get_t_last(),
-            HOEnum::Branch(branch) => branch.get_t_last(),
-        }
-    }
-
-    fn set_t_last(&mut self, t_last: f64) {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.set_t_last(t_last),
-            HOEnum::Branch(branch) => branch.set_t_last(t_last),
-        }
-    }
-
-    fn get_t_next(&self) -> f64 {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.get_t_next(),
-            HOEnum::Branch(branch) => branch.get_t_next(),
-        }
-    }
-
-    fn set_t_next(&mut self, t_next: f64) {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.set_t_next(t_next),
-            HOEnum::Branch(branch) => branch.set_t_next(t_next),
-        }
-    }
 }
 
 impl<const W: usize> HOEnum<W> {
@@ -268,78 +166,71 @@ impl<const W: usize> HOEnum<W> {
     }
 }
 
-/// Manual implementation of the HO coupled model
-#[derive(Debug, Default, xdevs::Bag)]
-pub struct HOModelInput {
-    pub input_port: xdevs::port::Port<usize, 1>,
-}
-impl HOModelInput {
+/// Manual implementation of `AbstractSimulator` for the Boxed HO enum
+unsafe impl<const W: usize> AbstractSimulator<xdevs::CoupledKind> for Box<HOEnum<W>> {
     #[inline]
-    pub const fn new() -> Self {
-        Self {
-            input_port: xdevs::port::Port::new(),
+    fn start(processor: &mut Processor<Self>, t_start: f64) -> f64 {
+        match &mut ***processor {
+            HOEnum::Leaf(leaf) => {
+                <LeafModel<W> as AbstractSimulator<xdevs::CoupledKind>>::start(leaf, t_start)
+            }
+            HOEnum::Branch(branch) => {
+                <HOModel<W> as AbstractSimulator<xdevs::CoupledKind>>::start(branch, t_start)
+            }
+        }
+    }
+
+    #[inline]
+    fn stop(processor: &mut Processor<Self>) {
+        match &mut ***processor {
+            HOEnum::Leaf(leaf) => {
+                <LeafModel<W> as AbstractSimulator<xdevs::CoupledKind>>::stop(leaf)
+            }
+            HOEnum::Branch(branch) => {
+                <HOModel<W> as AbstractSimulator<xdevs::CoupledKind>>::stop(branch)
+            }
+        }
+    }
+
+    #[inline]
+    fn lambda(processor: &mut Processor<Self>, output: &mut Self::Output, t: f64) {
+        match &mut ***processor {
+            HOEnum::Leaf(leaf) => {
+                <LeafModel<W> as AbstractSimulator<xdevs::CoupledKind>>::lambda(leaf, output, t)
+            }
+            HOEnum::Branch(branch) => {
+                <HOModel<W> as AbstractSimulator<xdevs::CoupledKind>>::lambda(branch, output, t)
+            }
+        }
+    }
+
+    #[inline]
+    fn delta(
+        processor: &mut Processor<Self>,
+        input: &mut Self::Input,
+        output: &mut Self::Output,
+        t: f64,
+    ) -> f64 {
+        match &mut ***processor {
+            HOEnum::Leaf(leaf) => <LeafModel<W> as AbstractSimulator<xdevs::CoupledKind>>::delta(
+                leaf, input, output, t,
+            ),
+            HOEnum::Branch(branch) => <HOModel<W> as AbstractSimulator<xdevs::CoupledKind>>::delta(
+                branch, input, output, t,
+            ),
         }
     }
 }
 
-#[derive(Debug, Default, xdevs::Bag)]
-pub struct HOModelOutput<const W: usize> {
-    pub output_port_1: xdevs::port::Port<usize, 1>,
-    pub output_port_2: xdevs::port::Port<usize, W>,
-}
-impl<const W: usize> HOModelOutput<W> {
-    #[inline]
-    pub const fn new() -> Self {
-        Self {
-            output_port_1: xdevs::port::Port::new(),
-            output_port_2: xdevs::port::Port::new(),
-        }
-    }
-}
-
-pub struct HOModelComponents<const W: usize> {
+/// HO coupled model
+#[xdevs::coupled]
+pub struct HOModel<const W: usize> {
     atomics: [AtomicModel; W],
     inner: Box<HOEnum<W>>,
 }
-impl<const W: usize> HOModelComponents<W> {
-    #[inline]
-    pub fn new(atomics: [AtomicModel; W], inner: Box<HOEnum<W>>) -> Self {
-        Self { atomics, inner }
-    }
-}
-#[doc = r" Wrapper struct holding all inner components' inputs."]
-#[derive(xdevs::Bag)]
-pub struct HOModelComponentsInput<const W: usize> {
-    pub atomics: <[AtomicModel; W] as xdevs::traits::Component>::Input,
-    pub inner: <Box<HOEnum<W>> as xdevs::traits::Component>::Input,
-}
-#[derive(xdevs::Bag)]
-#[doc = r" Wrapper struct holding all inner components' outputs."]
-pub struct HOModelComponentsOutput<const W: usize> {
-    pub atomics: <[AtomicModel; W] as xdevs::traits::Component>::Output,
-    pub inner: <Box<HOEnum<W>> as xdevs::traits::Component>::Output,
-}
-pub struct HOModel<const W: usize> {
-    pub t_last: f64,
-    pub t_next: f64,
-    pub components: HOModelComponents<W>,
-    pub components_input: HOModelComponentsInput<W>,
-    pub components_output: HOModelComponentsOutput<W>,
-}
 impl<const W: usize> HOModel<W> {
-    #[inline]
-    pub fn build(atomics: [AtomicModel; W], inner: Box<HOEnum<W>>) -> Self {
-        Self {
-            t_last: 0.0,
-            t_next: f64::INFINITY,
-            components: HOModelComponents::new(atomics, inner),
-            components_input: <HOModelComponentsInput<W> as xdevs::traits::Bag>::build(),
-            components_output: <HOModelComponentsOutput<W> as xdevs::traits::Bag>::build(),
-        }
-    }
-
     pub fn new(inner: Box<HOEnum<W>>) -> Self {
-        Self::build(core::array::from_fn(|_| AtomicModel::new()), inner)
+        Self::build(core::array::from_fn(|_| AtomicModel::default()), inner)
     }
 
     pub fn get_n_internals(&self) -> usize {
@@ -373,130 +264,35 @@ impl<const W: usize> HOModel<W> {
         }
         sum_atomic
     }
+    pub fn new_processor(inner: Box<HOEnum<W>>) -> Processor<Self> {
+        Processor::new(Self::new(inner))
+    }
 }
-impl<const W: usize> xdevs::traits::Component for HOModel<W> {
-    type Input = HOModelInput;
+impl<const W: usize> xdevs::Component for HOModel<W> {
+    type Kind = xdevs::CoupledKind;
+    type Input = xdevs::Port<usize, 1>;
     type Output = HOModelOutput<W>;
-}
-unsafe impl<const W: usize> xdevs::traits::SimTime for HOModel<W> {
-    #[inline]
-    fn get_t_last(&self) -> f64 {
-        self.t_last
-    }
-    #[inline]
-    fn set_t_last(&mut self, t_last: f64) {
-        self.t_last = t_last;
-    }
-    #[inline]
-    fn get_t_next(&self) -> f64 {
-        self.t_next
-    }
-    #[inline]
-    fn set_t_next(&mut self, t_next: f64) {
-        self.t_next = t_next;
-    }
-}
-unsafe impl<const W: usize> xdevs::traits::PartialCoupled for HOModel<W> {
-    type ComponentsInput = HOModelComponentsInput<W>;
-    type ComponentsOutput = HOModelComponentsOutput<W>;
-}
-unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for HOModel<W> {
-    #[inline]
-    fn start(&mut self, t_start: f64) -> f64 {
-        xdevs::traits::SimTime::set_t_last(self, t_start);
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
-            t_next,
-            xdevs::traits::AbstractSimulator::start(&mut self.components.atomics, t_start),
-        );
-        t_next = f64::min(
-            t_next,
-            xdevs::traits::AbstractSimulator::start(&mut self.components.inner, t_start),
-        );
-        xdevs::traits::SimTime::set_t_next(self, t_next);
-        t_next
-    }
-    #[inline]
-    fn stop(&mut self, t_stop: f64) {
-        xdevs::traits::AbstractSimulator::stop(&mut self.components.atomics, t_stop);
-        xdevs::traits::AbstractSimulator::stop(&mut self.components.inner, t_stop);
-        xdevs::traits::SimTime::set_t_last(self, t_stop);
-        xdevs::traits::SimTime::set_t_next(self, f64::INFINITY);
-    }
-    #[inline]
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        if t >= xdevs::traits::SimTime::get_t_next(self) {
-            xdevs::traits::AbstractSimulator::lambda(
-                &mut self.components.atomics,
-                &mut self.components_output.atomics,
-                t,
-            );
-            xdevs::traits::AbstractSimulator::lambda(
-                &mut self.components.inner,
-                &mut self.components_output.inner,
-                t,
-            );
-            <Self as ::xdevs::Coupled>::eoc(&self.components_output, output);
-        }
-    }
-    #[inline]
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        // propagate EICs and ICs via Coupled trait
-        <Self as xdevs::Coupled>::eic(input, &mut self.components_input);
-        <Self as xdevs::Coupled>::ic(&self.components_output, &mut self.components_input);
-
-        // get minimum t_next from all components after executing their delta
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
-            t_next,
-            xdevs::traits::AbstractSimulator::delta(
-                &mut self.components.atomics,
-                &mut self.components_input.atomics,
-                &mut self.components_output.atomics,
-                t,
-            ),
-        );
-        t_next = f64::min(
-            t_next,
-            xdevs::traits::AbstractSimulator::delta(
-                &mut self.components.inner,
-                &mut self.components_input.inner,
-                &mut self.components_output.inner,
-                t,
-            ),
-        );
-        // set t_last to t and t_next to minimum t_next
-        xdevs::traits::SimTime::set_t_last(self, t);
-        xdevs::traits::SimTime::set_t_next(self, t_next);
-
-        // clear input and output events
-        <Self::Input as ::xdevs::traits::Bag>::clear(input);
-        <Self::Output as ::xdevs::traits::Bag>::clear(output);
-        t_next
-    }
 }
 
 impl<const W: usize> xdevs::Coupled for HOModel<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
-        let _ = from.input_port.couple(&mut to.inner.input_port);
+        let _ = from.couple(&mut to.inner);
         for atom_ports in to.atomics.iter_mut() {
-            let _ = from.input_port.couple(&mut atom_ports.input_port);
+            let _ = from.couple(atom_ports);
         }
     }
 
     fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {
         let _ = from.inner.output_port_1.couple(&mut to.output_port_1);
         for atom_output_ports in from.atomics.iter() {
-            let _ = atom_output_ports.output_port.couple(&mut to.output_port_2);
+            let _ = atom_output_ports.couple(&mut to.output_port_2);
         }
     }
 
     fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
         if W > 1 {
             for i in 0..(W - 1) {
-                let _ = from.atomics[i]
-                    .output_port
-                    .couple(&mut to.atomics[i + 1].input_port);
+                let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
             }
         }
     }
@@ -505,13 +301,14 @@ impl<const W: usize> xdevs::Coupled for HOModel<W> {
 /// End model with Generator and HO model coupled together
 #[xdevs::coupled]
 pub struct TopModel<const W: usize> {
-    #[input]
-    input_port: xdevs::port::Port<usize, 1>,
-    #[output]
-    output_port: xdevs::port::Port<usize, 1>,
-    #[components]
     generator: JobGenerator,
     ho_model: HOEnum<W>,
+}
+
+impl<const W: usize> Component for TopModel<W> {
+    type Kind = xdevs::CoupledKind;
+    type Input = xdevs::Port<usize, 1>;
+    type Output = xdevs::Port<usize, 1>;
 }
 
 impl<const W: usize> TopModel<W> {
@@ -534,7 +331,7 @@ impl<const W: usize> TopModel<W> {
 
 impl<const W: usize> xdevs::Coupled for TopModel<W> {
     fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
-        let _ = from.generator.out_job.couple(&mut to.ho_model.input_port);
+        let _ = from.generator.couple(&mut to.ho_model);
     }
 }
 
@@ -564,10 +361,9 @@ mod test {
         let mut simulator = xdevs::simulator::Simulator::new(top_model);
         let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);
         simulator.simulate_vt(&config);
-        let top_model = simulator.get_model();
 
-        assert_eq!(expected_n_atomic(WIDTH, DEPTH), top_model.get_n_atomics());
-        assert_eq!(expected_n_events(WIDTH, DEPTH), top_model.get_n_events());
-        assert_eq!(top_model.get_n_internals(), top_model.get_n_externals());
+        assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());
+        assert_eq!(expected_n_events(WIDTH, DEPTH), simulator.get_n_events());
+        assert_eq!(simulator.get_n_internals(), simulator.get_n_externals());
     }
 }

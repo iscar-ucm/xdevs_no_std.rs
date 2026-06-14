@@ -1,4 +1,4 @@
-use crate::traits::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel};
+use crate::rt_engine::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel};
 
 pub use tokio::sync::broadcast::error::RecvError;
 pub type SubscribeError = core::convert::Infallible;

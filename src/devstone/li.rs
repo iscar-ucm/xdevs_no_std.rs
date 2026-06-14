@@ -1,10 +1,11 @@
 use super::common::*;
 use alloc::boxed::Box;
-use xdevs::traits::{AbstractSimulator, Component, SimTime};
+use xdevs::processor::Processor;
+use xdevs::{component::AbstractSimulator, Component};
 
 pub enum LIEnum<const W: usize> {
-    Leaf(LeafModel),
-    Branch(LIModel<W>),
+    Leaf(Processor<LeafModel>),
+    Branch(Processor<LIModel<W>>),
 }
 
 impl<const W: usize> LIEnum<W> {
@@ -38,224 +39,129 @@ impl<const W: usize> LIEnum<W> {
 }
 
 /// Manual implementation of `AbstractSimulator` for LI enum
-unsafe impl<const W: usize> AbstractSimulator for LIEnum<W> {
-    fn start(&mut self, t_start: f64) -> f64 {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.start(t_start),
-            LIEnum::Branch(branch) => branch.start(t_start),
+unsafe impl<const W: usize> AbstractSimulator<xdevs::CoupledKind> for LIEnum<W> {
+    fn start(processor: &mut Processor<Self>, t_start: f64) -> f64 {
+        match &mut **processor {
+            LIEnum::Leaf(leaf) => {
+                <LeafModel as AbstractSimulator<xdevs::CoupledKind>>::start(leaf, t_start)
+            }
+            LIEnum::Branch(branch) => {
+                <LIModel<W> as AbstractSimulator<xdevs::CoupledKind>>::start(branch, t_start)
+            }
         }
     }
 
-    fn stop(&mut self, t_stop: f64) {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.stop(t_stop),
-            LIEnum::Branch(branch) => branch.stop(t_stop),
+    fn stop(processor: &mut Processor<Self>) {
+        match &mut **processor {
+            LIEnum::Leaf(leaf) => <LeafModel as AbstractSimulator<xdevs::CoupledKind>>::stop(leaf),
+            LIEnum::Branch(branch) => {
+                <LIModel<W> as AbstractSimulator<xdevs::CoupledKind>>::stop(branch)
+            }
         }
     }
 
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.lambda(output, t),
-            LIEnum::Branch(branch) => branch.lambda(output, t),
+    fn lambda(processor: &mut Processor<Self>, output: &mut Self::Output, t: f64) {
+        match &mut **processor {
+            LIEnum::Leaf(leaf) => {
+                <LeafModel as AbstractSimulator<xdevs::CoupledKind>>::lambda(leaf, output, t)
+            }
+            LIEnum::Branch(branch) => {
+                <LIModel<W> as AbstractSimulator<xdevs::CoupledKind>>::lambda(branch, output, t)
+            }
         }
     }
 
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.delta(input, output, t),
-            LIEnum::Branch(branch) => branch.delta(input, output, t),
+    fn delta(
+        processor: &mut Processor<Self>,
+        input: &mut Self::Input,
+        output: &mut Self::Output,
+        t: f64,
+    ) -> f64 {
+        match &mut **processor {
+            LIEnum::Leaf(leaf) => {
+                <LeafModel as AbstractSimulator<xdevs::CoupledKind>>::delta(leaf, input, output, t)
+            }
+            LIEnum::Branch(branch) => <LIModel<W> as AbstractSimulator<xdevs::CoupledKind>>::delta(
+                branch, input, output, t,
+            ),
         }
     }
 }
 
 /// Manual implementation of `Component` for LI enum
 impl<const W: usize> Component for LIEnum<W> {
+    type Kind = xdevs::CoupledKind;
     type Input = xdevs::Port<usize, 1>;
     type Output = xdevs::Port<usize, 1>;
 }
 
-/// Manual implementation of `SimTime` for LI enum
-unsafe impl<const W: usize> SimTime for LIEnum<W> {
-    fn get_t_last(&self) -> f64 {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.get_t_last(),
-            LIEnum::Branch(branch) => branch.get_t_last(),
+/// Manual implementation of `AbstractSimulator` for the Boxed LI enum
+unsafe impl<const W: usize> AbstractSimulator<xdevs::CoupledKind> for Box<LIEnum<W>> {
+    fn start(processor: &mut Processor<Self>, t_start: f64) -> f64 {
+        match &mut ***processor {
+            LIEnum::Leaf(leaf) => {
+                <LeafModel as AbstractSimulator<xdevs::CoupledKind>>::start(leaf, t_start)
+            }
+            LIEnum::Branch(branch) => {
+                <LIModel<W> as AbstractSimulator<xdevs::CoupledKind>>::start(branch, t_start)
+            }
         }
     }
 
-    fn set_t_last(&mut self, _t_last: f64) {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.set_t_last(_t_last),
-            LIEnum::Branch(branch) => branch.set_t_last(_t_last),
+    fn stop(processor: &mut Processor<Self>) {
+        match &mut ***processor {
+            LIEnum::Leaf(leaf) => <LeafModel as AbstractSimulator<xdevs::CoupledKind>>::stop(leaf),
+            LIEnum::Branch(branch) => {
+                <LIModel<W> as AbstractSimulator<xdevs::CoupledKind>>::stop(branch)
+            }
         }
     }
 
-    fn get_t_next(&self) -> f64 {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.get_t_next(),
-            LIEnum::Branch(branch) => branch.get_t_next(),
+    fn lambda(processor: &mut Processor<Self>, output: &mut Self::Output, t: f64) {
+        match &mut ***processor {
+            LIEnum::Leaf(leaf) => {
+                <LeafModel as AbstractSimulator<xdevs::CoupledKind>>::lambda(leaf, output, t)
+            }
+            LIEnum::Branch(branch) => {
+                <LIModel<W> as AbstractSimulator<xdevs::CoupledKind>>::lambda(branch, output, t)
+            }
         }
     }
 
-    fn set_t_next(&mut self, _t_next: f64) {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.set_t_next(_t_next),
-            LIEnum::Branch(branch) => branch.set_t_next(_t_next),
+    fn delta(
+        processor: &mut Processor<Self>,
+        input: &mut Self::Input,
+        output: &mut Self::Output,
+        t: f64,
+    ) -> f64 {
+        match &mut ***processor {
+            LIEnum::Leaf(leaf) => {
+                <LeafModel as AbstractSimulator<xdevs::CoupledKind>>::delta(leaf, input, output, t)
+            }
+            LIEnum::Branch(branch) => <LIModel<W> as AbstractSimulator<xdevs::CoupledKind>>::delta(
+                branch, input, output, t,
+            ),
         }
     }
 }
 
-/// Manual implementation of `PartialCoupled` for LI coupled model
-pub struct LIModelComponents<const W: usize> {
+/// LI coupled model
+#[xdevs::coupled]
+pub struct LIModel<const W: usize> {
     atomics: [AtomicModel; W],
     inner: Box<LIEnum<W>>,
 }
-impl<const W: usize> LIModelComponents<W> {
-    #[inline]
-    pub fn new(atomics: [AtomicModel; W], inner: Box<LIEnum<W>>) -> Self {
-        Self { atomics, inner }
-    }
-}
-#[doc = r" Wrapper struct holding all inner components' inputs."]
-#[derive(xdevs::Bag)]
-pub struct LIModelComponentsInput<const W: usize> {
-    pub atomics: <[AtomicModel; W] as xdevs::traits::Component>::Input,
-    pub inner: <Box<LIEnum<W>> as xdevs::traits::Component>::Input,
-}
-#[doc = r" Wrapper struct holding all inner components' outputs."]
-#[derive(xdevs::Bag)]
-pub struct LIModelComponentsOutput<const W: usize> {
-    pub atomics: <[AtomicModel; W] as xdevs::traits::Component>::Output,
-    pub inner: <Box<LIEnum<W>> as xdevs::traits::Component>::Output,
-}
-pub struct LIModel<const W: usize> {
-    pub t_last: f64,
-    pub t_next: f64,
-    pub components: LIModelComponents<W>,
-    pub components_input: LIModelComponentsInput<W>,
-    pub components_output: LIModelComponentsOutput<W>,
-}
-impl<const W: usize> LIModel<W> {
-    #[inline]
-    pub fn build(atomics: [AtomicModel; W], inner: Box<LIEnum<W>>) -> Self {
-        Self {
-            t_last: 0.0,
-            t_next: f64::INFINITY,
-            components: LIModelComponents::new(atomics, inner),
-            components_input: <LIModelComponentsInput<W> as xdevs::traits::Bag>::build(),
-            components_output: <LIModelComponentsOutput<W> as xdevs::traits::Bag>::build(),
-        }
-    }
-}
 
-impl<const W: usize> xdevs::traits::Component for LIModel<W> {
+impl<const W: usize> Component for LIModel<W> {
+    type Kind = xdevs::CoupledKind;
     type Input = xdevs::Port<usize, 1>;
     type Output = xdevs::Port<usize, 1>;
-}
-
-unsafe impl<const W: usize> xdevs::traits::SimTime for LIModel<W> {
-    #[inline]
-    fn get_t_last(&self) -> f64 {
-        self.t_last
-    }
-    #[inline]
-    fn set_t_last(&mut self, t_last: f64) {
-        self.t_last = t_last;
-    }
-    #[inline]
-    fn get_t_next(&self) -> f64 {
-        self.t_next
-    }
-    #[inline]
-    fn set_t_next(&mut self, t_next: f64) {
-        self.t_next = t_next;
-    }
-}
-unsafe impl<const W: usize> xdevs::traits::PartialCoupled for LIModel<W> {
-    type ComponentsInput = LIModelComponentsInput<W>;
-    type ComponentsOutput = LIModelComponentsOutput<W>;
-}
-unsafe impl<const W: usize> xdevs::traits::AbstractSimulator for LIModel<W> {
-    #[inline]
-    fn start(&mut self, t_start: f64) -> f64 {
-        xdevs::traits::SimTime::set_t_last(self, t_start);
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
-            t_next,
-            xdevs::traits::AbstractSimulator::start(&mut self.components.atomics, t_start),
-        );
-        t_next = f64::min(
-            t_next,
-            xdevs::traits::AbstractSimulator::start(&mut self.components.inner, t_start),
-        );
-        xdevs::traits::SimTime::set_t_next(self, t_next);
-        t_next
-    }
-    #[inline]
-    fn stop(&mut self, t_stop: f64) {
-        xdevs::traits::AbstractSimulator::stop(&mut self.components.atomics, t_stop);
-        xdevs::traits::AbstractSimulator::stop(&mut self.components.inner, t_stop);
-        xdevs::traits::SimTime::set_t_last(self, t_stop);
-        xdevs::traits::SimTime::set_t_next(self, f64::INFINITY);
-    }
-    #[inline]
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        if t >= xdevs::traits::SimTime::get_t_next(self) {
-            xdevs::traits::AbstractSimulator::lambda(
-                &mut self.components.atomics,
-                &mut self.components_output.atomics,
-                t,
-            );
-            xdevs::traits::AbstractSimulator::lambda(
-                &mut self.components.inner,
-                &mut self.components_output.inner,
-                t,
-            );
-            <Self as xdevs::Coupled>::eoc(&self.components_output, output);
-        }
-    }
-    #[inline]
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        // propagate EICs and ICs via Coupled trait
-        <Self as xdevs::Coupled>::eic(input, &mut self.components_input);
-        <Self as xdevs::Coupled>::ic(&self.components_output, &mut self.components_input);
-
-        let mut t_next = f64::INFINITY;
-        t_next = f64::min(
-            t_next,
-            xdevs::traits::AbstractSimulator::delta(
-                &mut self.components.atomics,
-                &mut self.components_input.atomics,
-                &mut self.components_output.atomics,
-                t,
-            ),
-        );
-        t_next = f64::min(
-            t_next,
-            xdevs::traits::AbstractSimulator::delta(
-                &mut self.components.inner,
-                &mut self.components_input.inner,
-                &mut self.components_output.inner,
-                t,
-            ),
-        );
-
-        // set t_last to t and t_next to minimum t_next
-        xdevs::traits::SimTime::set_t_last(self, t);
-        xdevs::traits::SimTime::set_t_next(self, t_next);
-
-        // clear input and output events
-        <Self::Input as xdevs::traits::Bag>::clear(input);
-        <Self::Output as xdevs::traits::Bag>::clear(output);
-
-        t_next
-    }
 }
 
 impl<const W: usize> xdevs::Coupled for LIModel<W> {
     fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
         for atom_ports in to.atomics.iter_mut() {
-            let _ = from.couple(&mut atom_ports.input_port);
+            let _ = from.couple(atom_ports);
         }
 
         let _ = from.couple(&mut to.inner);
@@ -268,7 +174,7 @@ impl<const W: usize> xdevs::Coupled for LIModel<W> {
 
 impl<const W: usize> LIModel<W> {
     pub fn new(inner: Box<LIEnum<W>>) -> Self {
-        Self::build(core::array::from_fn(|_| AtomicModel::new()), inner)
+        Self::build(core::array::from_fn(|_| AtomicModel::default()), inner)
     }
 
     pub fn get_n_internals(&self) -> usize {
@@ -302,14 +208,22 @@ impl<const W: usize> LIModel<W> {
         }
         sum_atomic
     }
+    pub fn new_processor(inner: Box<LIEnum<W>>) -> Processor<Self> {
+        Processor::new(Self::new(inner))
+    }
 }
 
 /// End model with Generator and LI model coupled together
 #[xdevs::coupled]
 pub struct TopModel<const W: usize> {
-    #[components]
     generator: JobGenerator,
     li_model: LIEnum<W>,
+}
+
+impl<const W: usize> Component for TopModel<W> {
+    type Kind = xdevs::CoupledKind;
+    type Input = ();
+    type Output = ();
 }
 
 impl<const W: usize> TopModel<W> {
@@ -332,7 +246,7 @@ impl<const W: usize> TopModel<W> {
 
 impl<const W: usize> xdevs::Coupled for TopModel<W> {
     fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
-        let _ = from.generator.out_job.couple(&mut to.li_model);
+        let _ = from.generator.couple(&mut to.li_model);
     }
 }
 
@@ -359,10 +273,9 @@ mod test {
         let mut simulator = xdevs::simulator::Simulator::new(top_model);
         let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);
         simulator.simulate_vt(&config);
-        let top_model = simulator.get_model();
 
-        assert_eq!(expected_n_atomic(WIDTH, DEPTH), top_model.get_n_atomics());
-        assert_eq!(expected_n_events(WIDTH, DEPTH), top_model.get_n_events());
-        assert_eq!(top_model.get_n_internals(), top_model.get_n_externals());
+        assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());
+        assert_eq!(expected_n_events(WIDTH, DEPTH), simulator.get_n_events());
+        assert_eq!(simulator.get_n_internals(), simulator.get_n_externals());
     }
 }

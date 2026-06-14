@@ -1,9 +1,9 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
-use crate::component::{port::Ports, Component, ComponentArgs};
+use crate::coupled::ComponentArgs;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use syn::{
     parse::{Parse, ParseStream},
-    Error, Result,
+    Error, ItemStruct, Result,
 };
 
 /// Arguments for the `#[rt_engine]` attribute macro.
@@ -43,14 +43,14 @@ impl Parse for RtEngineBackend {
 }
 
 impl Backend for RtEngineBackend {
-    fn check_compatibility(&self, _: &ComponentArgs, _: &Ports, _: &Ports) -> Result<()> {
+    fn check_compatibility(&self, _: &ComponentArgs) -> Result<()> {
         Ok(())
     }
 
-    fn input_channel(&self, _model: &Component) -> ChannelTokens {
+    fn input_channel(&self, _model: &ItemStruct) -> ChannelTokens {
         let in_channel_size = self.in_channel_size;
         let channel_type = quote::quote! { ::xdevs::export::InputChannel<
-            <Self as ::xdevs::traits::BagMux>::Mux,
+            <Self as ::xdevs::port::BagMux>::Mux,
             #in_channel_size
         > };
         let channel_call = quote::quote! {::xdevs::export::InputChannel::new() };
@@ -62,10 +62,10 @@ impl Backend for RtEngineBackend {
         }
     }
 
-    fn output_channel(&self, _model: &Component) -> ChannelTokens {
+    fn output_channel(&self, _model: &ItemStruct) -> ChannelTokens {
         let out_channel_size = self.out_channel_size;
         let channel_type = quote::quote! { ::xdevs::export::OutputChannel<
-            <Self as ::xdevs::traits::BagMux>::Mux,
+            <Self as ::xdevs::port::BagMux>::Mux,
             #out_channel_size
         > };
         let channel_call = quote::quote! {::xdevs::export::OutputChannel::new() };

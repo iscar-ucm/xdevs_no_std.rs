@@ -2,79 +2,85 @@
 /// This example shows how to apply Rust's resources for structs
 /// (like generics and lifetimes) in DEVS models
 mod generator {
-    #[xdevs::atomic]
     pub struct Generator {
-        #[output]
-        pub out_job: xdevs::port::Port<usize, 1>,
-        #[state]
         sigma: f64,
         period: f64,
         count: usize,
     }
 
+    impl xdevs::Component for Generator {
+        type Input = ();
+        type Output = xdevs::Port<usize, 1>;
+        type Kind = xdevs::AtomicKind;
+    }
+
     impl xdevs::Atomic for Generator {
-        fn delta_int(state: &mut Self::State) {
-            state.count += 1;
-            state.sigma = state.period;
+        fn delta_int(&mut self) {
+            self.count += 1;
+            self.sigma = self.period;
         }
 
-        fn lambda(state: &Self::State, output: &mut Self::Output) {
-            output.out_job.add_value(state.count).unwrap();
+        fn lambda(&self, output: &mut Self::Output) {
+            output.add_value(self.count).unwrap();
         }
 
-        fn ta(state: &Self::State) -> f64 {
-            state.sigma
+        fn ta(&self) -> f64 {
+            self.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, elapsed: f64, _input: &Self::Input) {
-            state.sigma -= elapsed;
+        fn delta_ext(&mut self, elapsed: f64, _input: &Self::Input) {
+            self.sigma -= elapsed;
         }
     }
 
     impl Generator {
         pub fn new(period: f64) -> Self {
-            Self::build(0.0, period, 0)
+            Self {
+                sigma: 0.0,
+                period,
+                count: 0,
+            }
         }
     }
 }
 
 mod processor {
-    #[xdevs::atomic]
     pub struct Processor {
-        #[input]
-        pub in_job: xdevs::port::Port<usize, 1>,
-        #[output]
-        pub out_job: xdevs::port::Port<usize, 1>,
-        #[state]
         sigma: f64,
         time: f64,
         job: Option<usize>,
     }
 
+    impl xdevs::Component for Processor {
+        type Input = xdevs::Port<usize, 1>;
+        type Output = xdevs::Port<usize, 1>;
+        type Kind = xdevs::AtomicKind;
+    }
+
     impl xdevs::Atomic for Processor {
-        fn delta_int(state: &mut Self::State) {
-            state.sigma = f64::INFINITY;
-            if let Some(job) = state.job.take() {
+        fn delta_int(&mut self) {
+            self.sigma = f64::INFINITY;
+            if let Some(job) = self.job.take() {
                 println!("[P] processed job {}", job);
             }
         }
 
-        fn lambda(state: &Self::State, output: &mut Self::Output) {
-            if let Some(job) = state.job {
-                output.out_job.add_value(job).unwrap();
+        fn lambda(&self, output: &mut Self::Output) {
+            if let Some(job) = self.job {
+                output.add_value(job).unwrap();
             }
         }
 
-        fn ta(state: &Self::State) -> f64 {
-            state.sigma
+        fn ta(&self) -> f64 {
+            self.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
-            state.sigma -= elapsed;
-            if let Some(&job) = input.in_job.get_values().last() {
-                if state.job.is_none() {
-                    state.job = Some(job);
-                    state.sigma = state.time;
+        fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+            self.sigma -= elapsed;
+            if let Some(&job) = input.get_values().last() {
+                if self.job.is_none() {
+                    self.job = Some(job);
+                    self.sigma = self.time;
                 }
             }
         }
@@ -82,96 +88,102 @@ mod processor {
 
     impl Processor {
         pub fn new(time: f64) -> Self {
-            Self::build(0.0, time, None)
+            Self {
+                sigma: 0.0,
+                time,
+                job: None,
+            }
         }
     }
 }
 
 mod buffer {
     use core::fmt::Debug;
-    use xdevs::port::Port;
 
-    #[xdevs::atomic]
     pub struct Buffer<'a, T: Clone + Debug> {
-        #[input]
-        pub in_item: Port<T, 1>,
-        #[output]
-        pub out_item: Port<T, 1>,
-        #[state]
         sigma: f64,
         capacity: usize,
         queue: heapless::Vec<T, 16>,
         config: Option<&'a str>,
     }
 
+    impl<'a, T: Clone + Debug> xdevs::Component for Buffer<'a, T> {
+        type Input = xdevs::Port<T, 1>;
+        type Output = xdevs::Port<T, 1>;
+        type Kind = xdevs::AtomicKind;
+    }
     impl<'a, T: Clone + Debug> xdevs::Atomic for Buffer<'a, T> {
-        fn delta_int(state: &mut Self::State) {
-            if !state.queue.is_empty() {
-                state.queue.remove(0);
+        fn delta_int(&mut self) {
+            if !self.queue.is_empty() {
+                self.queue.remove(0);
             }
-            state.sigma = if state.queue.is_empty() {
+            self.sigma = if self.queue.is_empty() {
                 f64::INFINITY
             } else {
                 1.0
             };
         }
 
-        fn lambda(state: &Self::State, output: &mut Self::Output) {
-            if let Some(item) = state.queue.first() {
-                if let Some(cfg) = state.config {
+        fn lambda(&self, output: &mut Self::Output) {
+            if let Some(item) = self.queue.first() {
+                if let Some(cfg) = self.config {
                     println!("[B:{}] sending item {:?}", cfg, item);
                 } else {
                     println!("[B] sending item {:?}", item);
                 }
-                output.out_item.add_value(item.clone()).unwrap();
+                output.add_value(item.clone()).unwrap();
             }
         }
 
-        fn ta(state: &Self::State) -> f64 {
-            state.sigma
+        fn ta(&self) -> f64 {
+            self.sigma
         }
 
-        fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input) {
-            state.sigma -= elapsed;
-            for item in input.in_item.get_values() {
-                if state.queue.len() < state.capacity {
+        fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+            self.sigma -= elapsed;
+            for item in input.get_values() {
+                if self.queue.len() < self.capacity {
                     println!("[B] received item {:?}", item);
-                    state.queue.push(item.clone()).unwrap();
+                    self.queue.push(item.clone()).unwrap();
                 } else {
                     println!("[B] buffer full, dropping {:?}", item);
                 }
             }
-            if !state.queue.is_empty() {
-                state.sigma = 1.0;
+            if !self.queue.is_empty() {
+                self.sigma = 1.0;
             }
         }
     }
 
     impl<'a, T: Clone + Debug> Buffer<'a, T> {
         pub fn new(capacity: usize, config: Option<&'a str>) -> Self {
-            Self::build(f64::INFINITY, capacity, heapless::Vec::new(), config)
+            Self {
+                sigma: f64::INFINITY,
+                capacity,
+                queue: heapless::Vec::new(),
+                config,
+            }
         }
     }
 }
 
 #[xdevs::coupled]
 struct GPB<'a> {
-    #[components]
     generator: generator::Generator,
     buffer: buffer::Buffer<'a, usize>,
     processor: processor::Processor,
 }
 
+impl xdevs::Component for GPB<'_> {
+    type Kind = xdevs::CoupledKind;
+    type Input = ();
+    type Output = ();
+}
+
 impl xdevs::Coupled for GPB<'_> {
     fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
-        from.generator
-            .out_job
-            .couple(&mut to.buffer.in_item)
-            .unwrap();
-        from.buffer
-            .out_item
-            .couple(&mut to.processor.in_job)
-            .unwrap();
+        from.generator.couple(&mut to.buffer).unwrap();
+        from.buffer.couple(&mut to.processor).unwrap();
     }
 }
 

@@ -5,69 +5,18 @@ extern crate self as xdevs;
 #[cfg(feature = "std")]
 extern crate std;
 
+pub mod component;
 #[cfg(feature = "alloc")]
 pub mod devstone;
 pub mod export;
-mod impls;
 pub mod port;
+pub mod processor;
 #[cfg(any(feature = "embassy", feature = "std"))]
 pub mod rt_engine;
 pub mod simulator;
-pub mod traits;
 
+pub use component::{atomic::Atomic, coupled::Coupled, AtomicKind, Component, CoupledKind};
 pub use embassy_time::{Duration, Instant};
 pub use port::Port;
 pub use simulator::{Config, Simulator};
 pub use xdevs_no_std_macros::*;
-
-/// Interface for DEVS atomic models. All DEVS atomic models must implement this trait.
-pub trait Atomic: traits::PartialAtomic {
-    /// Method for performing any operation before simulating. By default, it does nothing.
-    #[allow(unused_variables)]
-    #[inline]
-    fn start(state: &mut Self::State) {}
-
-    /// Method for performing any operation after simulating. By default, it does nothing.
-    #[allow(unused_variables)]
-    #[inline]
-    fn stop(state: &mut Self::State) {}
-
-    /// Internal transition function. It modifies the state of the model when an internal event happens.
-    fn delta_int(state: &mut Self::State);
-
-    /// External transition function. It modifies the state of the model when an external event happens.
-    /// The time elapsed since the last state transition is `elapsed`.
-    fn delta_ext(state: &mut Self::State, elapsed: f64, input: &Self::Input);
-
-    /// Confluent transition function. It modifies the state of the model when an external and an internal event occur simultaneously.
-    /// By default, it calls [`Atomic::delta_int`] and [`Atomic::delta_ext`] with `elapsed = 0`, in that order.
-    #[inline]
-    fn delta_conf(state: &mut Self::State, input: &Self::Input) {
-        Self::delta_int(state);
-        Self::delta_ext(state, 0., input);
-    }
-
-    /// Output function. It triggers output events when an internal event is about to happen.
-    fn lambda(state: &Self::State, output: &mut Self::Output);
-
-    /// Time advance function. It returns the time until the next internal event happens.
-    fn ta(state: &Self::State) -> f64;
-}
-
-/// Interface for DEVS coupled models. All DEVS coupled models must implement this trait.
-pub trait Coupled: traits::PartialCoupled {
-    /// External Input Coupling. Propagates input events from the coupled model to its inner components.
-    #[allow(unused_variables)]
-    #[inline]
-    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {}
-
-    /// Internal Coupling. Propagates output events from inner components to input events of other inner components.
-    #[allow(unused_variables)]
-    #[inline]
-    fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {}
-
-    /// External Output Coupling. Propagates output events from inner components to the coupled model's output.
-    #[allow(unused_variables)]
-    #[inline]
-    fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {}
-}
