@@ -55,6 +55,11 @@ impl Parse for RtEngineArgs {
                 }
             };
 
+            if let Err(err) = RtEngineBackend::check_arg_compatibility(&nv) {
+                combine_err(&mut acc, err);
+                continue;
+            }
+
             let name = nv
                 .path
                 .require_ident()
@@ -118,17 +123,26 @@ impl Parse for RtEngineArgs {
             }
         }
 
-        RtEngineBackend::check_args_compatibility(max_out_subs)?;
-
-        if let Some(err) = acc {
-            return Err(err);
+        #[cfg(not(any(feature = "embassy-backend", feature = "std-backend")))]
+        {
+            return Err(syn::Error::new(
+                input.span(),
+                "No backend feature enabled. Please enable either the `embassy` or `std` feature.",
+            ));
         }
 
-        Ok(RtEngineArgs {
-            in_channel_size: in_channel_size.unwrap_or(1),
-            out_channel_size: out_channel_size.unwrap_or(1),
-            max_out_subs: max_out_subs.unwrap_or(1),
-        })
+        #[cfg(any(feature = "embassy-backend", feature = "std-backend"))]
+        {
+            if let Some(err) = acc {
+                return Err(err);
+            }
+
+            Ok(RtEngineArgs {
+                in_channel_size: in_channel_size.unwrap_or(1),
+                out_channel_size: out_channel_size.unwrap_or(1),
+                max_out_subs: max_out_subs.unwrap_or(1),
+            })
+        }
     }
 }
 

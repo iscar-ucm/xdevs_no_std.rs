@@ -1,19 +1,26 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Ident, ItemImpl, Result};
+use syn::{Ident, ItemImpl, MetaNameValue, Result};
 
 /// Arguments for the `#[rt_engine]` attribute macro.
 #[derive(Debug, Clone)]
 pub struct RtEngineBackend;
 
 impl Backend for RtEngineBackend {
-    fn check_args_compatibility(max_out_subs: Option<usize>) -> Result<()> {
-        match max_out_subs {
-            Some(_) => Err(syn::Error::new(
-                proc_macro2::Span::call_site(),
+    fn check_arg_compatibility(arg: &MetaNameValue) -> Result<()> {
+        let path = &arg.path;
+        let name = path
+            .require_ident()
+            .map(|i| i.to_string())
+            .unwrap_or_default();
+        // Only max_out_subs is not supported specifically in the std backend,
+        // other incompatible arguments are handled in the main macro code.
+        match name.as_str() {
+            "max_out_subs" => Err(syn::Error::new_spanned(
+                path,
                 "max_out_subs is not supported in the std backend",
             )),
-            None => Ok(()),
+            _ => Ok(()),
         }
     }
     fn check_item_compatibility(_: &ItemImpl) -> Result<()> {

@@ -1,13 +1,13 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
 use heck::ToShoutySnakeCase;
-use syn::{Ident, ItemImpl, Result};
+use syn::{Ident, ItemImpl, MetaNameValue, Result};
 
 /// Arguments for the `#[rt_engine]` attribute macro.
 #[derive(Debug, Clone)]
 pub struct RtEngineBackend;
 
 impl Backend for RtEngineBackend {
-    fn check_args_compatibility(_max_out_subs: Option<usize>) -> Result<()> {
+    fn check_arg_compatibility(_arg: &MetaNameValue) -> Result<()> {
         Ok(())
     }
     fn check_item_compatibility(item: &ItemImpl) -> Result<()> {

@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, Error};
+use syn::{parse, parse_macro_input, Error};
 
 mod coupled;
 mod derive;
@@ -20,7 +20,18 @@ pub fn coupled(_args: TokenStream, item: TokenStream) -> TokenStream {
 // Macro to generate RT engine components
 #[proc_macro_attribute]
 pub fn rt_engine(args: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as rt_engine::RtEngineArgs);
+    let args = match parse::<rt_engine::RtEngineArgs>(args) {
+        Ok(args) => args,
+        Err(err) => {
+            let err = err.to_compile_error();
+            let item = proc_macro2::TokenStream::from(item);
+            return quote::quote! {
+                #item
+                #err
+            }
+            .into();
+        }
+    };
     let item = parse_macro_input!(item as syn::ItemImpl);
 
     match rt_engine::expand(args, item) {
