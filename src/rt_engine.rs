@@ -210,6 +210,25 @@ pub trait RtEngineOutputChannel: Sealed {
     fn publish(&self, output: Self::Output);
 }
 
+unsafe impl InjectInput for () {
+    type InputChannel = ();
+
+    #[inline(always)]
+    fn map_input(
+        &mut self,
+        _in_channel: &mut Self::InputChannel,
+    ) -> impl Future<Output = ()> + Send {
+        core::future::pending()
+    }
+}
+
+unsafe impl EjectOutput for () {
+    type OutputChannel = ();
+
+    #[inline(always)]
+    fn map_output(&self, _out_channel: &Self::OutputChannel) {}
+}
+
 pub(crate) mod sealed {
     /// Trait used to prevent users from implementing certain traits manually.
     pub trait Sealed {}

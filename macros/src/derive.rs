@@ -3,6 +3,8 @@ use heck::ToUpperCamelCase;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{Data, DeriveInput, Error, Field, Fields, Ident, Index, Result, Type};
 
+use crate::combine_err;
+
 pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
     let ident = input.ident;
     let generics = input.generics;
@@ -138,6 +140,9 @@ pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
         }
 
         Fields::Named(fields) => {
+            // Define the accumulator
+            let mut acc: Option<Error> = None;
+
             // Input match arms and output propagations
             let variants: Vec<TokenStream2> = fields
                 .named
@@ -158,9 +163,18 @@ pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
                     let variant = to_pascal_case_ident(
                         info.ident.as_ref().expect("named field must have ident"),
                     );
-                    let arm_body = expand_input_match_arm(info, &variant);
-                    quote::quote! {
-                        Self::Mux::#variant(value) => #arm_body
+
+                    match expand_input_match_arm(info, &variant) {
+                        Ok(arm_body) => quote::quote! {
+                            Self::Mux::#variant(value) => #arm_body
+                        },
+                        Err(err) => {
+                            combine_err(&mut acc, err);
+                            // Emit a dummy arm to satisfy exact behavior and match exhaustiveness
+                            quote::quote! {
+                                Self::Mux::#variant(_) => Ok(())
+                            }
+                        }
                     }
                 })
                 .collect();
@@ -172,12 +186,23 @@ pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
                     let variant = to_pascal_case_ident(
                         info.ident.as_ref().expect("named field must have ident"),
                     );
-                    let for_body = expand_output_for(info, variant);
-                    quote::quote! {
-                        #for_body
+
+                    match expand_output_for(info, &variant) {
+                        Ok(for_body) => quote::quote! {
+                            #for_body
+                        },
+                        Err(err) => {
+                            combine_err(&mut acc, err);
+                            // Output nothing for the failed field, errors handle it later
+                            quote::quote! {}
+                        }
                     }
                 })
                 .collect();
+
+            if let Some(err) = acc {
+                return Err(err);
+            }
 
             let inject_event_body = quote::quote! {
                 fn inject_event(&mut self, event: Self::Mux) -> Result<(), Self::Mux> {
@@ -219,8 +244,12 @@ fn to_pascal_case_ident(ident: &Ident) -> Ident {
 }
 
 /// Generate a match arm for the input enum to add received values to the corresponding input port.
-fn expand_input_match_arm(info: &Field, variant: &Ident) -> TokenStream2 {
-    fn input_match_arm_body(ty: &Type, variant: &Ident, comes_from_array: bool) -> TokenStream2 {
+fn expand_input_match_arm(info: &Field, variant: &Ident) -> Result<TokenStream2> {
+    fn input_match_arm_body(
+        ty: &Type,
+        variant: &Ident,
+        comes_from_array: bool,
+    ) -> Result<TokenStream2> {
         match ty {
             Type::Path(_) => {
                 let mut token = quote::quote! {
@@ -244,12 +273,12 @@ fn expand_input_match_arm(info: &Field, variant: &Ident) -> TokenStream2 {
                         }
                     }
                 });
-                token
+                Ok(token)
             }
             Type::Array(array) => {
                 let elem_ty = &array.elem;
-                let body = input_match_arm_body(elem_ty, variant, true);
-                quote::quote! {
+                let body = input_match_arm_body(elem_ty, variant, true)?;
+                Ok(quote::quote! {
                     let (index, value) = value;
                     if let Some(port) = port.get_mut(index)
                     {
@@ -259,69 +288,67 @@ fn expand_input_match_arm(info: &Field, variant: &Ident) -> TokenStream2 {
                     {
                         Ok(()) // Ignore out-of-bounds index, as it cannot be added to any port
                     }
-                }
+                })
             }
-            _ => {
-                quote::quote! {
-                    compile_error!("unsupported input port type; expected array or Port");
-                }
-            }
+            _ => Err(Error::new_spanned(
+                ty,
+                "unsupported input port type; expected array or Port",
+            )),
         }
     }
     let field = &info.ident;
     let ty = &info.ty;
-    let body = input_match_arm_body(ty, variant, false);
-    quote::quote! {
+    let body = input_match_arm_body(ty, variant, false)?;
+    Ok(quote::quote! {
         {
             let port = &mut self.#field;
             {
                 #body
             }
         }
-    }
+    })
 }
 
 /// Generate a for loop for the output enum to publish values from the corresponding output port.
-fn expand_output_for(info: &Field, variant: Ident) -> TokenStream2 {
-    fn output_for_body(ty: &Type, variant: Ident, from_array: bool) -> TokenStream2 {
+fn expand_output_for(info: &Field, variant: &Ident) -> Result<TokenStream2> {
+    fn output_for_body(ty: &Type, variant: &Ident, from_array: bool) -> Result<TokenStream2> {
         match ty {
             Type::Path(_) => {
                 if from_array {
-                    quote::quote! {
+                    Ok(quote::quote! {
                         for value in port.get_values() {
                             ejector(Self::Mux::#variant((index, value.clone())));
                         }
-                    }
+                    })
                 } else {
-                    quote::quote! {
+                    Ok(quote::quote! {
                         for value in port.get_values() {
                             ejector(Self::Mux::#variant(value.clone()));
                         }
-                    }
+                    })
                 }
             }
             Type::Array(array) => {
-                let body = output_for_body(&array.elem, variant, true);
-                quote::quote! {
+                let body = output_for_body(&array.elem, variant, true)?;
+                Ok(quote::quote! {
                     for (index, port) in port.iter().enumerate() {
                         #body
                     }
-                }
+                })
             }
-            _ => {
-                quote::quote! {
-                    compile_error!("unsupported output port type; expected array or Port");
-                }
-            }
+            _ => Err(Error::new_spanned(
+                ty,
+                "unsupported output port type; expected array or Port",
+            )),
         }
     }
     let field = &info.ident;
     let ty = &info.ty;
-    let body = output_for_body(ty, variant, false);
-    quote::quote! {
+    let body = output_for_body(ty, variant, false)?;
+    Ok(quote::quote! {
         let port = &self.#field;
         {
             #body
         }
-    }
+    })
 }

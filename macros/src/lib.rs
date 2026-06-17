@@ -1,17 +1,40 @@
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, Error};
+use syn::{parse, parse_macro_input, Error};
 
 mod coupled;
 mod derive;
 mod devstone;
+mod rt_engine;
 
 // Main macro to generate coupled DEVS models
 #[proc_macro_attribute]
-pub fn coupled(args: TokenStream, item: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(args as coupled::ComponentArgs);
+pub fn coupled(_args: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as syn::ItemStruct);
 
-    match coupled::expand(args, item) {
+    match coupled::expand(item) {
+        Ok(component) => component.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+// Macro to generate RT engine components
+#[proc_macro_attribute]
+pub fn rt_engine(args: TokenStream, item: TokenStream) -> TokenStream {
+    let args = match parse::<rt_engine::RtEngineArgs>(args) {
+        Ok(args) => args,
+        Err(err) => {
+            let err = err.to_compile_error();
+            let item = proc_macro2::TokenStream::from(item);
+            return quote::quote! {
+                #item
+                #err
+            }
+            .into();
+        }
+    };
+    let item = parse_macro_input!(item as syn::ItemImpl);
+
+    match rt_engine::expand(args, item) {
         Ok(component) => component.into(),
         Err(err) => err.to_compile_error().into(),
     }
