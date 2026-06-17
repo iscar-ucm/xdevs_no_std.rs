@@ -109,44 +109,6 @@ pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
 
     // Generate the expanded code
     let expanded = quote::quote! {
-        /// Struct holding all inner components as fields.
-        #components_struct
-        impl #impl_generics ::xdevs::Component for #components_ident #ty_generics #where_clause {
-            type Input = #components_input_ident #ty_generics;
-            type Output = #components_output_ident #ty_generics;
-            type Kind = ::xdevs::CoupledKind;
-        }
-        unsafe impl #impl_generics ::xdevs::processor::AsProcessor for #components_ident #ty_generics #where_clause {
-            #[inline(always)]
-            fn starts(&mut self, t_start: f64) -> f64 {
-                let mut t_next = f64::INFINITY;
-                #(t_next = f64::min(t_next, ::xdevs::processor::AsProcessor::starts(&mut self.#components_fields_idents, t_start));)*
-                t_next
-            }
-
-            #[inline(always)]
-            fn stops(&mut self) {
-                #(::xdevs::processor::AsProcessor::stops(&mut self.#components_fields_idents);)*
-            }
-
-            #[inline(always)]
-            fn lambdas(&mut self, output: &mut Self::Output, t: f64) {
-                #(::xdevs::processor::AsProcessor::lambdas(&mut self.#components_fields_idents, &mut output.#components_fields_idents, t);)*
-
-            }
-
-            #[inline(always)]
-            fn deltas(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-                let mut t_next = f64::INFINITY;
-                #(t_next = f64::min(t_next, ::xdevs::processor::AsProcessor::deltas(
-                        &mut self.#components_fields_idents,
-                        &mut input.#components_fields_idents,
-                        &mut output.#components_fields_idents,
-                         t));)*
-                t_next
-            }
-        }
-
         /// Wrapper struct holding mutable references to all inner components' inputs.
         #[derive(::xdevs::Bag)]
         #components_input_struct
@@ -154,6 +116,56 @@ pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
         /// Wrapper struct holding references to all inner components' outputs.
         #[derive(::xdevs::Bag)]
         #components_output_struct
+
+        /// Struct holding all inner components as fields.
+        #components_struct
+
+        impl #impl_generics ::xdevs::Component for #components_ident #ty_generics #where_clause {
+            type Kind = ::xdevs::ComponentsKind;
+            type Input = #components_input_ident #ty_generics;
+            type Output = #components_output_ident #ty_generics;
+        }
+
+        impl #impl_generics ::xdevs::simulation::Simulable<::xdevs::ComponentsKind> for #components_ident #ty_generics #where_clause {
+            type Simulator = Self;
+
+            fn to_simulator(self) -> Self::Simulator {
+                self
+            }
+        }
+
+        unsafe impl #impl_generics ::xdevs::simulation::AbstractSimulator for #components_ident #ty_generics #where_clause {
+            type Input = <Self as ::xdevs::Component>::Input;
+            type Output = <Self as ::xdevs::Component>::Output;
+
+            #[inline(always)]
+            fn start(&mut self, t_start: f64) -> f64 {
+                let mut t_next = f64::INFINITY;
+                #(t_next = f64::min(t_next, ::xdevs::simulation::AbstractSimulator::start(&mut self.#components_fields_idents, t_start));)*
+                t_next
+            }
+
+            #[inline(always)]
+            fn stop(&mut self) {
+                #(::xdevs::simulation::AbstractSimulator::stop(&mut self.#components_fields_idents);)*
+            }
+
+            #[inline(always)]
+            fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+                #(::xdevs::simulation::AbstractSimulator::lambda(&mut self.#components_fields_idents, &mut output.#components_fields_idents, t);)*
+            }
+
+            #[inline(always)]
+            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+                let mut t_next = f64::INFINITY;
+                #(t_next = f64::min(t_next, ::xdevs::simulation::AbstractSimulator::delta(
+                        &mut self.#components_fields_idents,
+                        &mut input.#components_fields_idents,
+                        &mut output.#components_fields_idents,
+                        t));)*
+                t_next
+            }
+        }
 
         /// Original model struct with added fields for inner components, their inputs and outputs, and simulation time.
         #item
@@ -171,32 +183,15 @@ pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
             }
         }
 
-        unsafe impl #impl_generics ::xdevs::component::coupled::PartialCoupled for #item_ident #ty_generics #where_clause {
+        impl #impl_generics ::xdevs::component::coupled::PartialCoupled for #item_ident #ty_generics #where_clause {
             type Components = #components_ident #ty_generics;
-            type ComponentsInput = #components_input_ident #ty_generics;
-            type ComponentsOutput = #components_output_ident #ty_generics;
 
-            #[inline]
-            fn components(&mut self) -> &mut Self::Components {
+            fn get_components(&self) -> &::xdevs::component::coupled::Processors<Self> {
+                &self.components
+            }
+
+            fn get_components_mut(&mut self) -> &mut ::xdevs::component::coupled::Processors<Self> {
                 &mut self.components
-            }
-            #[inline]
-            fn inputs(&mut self) -> &mut Self::ComponentsInput {
-                &mut self.components_input
-            }
-            #[inline]
-            fn outputs(&mut self) -> &mut Self::ComponentsOutput {
-                &mut self.components_output
-            }
-            #[inline]
-            fn split(
-                &mut self,
-            ) -> (
-                &mut Self::Components,
-                &mut Self::ComponentsInput,
-                &mut Self::ComponentsOutput,
-            ) {
-                (&mut self.components, &mut self.components_input, &mut self.components_output)
             }
         }
     };
@@ -211,7 +206,9 @@ fn wrap_processor(ty: &syn::Type) -> syn::Type {
             *new_arr.elem = wrap_processor(&arr.elem);
             syn::Type::Array(new_arr)
         }
-        _ => syn::parse_quote! { ::xdevs::processor::Processor<#ty> },
+        _ => syn::parse_quote! {
+            <#ty as ::xdevs::simulation::ErasedSimulable>::Simulator
+        },
     }
 }
 
@@ -226,7 +223,7 @@ fn build_init_expr(expr: TokenStream2, ty: &syn::Type, level: usize) -> TokenStr
             }
         }
         _ => quote::quote! {
-            ::xdevs::processor::Processor::new(#expr)
+            <#ty as ::xdevs::simulation::ErasedSimulable>::Simulator::new(#expr)
         },
     }
 }

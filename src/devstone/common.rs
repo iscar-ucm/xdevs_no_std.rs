@@ -149,10 +149,12 @@ impl Default for LeafModel {
 }
 
 impl xdevs::Coupled for LeafModel {
-    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
+    type Components = LeafModelComponents;
+
+    fn eic(from: &Self::Input, to: &mut <Self::Components as xdevs::Component>::Input) {
         let _ = from.couple(&mut to.atomic);
     }
-    fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {
+    fn eoc(from: &<Self::Components as xdevs::Component>::Output, to: &mut Self::Output) {
         let _ = from.atomic.couple(to);
     }
 }

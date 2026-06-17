@@ -43,5 +43,25 @@ name = "ho"
 harness = false
 required-features = ["alloc"]
 
+[[example]]
+name = "gpb"
+required-features = ["std"]
+
+[[example]]
+name = "gpt_async"
+required-features = ["std"]
+
+[[example]]
+name = "gpt"
+required-features = ["std"]
+
+[[example]]
+name = "multiprocessor"
+required-features = ["std"]
+
+[[example]]
+name = "rt_engine"
+required-features = ["std"]
+
 [package.metadata.docs.rs]
 all-features = true

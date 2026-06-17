@@ -1,6 +1,8 @@
 /// A simple GPB (Generator-Processor-Buffer) model using xDEVS
 /// This example shows how to apply Rust's resources for structs
 /// (like generics and lifetimes) in DEVS models
+use xdevs::{simulation::Simulable, AbstractSimulator};
+
 mod generator {
     pub struct Generator {
         sigma: f64,
@@ -180,8 +182,11 @@ impl xdevs::Component for GPB<'_> {
     type Output = ();
 }
 
-impl xdevs::Coupled for GPB<'_> {
-    fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
+impl<'a> xdevs::Coupled for GPB<'a> {
+    fn ic(
+        from: &xdevs::component::coupled::ComponentsOutput<Self>,
+        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
+    ) {
         from.generator.couple(&mut to.buffer).unwrap();
         from.buffer.couple(&mut to.processor).unwrap();
     }
@@ -193,7 +198,7 @@ fn main() {
     let processor = processor::Processor::new(1.5);
     let gpb = GPB::build(generator, buffer, processor);
 
-    let mut simulator = xdevs::simulator::Simulator::new(gpb);
-    let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);
-    simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
+    let mut simulator = gpb.to_simulator();
+    let config = xdevs::simulation::Config::new(0.0, 10.0, 1.0, None);
+    simulator.simulate_rt(&config, xdevs::simulation::std::sleep(&config), |_| {});
 }

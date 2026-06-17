@@ -1,6 +1,6 @@
 use crate::{
     port::Bag,
-    simulator::{AsyncInput, Config},
+    simulation::{AsyncInput, Config},
 };
 use std::{
     thread,

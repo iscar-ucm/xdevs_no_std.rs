@@ -1,5 +1,7 @@
 /// Example demonstrating multiple models with xdevs::Port and component arrays for coupling.
 /// This example shows a load balancer that distributes jobs to multiple processors.
+use xdevs::{simulation::Simulable, AbstractSimulator};
+
 mod processor {
 
     pub struct Processor {
@@ -225,10 +227,16 @@ impl xdevs::Component for MultiProcessor {
 }
 
 impl xdevs::Coupled for MultiProcessor {
-    fn eic(_from: &Self::Input, _to: &mut Self::ComponentsInput) {
+    fn eic(
+        _from: &Self::Input,
+        _to: &mut xdevs::component::coupled::ComponentsInput<Self>,
+    ) {
         // No external input coupling needed, this implementation could be omitted
     }
-    fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
+    fn ic(
+        from: &xdevs::component::coupled::ComponentsOutput<Self>,
+        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
+    ) {
         from.generator.couple(&mut to.load_balancer).unwrap();
         for (lb_port, proc_port) in from.load_balancer.iter().zip(to.processor.iter_mut()) {
             lb_port.couple(proc_port).unwrap();
@@ -237,7 +245,7 @@ impl xdevs::Coupled for MultiProcessor {
             proc_port.couple(&mut to.collector).unwrap();
         }
     }
-    fn eoc(_from: &Self::ComponentsOutput, _to: &mut Self::Output) {
+    fn eoc(_from: &xdevs::component::coupled::ComponentsOutput<Self>, _to: &mut Self::Output) {
         // No external output coupling needed, this implementation could be omitted
     }
 }
@@ -257,7 +265,7 @@ fn main() {
         collector,
     );
 
-    let mut simulator = xdevs::simulator::Simulator::new(model);
-    let config = xdevs::simulator::Config::new(0.0, 15.0, 1.0, None);
-    simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
+    let mut simulator = model.to_simulator();
+    let config = xdevs::simulation::Config::new(0.0, 15.0, 1.0, None);
+    simulator.simulate_rt(&config, xdevs::simulation::std::sleep(&config), |_| {});
 }
