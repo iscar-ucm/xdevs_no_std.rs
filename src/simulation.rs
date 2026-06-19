@@ -149,13 +149,13 @@ pub trait Simulable<K>: Component<Kind = K> {
 }
 
 /// Helper trait for specifying the simulator type without requiring to be generic over the kind.
-pub trait ErasedSimulable: Component {
+pub trait SimpleSimulable: Component {
     type Simulator: AbstractSimulator<Input = Self::Input, Output = Self::Output>;
 
     fn to_simulator(self) -> Self::Simulator;
 }
 
-impl<T, K> ErasedSimulable for T
+impl<T, K> SimpleSimulable for T
 where
     T: Component<Kind = K> + Simulable<K>,
 {

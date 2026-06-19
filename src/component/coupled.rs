@@ -1,12 +1,12 @@
 use crate::{
     component::{Component, CoupledKind},
-    simulation::ErasedSimulable,
+    simulation::SimpleSimulable,
 };
 
 /// Partial interface for DEVS coupled models. All DEVS coupled models must implement this trait.
 pub trait PartialCoupled: Component<Kind = CoupledKind> {
     /// Type of the inner components of this coupled model.
-    type Components: ErasedSimulable;
+    type Components: SimpleSimulable;
 
     fn get_components(&self) -> &Processors<Self>;
 
@@ -17,7 +17,7 @@ pub trait PartialCoupled: Component<Kind = CoupledKind> {
 pub type Components<T> = <T as PartialCoupled>::Components;
 
 /// Type alias for the simulator of the inner components of a coupled model.
-pub type Processors<T> = <<T as PartialCoupled>::Components as ErasedSimulable>::Simulator;
+pub type Processors<T> = <<T as PartialCoupled>::Components as SimpleSimulable>::Simulator;
 
 /// Type alias for the input of the inner components of a coupled model.
 pub type ComponentsInput<T> = <<T as PartialCoupled>::Components as Component>::Input;

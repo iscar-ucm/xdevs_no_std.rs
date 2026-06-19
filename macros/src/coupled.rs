@@ -40,14 +40,14 @@ pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
         return Err(err);
     }
 
-    // Generate the components struct (with recursive unwrapping)
+    // Generate the components struct
     let components_struct = {
         let mut item = item.clone();
         item.ident = Ident::new(&format!("{}Components", item.ident), item.ident.span());
         for field in item.fields.iter_mut() {
             let ty = &field.ty;
             field.ty = syn::parse_quote! {
-                <#ty as ::xdevs::simulation::ErasedSimulable>::Simulator
+                <#ty as ::xdevs::simulation::SimpleSimulable>::Simulator
             };
         }
         item
@@ -84,11 +84,11 @@ pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
         item
     };
 
-    // Construct the initialization fields iteratively to handle arrays.
+    // Construct the initialization fields.
     let mut init_fields = Vec::new();
     for (ident, ty) in item_fields.iter().zip(item_tys.iter()) {
         let init_expr = quote::quote! {
-            <#ty as ::xdevs::simulation::ErasedSimulable>::to_simulator(#ident)
+            <#ty as ::xdevs::simulation::SimpleSimulable>::to_simulator(#ident)
         };
         init_fields.push(quote::quote! { #ident: #init_expr });
     }
