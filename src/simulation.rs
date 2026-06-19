@@ -56,8 +56,7 @@ impl Default for Config {
 ///
 /// This trait provides transition-level methods (`start`, `stop`, `lambda`, `delta`)
 /// and high-level default simulation loops (`simulate_vt`, `simulate_rt`,
-/// `simulate_rt_async`). It is implemented for every type that implements
-/// [`AsProcessor`].
+/// `simulate_rt_async`).
 ///
 /// # Safety
 ///

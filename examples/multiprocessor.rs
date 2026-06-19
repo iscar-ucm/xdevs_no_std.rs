@@ -227,10 +227,7 @@ impl xdevs::Component for MultiProcessor {
 }
 
 impl xdevs::Coupled for MultiProcessor {
-    fn eic(
-        _from: &Self::Input,
-        _to: &mut xdevs::component::coupled::ComponentsInput<Self>,
-    ) {
+    fn eic(_from: &Self::Input, _to: &mut xdevs::component::coupled::ComponentsInput<Self>) {
         // No external input coupling needed, this implementation could be omitted
     }
     fn ic(

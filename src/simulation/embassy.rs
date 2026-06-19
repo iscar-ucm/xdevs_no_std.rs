@@ -1,7 +1,4 @@
-use crate::{
-    port::Bag,
-    simulator::{AsyncInput, Config},
-};
+use crate::{port::Bag, simulation::AsyncInput, Config};
 use core::time::Duration;
 use embassy_time::{Instant, Timer};
 
