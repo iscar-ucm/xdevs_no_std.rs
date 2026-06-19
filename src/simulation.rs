@@ -285,3 +285,17 @@ where
         self
     }
 }
+
+impl<T, K, const N: usize> Simulable<[K; N]> for [T; N]
+where
+    T: Component<Kind = K>,
+    T: Simulable<K>,
+    K: crate::component::sealed::Sealed,
+{
+    type Simulator = [T::Simulator; N];
+
+    #[inline(always)]
+    fn to_simulator(self) -> Self::Simulator {
+        self.map(|component| component.to_simulator())
+    }
+}

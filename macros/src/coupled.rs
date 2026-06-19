@@ -1,5 +1,5 @@
 use crate::combine_err;
-use proc_macro2::{Span, TokenStream as TokenStream2};
+use proc_macro2::TokenStream as TokenStream2;
 use syn::{Error, FieldsNamed, Ident, ItemStruct, Result};
 
 pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
@@ -45,7 +45,10 @@ pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
         let mut item = item.clone();
         item.ident = Ident::new(&format!("{}Components", item.ident), item.ident.span());
         for field in item.fields.iter_mut() {
-            field.ty = wrap_processor(&field.ty);
+            let ty = &field.ty;
+            field.ty = syn::parse_quote! {
+                <#ty as ::xdevs::simulation::ErasedSimulable>::Simulator
+            };
         }
         item
     };
@@ -84,7 +87,9 @@ pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
     // Construct the initialization fields iteratively to handle arrays.
     let mut init_fields = Vec::new();
     for (ident, ty) in item_fields.iter().zip(item_tys.iter()) {
-        let init_expr = build_init_expr(quote::quote!(#ident), ty, 0);
+        let init_expr = quote::quote! {
+            <#ty as ::xdevs::simulation::ErasedSimulable>::to_simulator(#ident)
+        };
         init_fields.push(quote::quote! { #ident: #init_expr });
     }
 
@@ -188,34 +193,4 @@ pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
         }
     };
     Ok(expanded.into())
-}
-
-// Recursively wrap only the innermost type in Processor<T> for Components
-fn wrap_processor(ty: &syn::Type) -> syn::Type {
-    match ty {
-        syn::Type::Array(arr) => {
-            let mut new_arr = arr.clone();
-            *new_arr.elem = wrap_processor(&arr.elem);
-            syn::Type::Array(new_arr)
-        }
-        _ => syn::parse_quote! {
-            <#ty as ::xdevs::simulation::ErasedSimulable>::Simulator
-        },
-    }
-}
-
-// Generate nested .map(|x| ...) closure initializations for N-dimensional arrays
-fn build_init_expr(expr: TokenStream2, ty: &syn::Type, level: usize) -> TokenStream2 {
-    match ty {
-        syn::Type::Array(arr) => {
-            let var_name = Ident::new(&format!("x_{}", level), Span::call_site());
-            let inner_expr = build_init_expr(quote::quote!(#var_name), &arr.elem, level + 1);
-            quote::quote! {
-                #expr.map(|#var_name| #inner_expr)
-            }
-        }
-        _ => quote::quote! {
-            <#ty as ::xdevs::simulation::ErasedSimulable>::to_simulator(#expr)
-        },
-    }
 }

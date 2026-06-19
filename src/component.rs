@@ -36,7 +36,7 @@ pub trait Component {
 }
 
 impl<T: Component, const N: usize> Component for [T; N] {
-    type Kind = ComponentsKind;
+    type Kind = [T::Kind; N];
     type Input = [T::Input; N];
     type Output = [T::Output; N];
 }
@@ -54,7 +54,9 @@ impl<T: Component> Component for alloc::boxed::Box<T> {
     type Kind = T::Kind;
 }
 
-mod sealed {
+pub(crate) mod sealed {
     /// Trait used to prevent users from implementing certain traits manually.
     pub trait Sealed {}
+
+    impl<T: Sealed, const N: usize> Sealed for [T; N] {}
 }
