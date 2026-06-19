@@ -1,12 +1,13 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use xdevs::{
     devstone::{common::JobGenerator, ho::TopModel},
-    generate_ho, Component, Config,
+    generate_ho, Config,
 };
 
 extern crate alloc;
 
 fn bench_ho(c: &mut Criterion) {
+    use xdevs::simulation::{AbstractSimulator, Simulable};
     const W: usize = 399; // WIDTH - 1
     generate_ho!(400, 400);
     let generator = JobGenerator::new(5);

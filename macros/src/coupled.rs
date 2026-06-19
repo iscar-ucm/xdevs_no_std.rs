@@ -126,14 +126,6 @@ pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
             type Output = #components_output_ident #ty_generics;
         }
 
-        impl #impl_generics ::xdevs::simulation::Simulable<::xdevs::ComponentsKind> for #components_ident #ty_generics #where_clause {
-            type Simulator = Self;
-
-            fn to_simulator(self) -> Self::Simulator {
-                self
-            }
-        }
-
         unsafe impl #impl_generics ::xdevs::simulation::AbstractSimulator for #components_ident #ty_generics #where_clause {
             type Input = <Self as ::xdevs::Component>::Input;
             type Output = <Self as ::xdevs::Component>::Output;
@@ -223,7 +215,7 @@ fn build_init_expr(expr: TokenStream2, ty: &syn::Type, level: usize) -> TokenStr
             }
         }
         _ => quote::quote! {
-            <#ty as ::xdevs::simulation::ErasedSimulable>::Simulator::new(#expr)
+            <#ty as ::xdevs::simulation::ErasedSimulable>::to_simulator(#expr)
         },
     }
 }

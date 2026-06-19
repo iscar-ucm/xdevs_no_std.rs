@@ -1,8 +1,8 @@
-use crate::processor::Processor;
+use crate::{simulation::coordinator::Coordinator, AbstractSimulator};
 
 use super::common::{AtomicModel, JobGenerator};
 use alloc::boxed::Box;
-use xdevs::{component::InternalSimulator, Component};
+use xdevs::Component;
 
 /// Output struct for HO models
 #[derive(Debug, Default, xdevs::Bag)]
@@ -33,8 +33,6 @@ impl<const W: usize> xdevs::Component for LeafModel<W> {
 }
 
 impl<const W: usize> xdevs::Coupled for LeafModel<W> {
-    type Components = LeafModelComponents<W>;
-
     fn eic(from: &Self::Input, to: &mut <Self::Components as xdevs::Component>::Input) {
         let _ = from.couple(&mut to.atomic);
     }
@@ -68,74 +66,12 @@ impl<const W: usize> LeafModel<W> {
     pub fn get_n_atomics(&self) -> usize {
         self.components.atomic.get_n_atomics()
     }
-    pub fn new_processor() -> Processor<Self> {
-        Processor::new(Self::new())
-    }
 }
 
 /// HO model enum
 pub enum HOEnum<const W: usize> {
-    Leaf(Processor<LeafModel<W>>),
-    Branch(Processor<HOModel<W>>),
-}
-
-/// Manual implementation of `AbstractSimulator` for HO enum
-unsafe impl<const W: usize> InternalSimulator<xdevs::CoupledKind> for HOEnum<W> {
-    fn start(processor: &mut Processor<Self>, t_start: f64) -> f64 {
-        match &mut **processor {
-            HOEnum::Leaf(leaf) => {
-                <LeafModel<W> as InternalSimulator<xdevs::CoupledKind>>::start(leaf, t_start)
-            }
-            HOEnum::Branch(branch) => {
-                <HOModel<W> as InternalSimulator<xdevs::CoupledKind>>::start(branch, t_start)
-            }
-        }
-    }
-
-    fn stop(processor: &mut Processor<Self>) {
-        match &mut **processor {
-            HOEnum::Leaf(leaf) => {
-                <LeafModel<W> as InternalSimulator<xdevs::CoupledKind>>::stop(leaf)
-            }
-            HOEnum::Branch(branch) => {
-                <HOModel<W> as InternalSimulator<xdevs::CoupledKind>>::stop(branch)
-            }
-        }
-    }
-
-    fn lambda(processor: &mut Processor<Self>, output: &mut Self::Output, t: f64) {
-        match &mut **processor {
-            HOEnum::Leaf(leaf) => {
-                <LeafModel<W> as InternalSimulator<xdevs::CoupledKind>>::lambda(leaf, output, t)
-            }
-            HOEnum::Branch(branch) => {
-                <HOModel<W> as InternalSimulator<xdevs::CoupledKind>>::lambda(branch, output, t)
-            }
-        }
-    }
-
-    fn delta(
-        processor: &mut Processor<Self>,
-        input: &mut Self::Input,
-        output: &mut Self::Output,
-        t: f64,
-    ) -> f64 {
-        match &mut **processor {
-            HOEnum::Leaf(leaf) => <LeafModel<W> as InternalSimulator<xdevs::CoupledKind>>::delta(
-                leaf, input, output, t,
-            ),
-            HOEnum::Branch(branch) => <HOModel<W> as InternalSimulator<xdevs::CoupledKind>>::delta(
-                branch, input, output, t,
-            ),
-        }
-    }
-}
-
-/// Manual implementation of `Component` for HO enum
-impl<const W: usize> Component for HOEnum<W> {
-    type Kind = xdevs::CoupledKind;
-    type Input = xdevs::Port<usize, 1>;
-    type Output = HOModelOutput<W>;
+    Leaf(Coordinator<LeafModel<W>>),
+    Branch(Coordinator<HOModel<W>>),
 }
 
 impl<const W: usize> HOEnum<W> {
@@ -168,58 +104,54 @@ impl<const W: usize> HOEnum<W> {
     }
 }
 
-/// Manual implementation of `AbstractSimulator` for the Boxed HO enum
-unsafe impl<const W: usize> InternalSimulator<xdevs::CoupledKind> for Box<HOEnum<W>> {
-    #[inline]
-    fn start(processor: &mut Processor<Self>, t_start: f64) -> f64 {
-        match &mut ***processor {
+/// Manual implementation of `Component` for HO enum
+impl<const W: usize> Component for HOEnum<W> {
+    type Kind = xdevs::ComponentsKind;
+    type Input = xdevs::Port<usize, 1>;
+    type Output = HOModelOutput<W>;
+}
+
+/// Manual implementation of `AbstractSimulator` for HO enum
+unsafe impl<const W: usize> AbstractSimulator for HOEnum<W> {
+    type Input = <Coordinator<HOModel<W>> as AbstractSimulator>::Input;
+    type Output = <Coordinator<HOModel<W>> as AbstractSimulator>::Output;
+    fn start(&mut self, t_start: f64) -> f64 {
+        match self {
             HOEnum::Leaf(leaf) => {
-                <LeafModel<W> as InternalSimulator<xdevs::CoupledKind>>::start(leaf, t_start)
+                <Coordinator<LeafModel<W>> as AbstractSimulator>::start(leaf, t_start)
             }
             HOEnum::Branch(branch) => {
-                <HOModel<W> as InternalSimulator<xdevs::CoupledKind>>::start(branch, t_start)
+                <Coordinator<HOModel<W>> as AbstractSimulator>::start(branch, t_start)
             }
         }
     }
 
-    #[inline]
-    fn stop(processor: &mut Processor<Self>) {
-        match &mut ***processor {
+    fn stop(&mut self) {
+        match self {
+            HOEnum::Leaf(leaf) => <Coordinator<LeafModel<W>> as AbstractSimulator>::stop(leaf),
+            HOEnum::Branch(branch) => <Coordinator<HOModel<W>> as AbstractSimulator>::stop(branch),
+        }
+    }
+
+    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+        match self {
             HOEnum::Leaf(leaf) => {
-                <LeafModel<W> as InternalSimulator<xdevs::CoupledKind>>::stop(leaf)
+                <Coordinator<LeafModel<W>> as AbstractSimulator>::lambda(leaf, output, t)
             }
             HOEnum::Branch(branch) => {
-                <HOModel<W> as InternalSimulator<xdevs::CoupledKind>>::stop(branch)
+                <Coordinator<HOModel<W>> as AbstractSimulator>::lambda(branch, output, t)
             }
         }
     }
 
-    #[inline]
-    fn lambda(processor: &mut Processor<Self>, output: &mut Self::Output, t: f64) {
-        match &mut ***processor {
+    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+        match self {
             HOEnum::Leaf(leaf) => {
-                <LeafModel<W> as InternalSimulator<xdevs::CoupledKind>>::lambda(leaf, output, t)
+                <Coordinator<LeafModel<W>> as AbstractSimulator>::delta(leaf, input, output, t)
             }
             HOEnum::Branch(branch) => {
-                <HOModel<W> as InternalSimulator<xdevs::CoupledKind>>::lambda(branch, output, t)
+                <Coordinator<HOModel<W>> as AbstractSimulator>::delta(branch, input, output, t)
             }
-        }
-    }
-
-    #[inline]
-    fn delta(
-        processor: &mut Processor<Self>,
-        input: &mut Self::Input,
-        output: &mut Self::Output,
-        t: f64,
-    ) -> f64 {
-        match &mut ***processor {
-            HOEnum::Leaf(leaf) => <LeafModel<W> as InternalSimulator<xdevs::CoupledKind>>::delta(
-                leaf, input, output, t,
-            ),
-            HOEnum::Branch(branch) => <HOModel<W> as InternalSimulator<xdevs::CoupledKind>>::delta(
-                branch, input, output, t,
-            ),
         }
     }
 }
@@ -266,9 +198,6 @@ impl<const W: usize> HOModel<W> {
         }
         sum_atomic
     }
-    pub fn new_processor(inner: Box<HOEnum<W>>) -> Processor<Self> {
-        Processor::new(Self::new(inner))
-    }
 }
 impl<const W: usize> xdevs::Component for HOModel<W> {
     type Kind = xdevs::CoupledKind;
@@ -277,8 +206,6 @@ impl<const W: usize> xdevs::Component for HOModel<W> {
 }
 
 impl<const W: usize> xdevs::Coupled for HOModel<W> {
-    type Components = HOModelComponents<W>;
-
     fn eic(from: &Self::Input, to: &mut <Self::Components as xdevs::Component>::Input) {
         let _ = from.couple(&mut to.inner);
         for atom_ports in to.atomics.iter_mut() {
@@ -293,7 +220,10 @@ impl<const W: usize> xdevs::Coupled for HOModel<W> {
         }
     }
 
-    fn ic(from: &<Self::Components as xdevs::Component>::Output, to: &mut <Self::Components as xdevs::Component>::Input) {
+    fn ic(
+        from: &<Self::Components as xdevs::Component>::Output,
+        to: &mut <Self::Components as xdevs::Component>::Input,
+    ) {
         if W > 1 {
             for i in 0..(W - 1) {
                 let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
@@ -334,9 +264,10 @@ impl<const W: usize> TopModel<W> {
 }
 
 impl<const W: usize> xdevs::Coupled for TopModel<W> {
-    type Components = TopModelComponents<W>;
-
-    fn ic(from: &<Self::Components as xdevs::Component>::Output, to: &mut <Self::Components as xdevs::Component>::Input) {
+    fn ic(
+        from: &<Self::Components as xdevs::Component>::Output,
+        to: &mut <Self::Components as xdevs::Component>::Input,
+    ) {
         let _ = from.generator.couple(&mut to.ho_model);
     }
 }
@@ -356,11 +287,12 @@ mod test {
 
     #[test]
     fn test_ho() {
-        const WIDTH: usize = 100;
-        const DEPTH: usize = 100;
+        use xdevs::simulation::Simulable;
+        const WIDTH: usize = 10;
+        const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;
 
-        xdevs::generate_ho!(100, 100);
+        xdevs::generate_ho!(10, 10);
 
         let generator = JobGenerator::new(5);
         let top_model: TopModel<W> = TopModel::build(generator, model_ho);

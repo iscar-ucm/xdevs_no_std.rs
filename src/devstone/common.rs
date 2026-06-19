@@ -1,5 +1,3 @@
-use crate::processor::Processor;
-
 /// Simple atomic model that generates jobs and sends them to the input port of the model
 pub struct JobGenerator {
     sigma: f64,
@@ -137,9 +135,6 @@ impl LeafModel {
     pub fn get_n_atomics(&self) -> usize {
         self.components.atomic.get_n_atomics()
     }
-    pub fn new_processor() -> Processor<Self> {
-        Processor::new(Self::new())
-    }
 }
 
 impl Default for LeafModel {
@@ -149,8 +144,6 @@ impl Default for LeafModel {
 }
 
 impl xdevs::Coupled for LeafModel {
-    type Components = LeafModelComponents;
-
     fn eic(from: &Self::Input, to: &mut <Self::Components as xdevs::Component>::Input) {
         let _ = from.couple(&mut to.atomic);
     }

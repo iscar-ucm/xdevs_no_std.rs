@@ -1,4 +1,4 @@
-use crate::{component::Component, port::Bag};
+use crate::{component::Component, port::Bag, ComponentsKind};
 use core::{future::Future, time::Duration};
 
 pub mod coordinator;
@@ -151,6 +151,8 @@ pub trait Simulable<K>: Component<Kind = K> {
 /// Helper trait for specifying the simulator type without requiring to be generic over the kind.
 pub trait ErasedSimulable: Component {
     type Simulator: AbstractSimulator<Input = Self::Input, Output = Self::Output>;
+
+    fn to_simulator(self) -> Self::Simulator;
 }
 
 impl<T, K> ErasedSimulable for T
@@ -158,6 +160,11 @@ where
     T: Component<Kind = K> + Simulable<K>,
 {
     type Simulator = <T as Simulable<K>>::Simulator;
+
+    #[inline(always)]
+    fn to_simulator(self) -> Self::Simulator {
+        <T as Simulable<K>>::to_simulator(self)
+    }
 }
 
 /// Interface for handling input events in an asynchronous DEVS simulation.
@@ -263,5 +270,18 @@ unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for [T; N] {
             .zip(output.iter_mut())
             .map(|((processor, input), output)| T::delta(processor, input, output, t))
             .fold(f64::INFINITY, f64::min)
+    }
+}
+
+impl<T> Simulable<ComponentsKind> for T
+where
+    T: Component<Kind = ComponentsKind>,
+    T: AbstractSimulator<Input = <T as Component>::Input, Output = <T as Component>::Output>,
+{
+    type Simulator = Self;
+
+    #[inline(always)]
+    fn to_simulator(self) -> Self::Simulator {
+        self
     }
 }

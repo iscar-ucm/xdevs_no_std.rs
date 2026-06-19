@@ -7,8 +7,8 @@ extern crate std;
 
 pub mod component;
 // TODO fix DEVStone
-// #[cfg(feature = "alloc")]
-// pub mod devstone;
+#[cfg(feature = "alloc")]
+pub mod devstone;
 pub mod export;
 pub mod port;
 #[cfg(any(feature = "embassy", feature = "std"))]
