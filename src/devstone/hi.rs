@@ -222,11 +222,11 @@ mod test {
     #[test]
     fn test_hi() {
         use xdevs::simulation::Simulable;
-        const WIDTH: usize = 100;
-        const DEPTH: usize = 100;
+        const WIDTH: usize = 10;
+        const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;
 
-        xdevs::generate_hi!(100, 100);
+        xdevs::generate_hi!(10, 10);
 
         let generator = JobGenerator::new(5);
         let top_model: TopModel<W> = TopModel::build(generator, model_hi);

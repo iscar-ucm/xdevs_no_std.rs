@@ -11,8 +11,8 @@ use core::ops::{Deref, DerefMut};
 /// Coordinator that encapsulates coupled-model simulation state.
 pub struct Coordinator<T: Coupled> {
     pub(crate) component: T,
-    pub(crate) components_inputs: ComponentsInput<T>,
-    pub(crate) components_outputs: ComponentsOutput<T>,
+    pub(crate) components_input: ComponentsInput<T>,
+    pub(crate) components_output: ComponentsOutput<T>,
     pub(crate) t_next: f64,
 }
 
@@ -22,8 +22,8 @@ impl<T: Coupled> Coordinator<T> {
     pub fn new(component: T) -> Self {
         Self {
             component,
-            components_inputs: ComponentsInput::<T>::build(),
-            components_outputs: ComponentsOutput::<T>::build(),
+            components_input: ComponentsInput::<T>::build(),
+            components_output: ComponentsOutput::<T>::build(),
             t_next: f64::INFINITY,
         }
     }
@@ -75,8 +75,8 @@ unsafe impl<T: Coupled> AbstractSimulator for Coordinator<T> {
         if t >= self.t_next {
             self.component
                 .get_components_mut()
-                .lambda(&mut self.components_outputs, t);
-            T::eoc(&self.components_outputs, output);
+                .lambda(&mut self.components_output, t);
+            T::eoc(&self.components_output, output);
         }
     }
 
@@ -87,11 +87,11 @@ unsafe impl<T: Coupled> AbstractSimulator for Coordinator<T> {
             return t_next;
         }
 
-        T::eic(input, &mut self.components_inputs);
-        T::ic(&self.components_outputs, &mut self.components_inputs);
+        T::eic(input, &mut self.components_input);
+        T::ic(&self.components_output, &mut self.components_input);
         let t_next = self.component.get_components_mut().delta(
-            &mut self.components_inputs,
-            &mut self.components_outputs,
+            &mut self.components_input,
+            &mut self.components_output,
             t,
         );
 
