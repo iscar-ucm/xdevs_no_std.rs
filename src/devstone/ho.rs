@@ -113,8 +113,8 @@ impl<const W: usize> Component for HOEnum<W> {
 
 /// Manual implementation of `AbstractSimulator` for HO enum
 unsafe impl<const W: usize> AbstractSimulator for HOEnum<W> {
-    type Input = <Coordinator<HOModel<W>> as AbstractSimulator>::Input;
-    type Output = <Coordinator<HOModel<W>> as AbstractSimulator>::Output;
+    type Input = xdevs::Port<usize, 1>;
+    type Output = HOModelOutput<W>;
     fn start(&mut self, t_start: f64) -> f64 {
         match self {
             HOEnum::Leaf(leaf) => {
@@ -288,11 +288,11 @@ mod test {
     #[test]
     fn test_ho() {
         use xdevs::simulation::Simulable;
-        const WIDTH: usize = 10;
-        const DEPTH: usize = 10;
+        const WIDTH: usize = 100;
+        const DEPTH: usize = 100;
         const W: usize = WIDTH - 1;
 
-        xdevs::generate_ho!(10, 10);
+        xdevs::generate_ho!(100, 100);
 
         let generator = JobGenerator::new(5);
         let top_model: TopModel<W> = TopModel::build(generator, model_ho);

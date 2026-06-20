@@ -106,8 +106,6 @@ pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
     let new_fields: FieldsNamed = syn::parse_quote! {
         {
             components: #components_ident #ty_generics,
-            components_input: #components_input_ident #ty_generics,
-            components_output: #components_output_ident #ty_generics,
         }
     };
     item.fields = syn::Fields::Named(new_fields);
@@ -171,8 +169,6 @@ pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
             #[inline]
             pub fn build(#(#item_fields: #item_tys),*) -> Self {
                 Self {
-                    components_input: <#components_input_ident #ty_generics as ::xdevs::port::Bag>::build(),
-                    components_output: <#components_output_ident #ty_generics as ::xdevs::port::Bag>::build(),
                     components: #components_ident #ty_generics_turbofish {
                         #(#init_fields),*
                     },

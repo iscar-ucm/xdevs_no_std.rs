@@ -48,8 +48,8 @@ impl<const W: usize> Component for LIEnum<W> {
 
 /// Manual implementation of `AbstractSimulator` for LI enum
 unsafe impl<const W: usize> AbstractSimulator for LIEnum<W> {
-    type Input = <Coordinator<LIModel<W>> as AbstractSimulator>::Input;
-    type Output = <Coordinator<LIModel<W>> as AbstractSimulator>::Output;
+    type Input = xdevs::Port<usize, 1>;
+    type Output = xdevs::Port<usize, 1>;
 
     fn start(&mut self, t_start: f64) -> f64 {
         match self {
@@ -211,11 +211,12 @@ mod test {
     #[test]
     fn test_li() {
         use xdevs::simulation::Simulable;
-        const WIDTH: usize = 10;
-        const DEPTH: usize = 10;
+        const WIDTH: usize = 100;
+        const DEPTH: usize = 100;
         const W: usize = WIDTH - 1;
 
-        xdevs::generate_li!(10, 10);
+        xdevs::generate_li!(100, 100);
+
         let generator = JobGenerator::new(5);
         let top_model: TopModel<W> = TopModel::build(generator, model_li);
         let mut simulator = top_model.to_simulator();

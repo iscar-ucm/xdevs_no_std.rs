@@ -47,9 +47,9 @@ impl<const W: usize> Component for HIEnum<W> {
 
 /// Manual implementation of `AbstractSimulator` for HI enum
 unsafe impl<const W: usize> AbstractSimulator for HIEnum<W> {
-    type Input = <Coordinator<HIModel<W>> as AbstractSimulator>::Input;
+    type Input = xdevs::Port<usize, 1>;
 
-    type Output = <Coordinator<HIModel<W>> as AbstractSimulator>::Output;
+    type Output = xdevs::Port<usize, 1>;
 
     fn start(&mut self, t_start: f64) -> f64 {
         match self {
@@ -222,15 +222,13 @@ mod test {
     #[test]
     fn test_hi() {
         use xdevs::simulation::Simulable;
-        const WIDTH: usize = 10;
-        const DEPTH: usize = 10;
+        const WIDTH: usize = 100;
+        const DEPTH: usize = 100;
         const W: usize = WIDTH - 1;
 
-        xdevs::generate_hi!(10, 10);
+        xdevs::generate_hi!(100, 100);
 
         let generator = JobGenerator::new(5);
-
-        //Creación del modelo final (modelo HI + atómico generador que mete datos en el puerto del HI)
         let top_model: TopModel<W> = TopModel::build(generator, model_hi);
         let mut simulator = top_model.to_simulator();
         let config = xdevs::simulation::Config::new(0.0, 10.0, 1.0, None);
