@@ -78,6 +78,16 @@ pub fn generate_li(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
+pub fn generate_li_ref(input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(input as devstone::GenerateArgs);
+
+    match devstone::expand_li_ref(args) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+#[proc_macro]
 pub fn generate_hi(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as devstone::GenerateArgs);
 
@@ -88,10 +98,30 @@ pub fn generate_hi(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
+pub fn generate_hi_ref(input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(input as devstone::GenerateArgs);
+
+    match devstone::expand_hi_ref(args) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+#[proc_macro]
 pub fn generate_ho(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as devstone::GenerateArgs);
 
     match devstone::expand_ho(args) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+#[proc_macro]
+pub fn generate_ho_ref(input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(input as devstone::GenerateArgs);
+
+    match devstone::expand_ho_ref(args) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }

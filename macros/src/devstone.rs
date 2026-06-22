@@ -183,3 +183,126 @@ pub(crate) fn expand_ho(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
     token.extend(quote! {let model_ho = #model_name ;});
     Ok(token)
 }
+
+pub(crate) fn expand_li_ref(args: GenerateArgs) -> Result<proc_macro2::TokenStream> {
+    let width_val: usize = args.width.base10_parse()?;
+    let depth_val: usize = args.depth.base10_parse()?;
+
+    if width_val < 1 {
+        return Err(syn::Error::new(
+            args.width.span(),
+            "width must be at least 1",
+        ));
+    }
+    if depth_val < 1 {
+        return Err(syn::Error::new(
+            args.depth.span(),
+            "depth must be at least 1",
+        ));
+    }
+
+    let width_minus_one = syn::LitInt::new(&(width_val - 1).to_string(), args.width.span());
+
+    let mut token = proc_macro2::TokenStream::new();
+
+    for val in 1..(depth_val + 1) {
+        if val == 1 {
+            token.extend(quote! {
+                let mut model_1 = ::xdevs::devstone::li_ref::LIEnumRef::Leaf(::xdevs::devstone::common::LeafModel::new().to_simulator());
+            });
+        } else {
+            let val_minus_one = val - 1;
+            let model_name = format_ident!("model_{}", val);
+            let prev_model = format_ident!("model_{}", val_minus_one);
+            token.extend(quote! {
+                let mut #model_name = ::xdevs::devstone::li_ref::LIEnumRef::Branch(::xdevs::devstone::li_ref::LIModelRef::<#width_minus_one>::new(&mut #prev_model).to_simulator());
+            });
+        }
+    }
+
+    let model_name = format_ident!("model_{}", depth_val);
+    token.extend(quote! {let mut model_li = #model_name;});
+    Ok(token)
+}
+
+pub(crate) fn expand_hi_ref(args: GenerateArgs) -> Result<proc_macro2::TokenStream> {
+    let width_val: usize = args.width.base10_parse()?;
+    let depth_val: usize = args.depth.base10_parse()?;
+
+    if width_val < 1 {
+        return Err(syn::Error::new(
+            args.width.span(),
+            "width must be at least 1",
+        ));
+    }
+    if depth_val < 1 {
+        return Err(syn::Error::new(
+            args.depth.span(),
+            "depth must be at least 1",
+        ));
+    }
+
+    let width_minus_one = syn::LitInt::new(&(width_val - 1).to_string(), args.width.span());
+
+    let mut token = proc_macro2::TokenStream::new();
+
+    for val in 1..(depth_val + 1) {
+        if val == 1 {
+            token.extend(quote! {
+                let mut model_1 = ::xdevs::devstone::hi_ref::HIEnumRef::Leaf(::xdevs::devstone::common::LeafModel::new().to_simulator());
+            });
+        } else {
+            let val_minus_one = val - 1;
+            let model_name = format_ident!("model_{}", val);
+            let prev_model = format_ident!("model_{}", val_minus_one);
+            token.extend(quote! {
+                let mut #model_name = ::xdevs::devstone::hi_ref::HIEnumRef::Branch(::xdevs::devstone::hi_ref::HIModelRef::<#width_minus_one>::new(&mut #prev_model).to_simulator());
+            });
+        }
+    }
+
+    let model_name = format_ident!("model_{}", depth_val);
+    token.extend(quote! {let mut model_hi = #model_name;});
+    Ok(token)
+}
+
+pub(crate) fn expand_ho_ref(args: GenerateArgs) -> Result<proc_macro2::TokenStream> {
+    let width_val: usize = args.width.base10_parse()?;
+    let depth_val: usize = args.depth.base10_parse()?;
+
+    if width_val < 1 {
+        return Err(syn::Error::new(
+            args.width.span(),
+            "width must be at least 1",
+        ));
+    }
+    if depth_val < 1 {
+        return Err(syn::Error::new(
+            args.depth.span(),
+            "depth must be at least 1",
+        ));
+    }
+
+    let width_minus_one = syn::LitInt::new(&(width_val - 1).to_string(), args.width.span());
+
+    let mut token = proc_macro2::TokenStream::new();
+
+    for val in 1..(depth_val + 1) {
+        if val == 1 {
+            token.extend(quote! {
+                let mut model_1 = ::xdevs::devstone::ho_ref::HOEnumRef::Leaf(::xdevs::devstone::ho_ref::LeafModelRef::<#width_minus_one>::new().to_simulator());
+            });
+        } else {
+            let val_minus_one = val - 1;
+            let model_name = format_ident!("model_{}", val);
+            let prev_model = format_ident!("model_{}", val_minus_one);
+            token.extend(quote! {
+                let mut #model_name = ::xdevs::devstone::ho_ref::HOEnumRef::Branch(::xdevs::devstone::ho_ref::HOModelRef::<#width_minus_one>::new(&mut #prev_model).to_simulator());
+            });
+        }
+    }
+
+    let model_name = format_ident!("model_{}", depth_val);
+    token.extend(quote! {let mut model_ho = #model_name;});
+    Ok(token)
+}
