@@ -209,7 +209,7 @@ mod test {
     }
 
     #[test]
-    fn test_li() {
+    fn simulation_matches_expected_counts() {
         use xdevs::simulation::Simulable;
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;

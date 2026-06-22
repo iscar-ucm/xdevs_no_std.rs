@@ -10,10 +10,10 @@ use core::ops::{Deref, DerefMut};
 
 /// Coordinator that encapsulates coupled-model simulation state.
 pub struct Coordinator<T: Coupled> {
-    pub(crate) component: T,
-    pub(crate) components_input: ComponentsInput<T>,
-    pub(crate) components_output: ComponentsOutput<T>,
-    pub(crate) t_next: f64,
+    component: T,
+    components_input: ComponentsInput<T>,
+    components_output: ComponentsOutput<T>,
+    t_next: f64,
 }
 
 impl<T: Coupled> Coordinator<T> {

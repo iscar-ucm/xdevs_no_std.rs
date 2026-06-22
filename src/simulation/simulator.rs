@@ -7,9 +7,9 @@ use core::ops::{Deref, DerefMut};
 
 /// Processor that wraps a DEVS component and implements the logic for simulating it.
 pub struct Simulator<T: Atomic> {
-    pub(crate) component: T,
-    pub(crate) t_last: f64,
-    pub(crate) t_next: f64,
+    component: T,
+    t_last: f64,
+    t_next: f64,
 }
 
 impl<T: Atomic> Simulator<T> {

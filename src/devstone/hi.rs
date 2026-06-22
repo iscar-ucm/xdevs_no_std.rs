@@ -122,10 +122,8 @@ impl<const W: usize> xdevs::Coupled for HIModel<W> {
         from: &<Self::Components as xdevs::Component>::Output,
         to: &mut <Self::Components as xdevs::Component>::Input,
     ) {
-        if W > 1 {
-            for i in 0..(W - 1) {
-                let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
-            }
+        for i in 0..(W.saturating_sub(1)) {
+            let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
         }
     }
 }
@@ -220,7 +218,7 @@ mod test {
     }
 
     #[test]
-    fn test_hi() {
+    fn simulation_matches_expected_counts() {
         use xdevs::simulation::Simulable;
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;

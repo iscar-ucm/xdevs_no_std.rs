@@ -7,17 +7,8 @@ use xdevs::Component;
 /// Output struct for HO models
 #[derive(Debug, Default, xdevs::Bag)]
 pub struct HOModelOutput<const W: usize> {
-    pub output_port_1: xdevs::Port<usize, 1>,
-    pub output_port_2: xdevs::Port<usize, W>,
-}
-impl<const W: usize> HOModelOutput<W> {
-    #[inline]
-    pub const fn new() -> Self {
-        Self {
-            output_port_1: xdevs::Port::new(),
-            output_port_2: xdevs::Port::new(),
-        }
-    }
+    output_port_1: xdevs::Port<usize, 1>,
+    output_port_2: xdevs::Port<usize, W>,
 }
 
 /// Leaf coupled model with only one atomic in HO models
@@ -46,6 +37,7 @@ impl<const W: usize> Default for LeafModel<W> {
         Self::new()
     }
 }
+
 impl<const W: usize> LeafModel<W> {
     pub fn new() -> Self {
         Self::build(AtomicModel::default())
@@ -224,10 +216,8 @@ impl<const W: usize> xdevs::Coupled for HOModel<W> {
         from: &<Self::Components as xdevs::Component>::Output,
         to: &mut <Self::Components as xdevs::Component>::Input,
     ) {
-        if W > 1 {
-            for i in 0..(W - 1) {
-                let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
-            }
+        for i in 0..(W.saturating_sub(1)) {
+            let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
         }
     }
 }
@@ -286,7 +276,7 @@ mod test {
     }
 
     #[test]
-    fn test_ho() {
+    fn simulation_matches_expected_counts() {
         use xdevs::simulation::Simulable;
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;
@@ -303,5 +293,11 @@ mod test {
         assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());
         assert_eq!(expected_n_events(WIDTH, DEPTH), simulator.get_n_events());
         assert_eq!(simulator.get_n_internals(), simulator.get_n_externals());
+    }
+
+    #[test]
+    fn leaf_model_contains_single_atomic() {
+        // Verify that the LeafModel contains exactly one atomic model independent of the width parameter
+        assert_eq!(LeafModel::<5>::default().get_n_atomics(), 1);
     }
 }
