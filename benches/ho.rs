@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use xdevs::{
-    devstone::{common::JobGenerator, ho::TopModel},
-    generate_ho, Config,
+    devstone::{common::JobGenerator, ho_box::TopModel},
+    generate_ho_box, Config,
 };
 
 extern crate alloc;
@@ -9,7 +9,7 @@ extern crate alloc;
 fn bench_ho(c: &mut Criterion) {
     use xdevs::simulation::{AbstractSimulator, Simulable};
     const W: usize = 399; // WIDTH - 1
-    generate_ho!(400, 400);
+    generate_ho_box!(400, 400);
     let generator = JobGenerator::new(5);
     let top_model: TopModel<W> = TopModel::build(generator, model_ho);
     let mut simulator = top_model.to_simulator();

@@ -24,17 +24,17 @@ impl ModelType {
 
     fn module(self) -> &'static str {
         match self {
-            Self::Li => "li",
-            Self::Hi => "hi",
-            Self::Ho => "ho",
+            Self::Li => "li_box",
+            Self::Hi => "hi_box",
+            Self::Ho => "ho_box",
         }
     }
 
     fn macro_name(self) -> &'static str {
         match self {
-            Self::Li => "generate_li",
-            Self::Hi => "generate_hi",
-            Self::Ho => "generate_ho",
+            Self::Li => "generate_li_box",
+            Self::Hi => "generate_hi_box",
+            Self::Ho => "generate_ho_box",
         }
     }
 
