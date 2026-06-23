@@ -4,8 +4,8 @@ use syn::{parse, parse_macro_input, Error};
 mod coupled;
 mod derive;
 mod devstone;
-mod rt_engine;
 mod modelenum;
+mod rt_engine;
 
 // Main macro to generate coupled DEVS models
 #[proc_macro_attribute]
