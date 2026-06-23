@@ -1,5 +1,3 @@
-use crate::processor::Processor;
-
 /// Simple atomic model that generates jobs and sends them to the input port of the model
 pub struct JobGenerator {
     sigma: f64,
@@ -25,7 +23,9 @@ impl xdevs::Atomic for JobGenerator {
         self.sigma
     }
 
-    fn delta_ext(&mut self, _elapsed: f64, _input: &Self::Input) {}
+    fn delta_ext(&mut self, _elapsed: f64, _input: &Self::Input) {
+        self.sigma = f64::INFINITY;
+    }
 }
 
 impl JobGenerator {
@@ -137,9 +137,6 @@ impl LeafModel {
     pub fn get_n_atomics(&self) -> usize {
         self.components.atomic.get_n_atomics()
     }
-    pub fn new_processor() -> Processor<Self> {
-        Processor::new(Self::new())
-    }
 }
 
 impl Default for LeafModel {
@@ -149,10 +146,47 @@ impl Default for LeafModel {
 }
 
 impl xdevs::Coupled for LeafModel {
-    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
+    fn eic(from: &Self::Input, to: &mut <Self::Components as xdevs::Component>::Input) {
         let _ = from.couple(&mut to.atomic);
     }
-    fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {
+    fn eoc(from: &<Self::Components as xdevs::Component>::Output, to: &mut Self::Output) {
         let _ = from.atomic.couple(to);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use xdevs::Atomic;
+
+    #[test]
+    fn job_generator_emits_configured_count() {
+        let gen = JobGenerator::new(5);
+
+        let mut output = <JobGenerator as xdevs::Component>::Output::default();
+        gen.lambda(&mut output);
+        assert_eq!(
+            output.get_values(),
+            &[5],
+            "generator should output its count"
+        );
+    }
+
+    #[test]
+    fn generator_sets_sigma_to_infinity_on_external_event() {
+        let mut gen = JobGenerator::new(5);
+        assert_eq!(gen.sigma, 0.0, "delta_ext should set sigma to infinity");
+        gen.delta_ext(1.0, &());
+        assert_eq!(
+            gen.sigma,
+            f64::INFINITY,
+            "delta_ext should set sigma to infinity"
+        );
+    }
+
+    #[test]
+    fn leaf_model_contains_single_atomic() {
+        // Verify that the LeafModel contains exactly one atomic model
+        assert_eq!(LeafModel::default().get_n_atomics(), 1);
     }
 }

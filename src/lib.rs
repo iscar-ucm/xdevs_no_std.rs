@@ -10,13 +10,14 @@ pub mod component;
 pub mod devstone;
 pub mod export;
 pub mod port;
-pub mod processor;
 #[cfg(any(feature = "embassy", feature = "std"))]
 pub mod rt_engine;
-pub mod simulator;
+pub mod simulation;
 
-pub use component::{atomic::Atomic, coupled::Coupled, AtomicKind, Component, CoupledKind};
+pub use component::{
+    atomic::Atomic, coupled::Coupled, AtomicKind, Component, ComponentsKind, CoupledKind,
+};
 pub use embassy_time::{Duration, Instant};
 pub use port::Port;
-pub use simulator::{Config, Simulator};
+pub use simulation::{AbstractSimulator, Config};
 pub use xdevs_no_std_macros::*;

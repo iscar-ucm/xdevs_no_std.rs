@@ -125,6 +125,8 @@ fn render_example(model: ModelType, width: usize, depth: usize) -> String {
     extern crate alloc;
 
     fn main() {{
+        use xdevs::simulation::{{AbstractSimulator, Simulable}};
+
         const WIDTH: usize = {width};
         const W: usize = WIDTH - 1;
 
@@ -138,8 +140,8 @@ fn render_example(model: ModelType, width: usize, depth: usize) -> String {
         let duration = start.elapsed();
         println!("Model creation time: {{:?}}", duration);
         let start = Instant::now();
-        let mut simulator = xdevs::simulator::Simulator::new(top_model);
-        let config = xdevs::simulator::Config::new(0.0, 10.0, 1.0, None);
+        let mut simulator = top_model.to_simulator();
+        let config = xdevs::simulation::Config::new(0.0, 10.0, 1.0, None);
         let duration = start.elapsed();
         println!("Simulator creation time: {{:?}}", duration);
         let start = Instant::now();

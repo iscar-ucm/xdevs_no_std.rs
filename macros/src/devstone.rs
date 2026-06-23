@@ -50,11 +50,11 @@ pub(crate) fn expand_li(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
         if val == 1 {
             if val != depth_val {
                 token.extend(quote! {
-                    let model_1 = ::alloc::boxed::Box::new(::xdevs::devstone::li::LIEnum::Leaf(::xdevs::devstone::common::LeafModel::new_processor()));
+                    let model_1 = ::alloc::boxed::Box::new(::xdevs::devstone::li::LIEnum::Leaf(::xdevs::devstone::common::LeafModel::new().to_simulator()));
                 })
             } else {
                 token.extend(quote! {
-                    let model_1 = ::xdevs::devstone::li::LIEnum::Leaf(::xdevs::devstone::common::LeafModel::new_processor());
+                    let model_1 = ::xdevs::devstone::li::LIEnum::Leaf(::xdevs::devstone::common::LeafModel::new().to_simulator());
                 });
             }
         } else {
@@ -63,11 +63,11 @@ pub(crate) fn expand_li(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
             let prev_model = format_ident!("model_{}", val_minus_one);
             if val != depth_val {
                 token.extend(quote! {
-                    let #model_name = ::alloc::boxed::Box::new(::xdevs::devstone::li::LIEnum::Branch(::xdevs::devstone::li::LIModel::<#width_minus_one>::new_processor(#prev_model)));
+                    let #model_name = ::alloc::boxed::Box::new(::xdevs::devstone::li::LIEnum::Branch(::xdevs::devstone::li::LIModel::<#width_minus_one>::new(#prev_model).to_simulator()));
                 });
             } else {
                 token.extend(quote! {
-                    let #model_name = ::xdevs::devstone::li::LIEnum::Branch(::xdevs::devstone::li::LIModel::<#width_minus_one>::new_processor(#prev_model));
+                    let #model_name = ::xdevs::devstone::li::LIEnum::Branch(::xdevs::devstone::li::LIModel::<#width_minus_one>::new(#prev_model).to_simulator());
                 });
             }
         }
@@ -103,11 +103,11 @@ pub(crate) fn expand_hi(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
         if val == 1 {
             if val != depth_val {
                 token.extend(quote! {
-                    let model_1 = ::alloc::boxed::Box::new(::xdevs::devstone::hi::HIEnum::Leaf(::xdevs::devstone::common::LeafModel::new_processor()));
+                    let model_1 = ::alloc::boxed::Box::new(::xdevs::devstone::hi::HIEnum::Leaf(::xdevs::devstone::common::LeafModel::new().to_simulator()));
                 })
             } else {
                 token.extend(quote! {
-                    let model_1 = ::xdevs::devstone::hi::HIEnum::Leaf(::xdevs::devstone::common::LeafModel::new_processor());
+                    let model_1 = ::xdevs::devstone::hi::HIEnum::Leaf(::xdevs::devstone::common::LeafModel::new().to_simulator());
                 });
             }
         } else {
@@ -116,11 +116,11 @@ pub(crate) fn expand_hi(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
             let prev_model = format_ident!("model_{}", val_minus_one);
             if val != depth_val {
                 token.extend(quote! {
-                    let #model_name = ::alloc::boxed::Box::new(::xdevs::devstone::hi::HIEnum::Branch(::xdevs::devstone::hi::HIModel::<#width_minus_one>::new_processor(#prev_model)));
+                    let #model_name = ::alloc::boxed::Box::new(::xdevs::devstone::hi::HIEnum::Branch(::xdevs::devstone::hi::HIModel::<#width_minus_one>::new(#prev_model).to_simulator()));
                 });
             } else {
                 token.extend(quote! {
-                    let #model_name = ::xdevs::devstone::hi::HIEnum::Branch(::xdevs::devstone::hi::HIModel::<#width_minus_one>::new_processor(#prev_model));
+                    let #model_name = ::xdevs::devstone::hi::HIEnum::Branch(::xdevs::devstone::hi::HIModel::<#width_minus_one>::new(#prev_model).to_simulator());
                 });
             }
         }
@@ -156,11 +156,11 @@ pub(crate) fn expand_ho(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
         if val == 1 {
             if val != depth_val {
                 token.extend(quote! {
-                    let model_1 = ::alloc::boxed::Box::new(::xdevs::devstone::ho::HOEnum::Leaf(::xdevs::devstone::ho::LeafModel::<#width_minus_one>::new_processor()));
+                    let model_1 = ::alloc::boxed::Box::new(::xdevs::devstone::ho::HOEnum::Leaf(::xdevs::devstone::ho::LeafModel::<#width_minus_one>::new().to_simulator()));
                 })
             } else {
                 token.extend(quote! {
-                    let model_1 = ::xdevs::devstone::ho::HOEnum::Leaf(::xdevs::devstone::ho::LeafModel::<#width_minus_one>::new_processor());
+                    let model_1 = ::xdevs::devstone::ho::HOEnum::Leaf(::xdevs::devstone::ho::LeafModel::<#width_minus_one>::new().to_simulator());
                 });
             }
         } else {
@@ -169,11 +169,11 @@ pub(crate) fn expand_ho(args: GenerateArgs) -> Result<proc_macro2::TokenStream> 
             let prev_model = format_ident!("model_{}", val_minus_one);
             if val != depth_val {
                 token.extend(quote! {
-                    let #model_name = ::alloc::boxed::Box::new(::xdevs::devstone::ho::HOEnum::Branch(::xdevs::devstone::ho::HOModel::<#width_minus_one>::new_processor(#prev_model)));
+                    let #model_name = ::alloc::boxed::Box::new(::xdevs::devstone::ho::HOEnum::Branch(::xdevs::devstone::ho::HOModel::<#width_minus_one>::new(#prev_model).to_simulator()));
                 });
             } else {
                 token.extend(quote! {
-                    let #model_name = ::xdevs::devstone::ho::HOEnum::Branch(::xdevs::devstone::ho::HOModel::<#width_minus_one>::new_processor(#prev_model));
+                    let #model_name = ::xdevs::devstone::ho::HOEnum::Branch(::xdevs::devstone::ho::HOModel::<#width_minus_one>::new(#prev_model).to_simulator());
                 });
             }
         }

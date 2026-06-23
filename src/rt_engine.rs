@@ -2,8 +2,9 @@ use core::future::Future;
 
 pub use crate::export::{RecvError, SubscribeError};
 use crate::{
-    component::AbstractSimulator, port::Bag, simulator::AsyncInput, Component, Duration, Instant,
-    Simulator,
+    port::Bag,
+    simulation::{AbstractSimulator, AsyncInput, Simulable},
+    Component, Duration, Instant,
 };
 use sealed::Sealed;
 
@@ -11,20 +12,18 @@ use sealed::Sealed;
 /// Its interfaces are created through the use of the `rt_engine` macro.
 pub struct RtEngine<K, M>
 where
-    M: Component<Kind = K>,
-    M: AbstractSimulator<K>,
+    M: Component<Kind = K> + Simulable<K>,
     M::Input: InjectInput,
     M::Output: EjectOutput,
 {
-    simulator: Simulator<M::Kind, M>,
+    simulator: <M as Simulable<K>>::Simulator,
     input_channel: <M::Input as InjectInput>::InputChannel,
     output_channel: <M::Output as EjectOutput>::OutputChannel,
 }
 
 impl<K, M> RtEngine<K, M>
 where
-    M: Component<Kind = K>,
-    M: AbstractSimulator<K>,
+    M: Component<Kind = K> + Simulable<K>,
     M::Input: InjectInput,
     M::Output: EjectOutput,
 {
@@ -34,7 +33,7 @@ where
         output_channel: <M::Output as EjectOutput>::OutputChannel,
     ) -> Self {
         Self {
-            simulator: Simulator::new(model),
+            simulator: model.to_simulator(),
             input_channel,
             output_channel,
         }
@@ -53,8 +52,7 @@ where
 /// Specialized implementation: Only exists if IC is RtEngineInputChannel.
 impl<K, M> RtEngine<K, M>
 where
-    M: Component<Kind = K>,
-    M: AbstractSimulator<K>,
+    M: Component<Kind = K> + Simulable<K>,
     M::Input: InjectInput,
     M::Output: EjectOutput,
     <M::Input as InjectInput>::InputChannel: RtEngineInputChannel,
@@ -69,8 +67,7 @@ where
 /// Specialized implementation: Only exists if OC is RtEngineOutputChannel.
 impl<K, M> RtEngine<K, M>
 where
-    M: Component<Kind = K>,
-    M: AbstractSimulator<K>,
+    M: Component<Kind = K> + Simulable<K>,
     M::Input: InjectInput,
     M::Output: EjectOutput,
     <M::Output as EjectOutput>::OutputChannel: RtEngineOutputChannel,
@@ -87,8 +84,7 @@ where
 
 struct RtEngineInputHandler<'a, K, M>
 where
-    M: Component<Kind = K>,
-    M: AbstractSimulator<K>,
+    M: Component<Kind = K> + Simulable<K>,
     M::Input: InjectInput,
 {
     input_channel: &'a mut <M::Input as InjectInput>::InputChannel,
@@ -97,8 +93,7 @@ where
 
 impl<'a, K, M> RtEngineInputHandler<'a, K, M>
 where
-    M: Component<Kind = K>,
-    M: AbstractSimulator<K>,
+    M: Component<Kind = K> + Simulable<K>,
     M::Input: InjectInput,
 {
     fn new(input_channel: &'a mut <M::Input as InjectInput>::InputChannel) -> Self {
@@ -111,8 +106,7 @@ where
 
 impl<'a, K, M> AsyncInput for RtEngineInputHandler<'a, K, M>
 where
-    M: Component<Kind = K>,
-    M: AbstractSimulator<K>,
+    M: Component<Kind = K> + Simulable<K>,
     M::Input: InjectInput,
 {
     type Input = M::Input;

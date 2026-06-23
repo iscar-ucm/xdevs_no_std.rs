@@ -1,4 +1,6 @@
 /// A simple DEVS GPT model
+use xdevs::{simulation::Simulable, AbstractSimulator};
+
 mod generator {
     pub struct Generator {
         sigma: f64,
@@ -184,7 +186,10 @@ impl xdevs::Component for GPT {
 }
 
 impl xdevs::Coupled for GPT {
-    fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
+    fn ic(
+        from: &xdevs::component::coupled::ComponentsOutput<Self>,
+        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
+    ) {
         from.generator.couple(&mut to.processor).unwrap();
         from.processor
             .couple(&mut to.transducer.in_processor)
@@ -209,16 +214,19 @@ impl xdevs::Component for EF {
 }
 
 impl xdevs::Coupled for EF {
-    fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
+    fn ic(
+        from: &xdevs::component::coupled::ComponentsOutput<Self>,
+        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
+    ) {
         from.generator
             .couple(&mut to.transducer.in_generator)
             .unwrap();
         from.transducer.couple(&mut to.generator).unwrap();
     }
-    fn eic(from: &Self::Input, to: &mut Self::ComponentsInput) {
+    fn eic(from: &Self::Input, to: &mut xdevs::component::coupled::ComponentsInput<Self>) {
         from.couple(&mut to.transducer.in_processor).unwrap();
     }
-    fn eoc(from: &Self::ComponentsOutput, to: &mut Self::Output) {
+    fn eoc(from: &xdevs::component::coupled::ComponentsOutput<Self>, to: &mut Self::Output) {
         from.generator.couple(to).unwrap();
     }
 }
@@ -235,7 +243,10 @@ impl xdevs::Component for EFP {
     type Output = ();
 }
 impl xdevs::Coupled for EFP {
-    fn ic(from: &Self::ComponentsOutput, to: &mut Self::ComponentsInput) {
+    fn ic(
+        from: &xdevs::component::coupled::ComponentsOutput<Self>,
+        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
+    ) {
         from.ef.couple(&mut to.processor).unwrap();
         from.processor.couple(&mut to.ef).unwrap();
     }
@@ -253,7 +264,7 @@ fn main() {
     let ef = EF::build(generator, transducer);
     let efp = EFP::build(ef, processor);
 
-    let mut simulator = xdevs::simulator::Simulator::new(efp);
-    let config = xdevs::simulator::Config::new(0.0, 14.0, 1.0, None);
-    simulator.simulate_rt(&config, xdevs::simulator::std::sleep(&config), |_| {});
+    let mut simulator = efp.to_simulator();
+    let config = xdevs::simulation::Config::new(0.0, 14.0, 1.0, None);
+    simulator.simulate_rt(&config, xdevs::simulation::std::sleep(&config), |_| {});
 }
