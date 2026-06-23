@@ -87,9 +87,7 @@ unsafe impl<'a, const W: usize> AbstractSimulator for LIEnum<'a, W> {
                 <Coordinator<LeafModel> as AbstractSimulator>::delta(leaf, input, output, t)
             }
             LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<'a, W>> as AbstractSimulator>::delta(
-                    branch, input, output, t,
-                )
+                <Coordinator<LIModel<'a, W>> as AbstractSimulator>::delta(branch, input, output, t)
             }
         }
     }
