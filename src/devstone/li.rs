@@ -1,11 +1,12 @@
-use crate::{simulation::coordinator::Coordinator, AbstractSimulator, Component};
+use crate::Component;
 
 use super::common::*;
 
 /// LI model enum (ref version)
+#[crate::modelenum]
 pub enum LIEnum<'a, const W: usize> {
-    Leaf(Coordinator<LeafModel>),
-    Branch(Coordinator<LIModel<'a, W>>),
+    Leaf(LeafModel),
+    Branch(LIModel<'a, W>),
 }
 
 impl<'a, const W: usize> LIEnum<'a, W> {
@@ -34,61 +35,6 @@ impl<'a, const W: usize> LIEnum<'a, W> {
         match self {
             LIEnum::Leaf(leaf) => leaf.get_n_atomics(),
             LIEnum::Branch(branch) => branch.get_n_atomics(),
-        }
-    }
-}
-
-/// Manual implementation of `Component` for LI enum (ref version)
-impl<'a, const W: usize> Component for LIEnum<'a, W> {
-    type Kind = crate::component::ComponentsKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
-}
-
-/// Manual implementation of `AbstractSimulator` for LI enum (ref version)
-unsafe impl<'a, const W: usize> AbstractSimulator for LIEnum<'a, W> {
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
-
-    fn start(&mut self, t_start: f64) -> f64 {
-        match self {
-            LIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::start(leaf, t_start)
-            }
-            LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<'a, W>> as AbstractSimulator>::start(branch, t_start)
-            }
-        }
-    }
-
-    fn stop(&mut self) {
-        match self {
-            LIEnum::Leaf(leaf) => <Coordinator<LeafModel> as AbstractSimulator>::stop(leaf),
-            LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<'a, W>> as AbstractSimulator>::stop(branch)
-            }
-        }
-    }
-
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        match self {
-            LIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::lambda(leaf, output, t)
-            }
-            LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<'a, W>> as AbstractSimulator>::lambda(branch, output, t)
-            }
-        }
-    }
-
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        match self {
-            LIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::delta(leaf, input, output, t)
-            }
-            LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<'a, W>> as AbstractSimulator>::delta(branch, input, output, t)
-            }
         }
     }
 }
@@ -201,6 +147,7 @@ impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::simulation::AbstractSimulator;
 
     fn expected_n_atomic(width: usize, depth: usize) -> usize {
         (width - 1) * (depth - 1) + 1

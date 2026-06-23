@@ -1,4 +1,4 @@
-use crate::{simulation::coordinator::Coordinator, AbstractSimulator, Component};
+use crate::Component;
 
 use super::common::{AtomicModel, JobGenerator};
 
@@ -59,9 +59,10 @@ impl<const W: usize> LeafModel<W> {
 }
 
 /// HO model enum (ref version)
+#[crate::modelenum]
 pub enum HOEnum<'a, const W: usize> {
-    Leaf(Coordinator<LeafModel<W>>),
-    Branch(Coordinator<HOModel<'a, W>>),
+    Leaf(LeafModel<W>),
+    Branch(HOModel<'a, W>),
 }
 
 impl<'a, const W: usize> HOEnum<'a, W> {
@@ -90,61 +91,6 @@ impl<'a, const W: usize> HOEnum<'a, W> {
         match self {
             HOEnum::Leaf(leaf) => leaf.get_n_atomics(),
             HOEnum::Branch(branch) => branch.get_n_atomics(),
-        }
-    }
-}
-
-/// Manual implementation of `Component` for HO enum (ref version)
-impl<'a, const W: usize> Component for HOEnum<'a, W> {
-    type Kind = crate::component::ComponentsKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = HOModelOutput<W>;
-}
-
-/// Manual implementation of `AbstractSimulator` for HO enum (ref version)
-unsafe impl<'a, const W: usize> AbstractSimulator for HOEnum<'a, W> {
-    type Input = crate::Port<usize, 1>;
-    type Output = HOModelOutput<W>;
-
-    fn start(&mut self, t_start: f64) -> f64 {
-        match self {
-            HOEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel<W>> as AbstractSimulator>::start(leaf, t_start)
-            }
-            HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<'a, W>> as AbstractSimulator>::start(branch, t_start)
-            }
-        }
-    }
-
-    fn stop(&mut self) {
-        match self {
-            HOEnum::Leaf(leaf) => <Coordinator<LeafModel<W>> as AbstractSimulator>::stop(leaf),
-            HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<'a, W>> as AbstractSimulator>::stop(branch)
-            }
-        }
-    }
-
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        match self {
-            HOEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel<W>> as AbstractSimulator>::lambda(leaf, output, t)
-            }
-            HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<'a, W>> as AbstractSimulator>::lambda(branch, output, t)
-            }
-        }
-    }
-
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        match self {
-            HOEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel<W>> as AbstractSimulator>::delta(leaf, input, output, t)
-            }
-            HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<'a, W>> as AbstractSimulator>::delta(branch, input, output, t)
-            }
         }
     }
 }
@@ -268,6 +214,7 @@ impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::simulation::AbstractSimulator;
 
     fn expected_n_atomic(width: usize, depth: usize) -> usize {
         (width - 1) * (depth - 1) + 1

@@ -1,11 +1,12 @@
 use super::common::*;
-use crate::{simulation::coordinator::Coordinator, AbstractSimulator, Component};
+use crate::Component;
 use alloc::boxed::Box;
 
 /// HI model enum
+#[xdevs::modelenum]
 pub enum HIEnum<const W: usize> {
-    Leaf(Coordinator<LeafModel>),
-    Branch(Coordinator<HIModel<W>>),
+    Leaf(LeafModel),
+    Branch(HIModel<W>),
 }
 
 impl<const W: usize> HIEnum<W> {
@@ -34,60 +35,6 @@ impl<const W: usize> HIEnum<W> {
         match self {
             HIEnum::Leaf(leaf) => leaf.get_n_atomics(),
             HIEnum::Branch(branch) => branch.get_n_atomics(),
-        }
-    }
-}
-
-/// Manual implementation of `Component` for HI enum
-impl<const W: usize> Component for HIEnum<W> {
-    type Kind = xdevs::component::ComponentsKind;
-    type Input = xdevs::Port<usize, 1>;
-    type Output = xdevs::Port<usize, 1>;
-}
-
-/// Manual implementation of `AbstractSimulator` for HI enum
-unsafe impl<const W: usize> AbstractSimulator for HIEnum<W> {
-    type Input = xdevs::Port<usize, 1>;
-
-    type Output = xdevs::Port<usize, 1>;
-
-    fn start(&mut self, t_start: f64) -> f64 {
-        match self {
-            HIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::start(leaf, t_start)
-            }
-            HIEnum::Branch(branch) => {
-                <Coordinator<HIModel<W>> as AbstractSimulator>::start(branch, t_start)
-            }
-        }
-    }
-
-    fn stop(&mut self) {
-        match self {
-            HIEnum::Leaf(leaf) => <Coordinator<LeafModel> as AbstractSimulator>::stop(leaf),
-            HIEnum::Branch(branch) => <Coordinator<HIModel<W>> as AbstractSimulator>::stop(branch),
-        }
-    }
-
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        match self {
-            HIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::lambda(leaf, output, t)
-            }
-            HIEnum::Branch(branch) => {
-                <Coordinator<HIModel<W>> as AbstractSimulator>::lambda(branch, output, t)
-            }
-        }
-    }
-
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        match self {
-            HIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::delta(leaf, input, output, t)
-            }
-            HIEnum::Branch(branch) => {
-                <Coordinator<HIModel<W>> as AbstractSimulator>::delta(branch, input, output, t)
-            }
         }
     }
 }
@@ -219,7 +166,8 @@ mod test {
 
     #[test]
     fn simulation_matches_expected_counts() {
-        use xdevs::simulation::Simulable;
+        use xdevs::simulation::{AbstractSimulator, Simulable};
+
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;

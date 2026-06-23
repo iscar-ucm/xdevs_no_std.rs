@@ -1,5 +1,3 @@
-use crate::{simulation::coordinator::Coordinator, AbstractSimulator};
-
 use super::common::{AtomicModel, JobGenerator};
 use alloc::boxed::Box;
 use xdevs::Component;
@@ -61,9 +59,10 @@ impl<const W: usize> LeafModel<W> {
 }
 
 /// HO model enum
+#[xdevs::modelenum]
 pub enum HOEnum<const W: usize> {
-    Leaf(Coordinator<LeafModel<W>>),
-    Branch(Coordinator<HOModel<W>>),
+    Leaf(LeafModel<W>),
+    Branch(HOModel<W>),
 }
 
 impl<const W: usize> HOEnum<W> {
@@ -92,58 +91,6 @@ impl<const W: usize> HOEnum<W> {
         match self {
             HOEnum::Leaf(leaf) => leaf.get_n_atomics(),
             HOEnum::Branch(branch) => branch.get_n_atomics(),
-        }
-    }
-}
-
-/// Manual implementation of `Component` for HO enum
-impl<const W: usize> Component for HOEnum<W> {
-    type Kind = xdevs::ComponentsKind;
-    type Input = xdevs::Port<usize, 1>;
-    type Output = HOModelOutput<W>;
-}
-
-/// Manual implementation of `AbstractSimulator` for HO enum
-unsafe impl<const W: usize> AbstractSimulator for HOEnum<W> {
-    type Input = xdevs::Port<usize, 1>;
-    type Output = HOModelOutput<W>;
-    fn start(&mut self, t_start: f64) -> f64 {
-        match self {
-            HOEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel<W>> as AbstractSimulator>::start(leaf, t_start)
-            }
-            HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<W>> as AbstractSimulator>::start(branch, t_start)
-            }
-        }
-    }
-
-    fn stop(&mut self) {
-        match self {
-            HOEnum::Leaf(leaf) => <Coordinator<LeafModel<W>> as AbstractSimulator>::stop(leaf),
-            HOEnum::Branch(branch) => <Coordinator<HOModel<W>> as AbstractSimulator>::stop(branch),
-        }
-    }
-
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        match self {
-            HOEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel<W>> as AbstractSimulator>::lambda(leaf, output, t)
-            }
-            HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<W>> as AbstractSimulator>::lambda(branch, output, t)
-            }
-        }
-    }
-
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        match self {
-            HOEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel<W>> as AbstractSimulator>::delta(leaf, input, output, t)
-            }
-            HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<W>> as AbstractSimulator>::delta(branch, input, output, t)
-            }
         }
     }
 }
@@ -276,7 +223,8 @@ mod test {
 
     #[test]
     fn simulation_matches_expected_counts() {
-        use xdevs::simulation::Simulable;
+        use xdevs::simulation::{AbstractSimulator, Simulable};
+
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;

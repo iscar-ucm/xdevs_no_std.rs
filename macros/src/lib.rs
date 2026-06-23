@@ -5,6 +5,7 @@ mod coupled;
 mod derive;
 mod devstone;
 mod rt_engine;
+mod modelenum;
 
 // Main macro to generate coupled DEVS models
 #[proc_macro_attribute]
@@ -12,6 +13,17 @@ pub fn coupled(_args: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as syn::ItemStruct);
 
     match coupled::expand(item) {
+        Ok(component) => component.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+// Macro to generate enum-based DEVS components
+#[proc_macro_attribute]
+pub fn modelenum(_args: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as syn::ItemEnum);
+
+    match modelenum::expand(item) {
         Ok(component) => component.into(),
         Err(err) => err.to_compile_error().into(),
     }

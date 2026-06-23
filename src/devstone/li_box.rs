@@ -1,12 +1,11 @@
-use crate::{simulation::coordinator::Coordinator, AbstractSimulator};
-
 use super::common::*;
 use alloc::boxed::Box;
 use xdevs::Component;
 
+#[xdevs::modelenum]
 pub enum LIEnum<const W: usize> {
-    Leaf(Coordinator<LeafModel>),
-    Branch(Coordinator<LIModel<W>>),
+    Leaf(LeafModel),
+    Branch(LIModel<W>),
 }
 
 impl<const W: usize> LIEnum<W> {
@@ -35,59 +34,6 @@ impl<const W: usize> LIEnum<W> {
         match self {
             LIEnum::Leaf(leaf) => leaf.get_n_atomics(),
             LIEnum::Branch(branch) => branch.get_n_atomics(),
-        }
-    }
-}
-
-/// Manual implementation of `Component` for LI enum
-impl<const W: usize> Component for LIEnum<W> {
-    type Kind = xdevs::ComponentsKind;
-    type Input = xdevs::Port<usize, 1>;
-    type Output = xdevs::Port<usize, 1>;
-}
-
-/// Manual implementation of `AbstractSimulator` for LI enum
-unsafe impl<const W: usize> AbstractSimulator for LIEnum<W> {
-    type Input = xdevs::Port<usize, 1>;
-    type Output = xdevs::Port<usize, 1>;
-
-    fn start(&mut self, t_start: f64) -> f64 {
-        match self {
-            LIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::start(leaf, t_start)
-            }
-            LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<W>> as AbstractSimulator>::start(branch, t_start)
-            }
-        }
-    }
-
-    fn stop(&mut self) {
-        match self {
-            LIEnum::Leaf(leaf) => <Coordinator<LeafModel> as AbstractSimulator>::stop(leaf),
-            LIEnum::Branch(branch) => <Coordinator<LIModel<W>> as AbstractSimulator>::stop(branch),
-        }
-    }
-
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        match self {
-            LIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::lambda(leaf, output, t)
-            }
-            LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<W>> as AbstractSimulator>::lambda(branch, output, t)
-            }
-        }
-    }
-
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        match self {
-            LIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::delta(leaf, input, output, t)
-            }
-            LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<W>> as AbstractSimulator>::delta(branch, input, output, t)
-            }
         }
     }
 }
@@ -210,7 +156,8 @@ mod test {
 
     #[test]
     fn simulation_matches_expected_counts() {
-        use xdevs::simulation::Simulable;
+        use xdevs::simulation::{AbstractSimulator, Simulable};
+
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;
