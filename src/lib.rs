@@ -8,6 +8,7 @@ extern crate std;
 pub mod component;
 pub mod devstone;
 pub mod export;
+pub mod gpt;
 pub mod port;
 #[cfg(any(feature = "embassy", feature = "std"))]
 pub mod rt_engine;

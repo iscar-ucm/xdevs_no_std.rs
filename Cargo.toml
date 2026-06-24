@@ -44,10 +44,6 @@ harness = false
 required-features = ["alloc"]
 
 [[example]]
-name = "gpb"
-required-features = ["std"]
-
-[[example]]
 name = "gpt_async"
 required-features = ["std"]
 
@@ -64,7 +60,7 @@ name = "gpt"
 required-features = ["std"]
 
 [[example]]
-name = "multiprocessor"
+name = "gpt_array"
 required-features = ["std"]
 
 [[example]]
