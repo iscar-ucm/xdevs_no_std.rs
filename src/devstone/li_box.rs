@@ -1,14 +1,15 @@
-use crate::{simulation::coordinator::Coordinator, AbstractSimulator, Component};
+use crate::{simulation::coordinator::Coordinator, AbstractSimulator};
 
 use super::common::*;
+use alloc::boxed::Box;
+use xdevs::Component;
 
-/// LI model enum (ref version)
-pub enum LIEnum<'a, const W: usize> {
+pub enum LIEnum<const W: usize> {
     Leaf(Coordinator<LeafModel>),
-    Branch(Coordinator<LIModel<'a, W>>),
+    Branch(Coordinator<LIModel<W>>),
 }
 
-impl<'a, const W: usize> LIEnum<'a, W> {
+impl<const W: usize> LIEnum<W> {
     pub fn get_n_internals(&self) -> usize {
         match self {
             LIEnum::Leaf(leaf) => leaf.get_n_internals(),
@@ -38,17 +39,17 @@ impl<'a, const W: usize> LIEnum<'a, W> {
     }
 }
 
-/// Manual implementation of `Component` for LI enum (ref version)
-impl<'a, const W: usize> Component for LIEnum<'a, W> {
-    type Kind = crate::component::ComponentsKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+/// Manual implementation of `Component` for LI enum
+impl<const W: usize> Component for LIEnum<W> {
+    type Kind = xdevs::ComponentsKind;
+    type Input = xdevs::Port<usize, 1>;
+    type Output = xdevs::Port<usize, 1>;
 }
 
-/// Manual implementation of `AbstractSimulator` for LI enum (ref version)
-unsafe impl<'a, const W: usize> AbstractSimulator for LIEnum<'a, W> {
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+/// Manual implementation of `AbstractSimulator` for LI enum
+unsafe impl<const W: usize> AbstractSimulator for LIEnum<W> {
+    type Input = xdevs::Port<usize, 1>;
+    type Output = xdevs::Port<usize, 1>;
 
     fn start(&mut self, t_start: f64) -> f64 {
         match self {
@@ -56,7 +57,7 @@ unsafe impl<'a, const W: usize> AbstractSimulator for LIEnum<'a, W> {
                 <Coordinator<LeafModel> as AbstractSimulator>::start(leaf, t_start)
             }
             LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<'a, W>> as AbstractSimulator>::start(branch, t_start)
+                <Coordinator<LIModel<W>> as AbstractSimulator>::start(branch, t_start)
             }
         }
     }
@@ -64,9 +65,7 @@ unsafe impl<'a, const W: usize> AbstractSimulator for LIEnum<'a, W> {
     fn stop(&mut self) {
         match self {
             LIEnum::Leaf(leaf) => <Coordinator<LeafModel> as AbstractSimulator>::stop(leaf),
-            LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<'a, W>> as AbstractSimulator>::stop(branch)
-            }
+            LIEnum::Branch(branch) => <Coordinator<LIModel<W>> as AbstractSimulator>::stop(branch),
         }
     }
 
@@ -76,7 +75,7 @@ unsafe impl<'a, const W: usize> AbstractSimulator for LIEnum<'a, W> {
                 <Coordinator<LeafModel> as AbstractSimulator>::lambda(leaf, output, t)
             }
             LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<'a, W>> as AbstractSimulator>::lambda(branch, output, t)
+                <Coordinator<LIModel<W>> as AbstractSimulator>::lambda(branch, output, t)
             }
         }
     }
@@ -87,27 +86,27 @@ unsafe impl<'a, const W: usize> AbstractSimulator for LIEnum<'a, W> {
                 <Coordinator<LeafModel> as AbstractSimulator>::delta(leaf, input, output, t)
             }
             LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<'a, W>> as AbstractSimulator>::delta(branch, input, output, t)
+                <Coordinator<LIModel<W>> as AbstractSimulator>::delta(branch, input, output, t)
             }
         }
     }
 }
 
-/// LI coupled model (ref version)
-#[crate::coupled]
-pub struct LIModel<'a, const W: usize> {
+/// LI coupled model
+#[xdevs::coupled]
+pub struct LIModel<const W: usize> {
     atomics: [AtomicModel; W],
-    inner: &'a mut LIEnum<'a, W>,
+    inner: Box<LIEnum<W>>,
 }
 
-impl<'a, const W: usize> crate::Component for LIModel<'a, W> {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+impl<const W: usize> Component for LIModel<W> {
+    type Kind = xdevs::CoupledKind;
+    type Input = xdevs::Port<usize, 1>;
+    type Output = xdevs::Port<usize, 1>;
 }
 
-impl<'a, const W: usize> crate::Coupled for LIModel<'a, W> {
-    fn eic(from: &Self::Input, to: &mut <Self::Components as crate::Component>::Input) {
+impl<const W: usize> xdevs::Coupled for LIModel<W> {
+    fn eic(from: &Self::Input, to: &mut <Self::Components as xdevs::Component>::Input) {
         for atom_ports in to.atomics.iter_mut() {
             let _ = from.couple(atom_ports);
         }
@@ -115,13 +114,13 @@ impl<'a, const W: usize> crate::Coupled for LIModel<'a, W> {
         let _ = from.couple(&mut to.inner);
     }
 
-    fn eoc(from: &<Self::Components as crate::Component>::Output, to: &mut Self::Output) {
+    fn eoc(from: &<Self::Components as xdevs::Component>::Output, to: &mut Self::Output) {
         let _ = from.inner.couple(to);
     }
 }
 
-impl<'a, const W: usize> LIModel<'a, W> {
-    pub fn new(inner: &'a mut LIEnum<'a, W>) -> Self {
+impl<const W: usize> LIModel<W> {
+    pub fn new(inner: Box<LIEnum<W>>) -> Self {
         Self::build(core::array::from_fn(|_| AtomicModel::default()), inner)
     }
 
@@ -158,20 +157,20 @@ impl<'a, const W: usize> LIModel<'a, W> {
     }
 }
 
-/// End model with Generator and LI model coupled together (ref version)
-#[crate::coupled]
-pub struct TopModel<'a, const W: usize> {
+/// End model with Generator and LI model coupled together
+#[xdevs::coupled]
+pub struct TopModel<const W: usize> {
     generator: JobGenerator,
-    li_model: &'a mut LIEnum<'a, W>,
+    li_model: LIEnum<W>,
 }
 
-impl<'a, const W: usize> Component for TopModel<'a, W> {
-    type Kind = crate::CoupledKind;
+impl<const W: usize> Component for TopModel<W> {
+    type Kind = xdevs::CoupledKind;
     type Input = ();
     type Output = ();
 }
 
-impl<'a, const W: usize> TopModel<'a, W> {
+impl<const W: usize> TopModel<W> {
     pub fn get_n_internals(&self) -> usize {
         self.components.li_model.get_n_internals()
     }
@@ -189,10 +188,10 @@ impl<'a, const W: usize> TopModel<'a, W> {
     }
 }
 
-impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
+impl<const W: usize> xdevs::Coupled for TopModel<W> {
     fn ic(
-        from: &<Self::Components as crate::Component>::Output,
-        to: &mut <Self::Components as crate::Component>::Input,
+        from: &<Self::Components as xdevs::Component>::Output,
+        to: &mut <Self::Components as xdevs::Component>::Input,
     ) {
         let _ = from.generator.couple(&mut to.li_model);
     }
@@ -201,7 +200,6 @@ impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
 #[cfg(test)]
 mod test {
     use super::*;
-
     fn expected_n_atomic(width: usize, depth: usize) -> usize {
         (width - 1) * (depth - 1) + 1
     }
@@ -212,17 +210,17 @@ mod test {
 
     #[test]
     fn simulation_matches_expected_counts() {
-        use crate::simulation::Simulable;
+        use xdevs::simulation::Simulable;
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;
 
-        crate::generate_li!(10, 10);
+        xdevs::generate_li_box!(10, 10);
 
         let generator = JobGenerator::new(5);
-        let top_model: TopModel<'_, W> = TopModel::build(generator, &mut model_li);
+        let top_model: TopModel<W> = TopModel::build(generator, model_li);
         let mut simulator = top_model.to_simulator();
-        let config = crate::simulation::Config::new(0.0, 10.0, 1.0, None);
+        let config = xdevs::simulation::Config::new(0.0, 10.0, 1.0, None);
         simulator.simulate_vt(&config);
 
         assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());

@@ -1,31 +1,33 @@
-use crate::{simulation::coordinator::Coordinator, AbstractSimulator, Component};
+use crate::{simulation::coordinator::Coordinator, AbstractSimulator};
 
 use super::common::{AtomicModel, JobGenerator};
+use alloc::boxed::Box;
+use xdevs::Component;
 
-/// Output struct for HO models (ref version)
-#[derive(Debug, Default, crate::Bag)]
+/// Output struct for HO models
+#[derive(Debug, Default, xdevs::Bag)]
 pub struct HOModelOutput<const W: usize> {
-    output_port_1: xdevs::Port<usize, 1>,
-    output_port_2: xdevs::Port<usize, W>,
+    pub output_port_1: xdevs::Port<usize, 1>,
+    pub output_port_2: xdevs::Port<usize, W>,
 }
 
-/// Leaf coupled model with only one atomic in HO models (ref version)
-#[crate::coupled]
+/// Leaf coupled model with only one atomic in HO models
+#[xdevs::coupled]
 pub struct LeafModel<const W: usize> {
     atomic: AtomicModel,
 }
 
-impl<const W: usize> crate::Component for LeafModel<W> {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
+impl<const W: usize> xdevs::Component for LeafModel<W> {
+    type Kind = xdevs::CoupledKind;
+    type Input = xdevs::Port<usize, 1>;
     type Output = HOModelOutput<W>;
 }
 
-impl<const W: usize> crate::Coupled for LeafModel<W> {
-    fn eic(from: &Self::Input, to: &mut <Self::Components as crate::Component>::Input) {
+impl<const W: usize> xdevs::Coupled for LeafModel<W> {
+    fn eic(from: &Self::Input, to: &mut <Self::Components as xdevs::Component>::Input) {
         let _ = from.couple(&mut to.atomic);
     }
-    fn eoc(from: &<Self::Components as crate::Component>::Output, to: &mut Self::Output) {
+    fn eoc(from: &<Self::Components as xdevs::Component>::Output, to: &mut Self::Output) {
         let _ = from.atomic.couple(&mut to.output_port_1);
     }
 }
@@ -58,13 +60,13 @@ impl<const W: usize> LeafModel<W> {
     }
 }
 
-/// HO model enum (ref version)
-pub enum HOEnum<'a, const W: usize> {
+/// HO model enum
+pub enum HOEnum<const W: usize> {
     Leaf(Coordinator<LeafModel<W>>),
-    Branch(Coordinator<HOModel<'a, W>>),
+    Branch(Coordinator<HOModel<W>>),
 }
 
-impl<'a, const W: usize> HOEnum<'a, W> {
+impl<const W: usize> HOEnum<W> {
     pub fn get_n_internals(&self) -> usize {
         match self {
             HOEnum::Leaf(leaf) => leaf.get_n_internals(),
@@ -94,25 +96,24 @@ impl<'a, const W: usize> HOEnum<'a, W> {
     }
 }
 
-/// Manual implementation of `Component` for HO enum (ref version)
-impl<'a, const W: usize> Component for HOEnum<'a, W> {
-    type Kind = crate::component::ComponentsKind;
-    type Input = crate::Port<usize, 1>;
+/// Manual implementation of `Component` for HO enum
+impl<const W: usize> Component for HOEnum<W> {
+    type Kind = xdevs::ComponentsKind;
+    type Input = xdevs::Port<usize, 1>;
     type Output = HOModelOutput<W>;
 }
 
-/// Manual implementation of `AbstractSimulator` for HO enum (ref version)
-unsafe impl<'a, const W: usize> AbstractSimulator for HOEnum<'a, W> {
-    type Input = crate::Port<usize, 1>;
+/// Manual implementation of `AbstractSimulator` for HO enum
+unsafe impl<const W: usize> AbstractSimulator for HOEnum<W> {
+    type Input = xdevs::Port<usize, 1>;
     type Output = HOModelOutput<W>;
-
     fn start(&mut self, t_start: f64) -> f64 {
         match self {
             HOEnum::Leaf(leaf) => {
                 <Coordinator<LeafModel<W>> as AbstractSimulator>::start(leaf, t_start)
             }
             HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<'a, W>> as AbstractSimulator>::start(branch, t_start)
+                <Coordinator<HOModel<W>> as AbstractSimulator>::start(branch, t_start)
             }
         }
     }
@@ -120,9 +121,7 @@ unsafe impl<'a, const W: usize> AbstractSimulator for HOEnum<'a, W> {
     fn stop(&mut self) {
         match self {
             HOEnum::Leaf(leaf) => <Coordinator<LeafModel<W>> as AbstractSimulator>::stop(leaf),
-            HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<'a, W>> as AbstractSimulator>::stop(branch)
-            }
+            HOEnum::Branch(branch) => <Coordinator<HOModel<W>> as AbstractSimulator>::stop(branch),
         }
     }
 
@@ -132,7 +131,7 @@ unsafe impl<'a, const W: usize> AbstractSimulator for HOEnum<'a, W> {
                 <Coordinator<LeafModel<W>> as AbstractSimulator>::lambda(leaf, output, t)
             }
             HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<'a, W>> as AbstractSimulator>::lambda(branch, output, t)
+                <Coordinator<HOModel<W>> as AbstractSimulator>::lambda(branch, output, t)
             }
         }
     }
@@ -143,21 +142,20 @@ unsafe impl<'a, const W: usize> AbstractSimulator for HOEnum<'a, W> {
                 <Coordinator<LeafModel<W>> as AbstractSimulator>::delta(leaf, input, output, t)
             }
             HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<'a, W>> as AbstractSimulator>::delta(branch, input, output, t)
+                <Coordinator<HOModel<W>> as AbstractSimulator>::delta(branch, input, output, t)
             }
         }
     }
 }
 
-/// HO coupled model (ref version)
-#[crate::coupled]
-pub struct HOModel<'a, const W: usize> {
+/// HO coupled model
+#[xdevs::coupled]
+pub struct HOModel<const W: usize> {
     atomics: [AtomicModel; W],
-    inner: &'a mut HOEnum<'a, W>,
+    inner: Box<HOEnum<W>>,
 }
-
-impl<'a, const W: usize> HOModel<'a, W> {
-    pub fn new(inner: &'a mut HOEnum<'a, W>) -> Self {
+impl<const W: usize> HOModel<W> {
+    pub fn new(inner: Box<HOEnum<W>>) -> Self {
         Self::build(core::array::from_fn(|_| AtomicModel::default()), inner)
     }
 
@@ -193,22 +191,21 @@ impl<'a, const W: usize> HOModel<'a, W> {
         sum_atomic
     }
 }
-
-impl<'a, const W: usize> crate::Component for HOModel<'a, W> {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
+impl<const W: usize> xdevs::Component for HOModel<W> {
+    type Kind = xdevs::CoupledKind;
+    type Input = xdevs::Port<usize, 1>;
     type Output = HOModelOutput<W>;
 }
 
-impl<'a, const W: usize> crate::Coupled for HOModel<'a, W> {
-    fn eic(from: &Self::Input, to: &mut <Self::Components as crate::Component>::Input) {
+impl<const W: usize> xdevs::Coupled for HOModel<W> {
+    fn eic(from: &Self::Input, to: &mut <Self::Components as xdevs::Component>::Input) {
         let _ = from.couple(&mut to.inner);
         for atom_ports in to.atomics.iter_mut() {
             let _ = from.couple(atom_ports);
         }
     }
 
-    fn eoc(from: &<Self::Components as crate::Component>::Output, to: &mut Self::Output) {
+    fn eoc(from: &<Self::Components as xdevs::Component>::Output, to: &mut Self::Output) {
         let _ = from.inner.output_port_1.couple(&mut to.output_port_1);
         for atom_output_ports in from.atomics.iter() {
             let _ = atom_output_ports.couple(&mut to.output_port_2);
@@ -216,8 +213,8 @@ impl<'a, const W: usize> crate::Coupled for HOModel<'a, W> {
     }
 
     fn ic(
-        from: &<Self::Components as crate::Component>::Output,
-        to: &mut <Self::Components as crate::Component>::Input,
+        from: &<Self::Components as xdevs::Component>::Output,
+        to: &mut <Self::Components as xdevs::Component>::Input,
     ) {
         for i in 0..(W.saturating_sub(1)) {
             let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
@@ -225,20 +222,20 @@ impl<'a, const W: usize> crate::Coupled for HOModel<'a, W> {
     }
 }
 
-/// End model with Generator and HO model coupled together (ref version)
-#[crate::coupled]
-pub struct TopModel<'a, const W: usize> {
+/// End model with Generator and HO model coupled together
+#[xdevs::coupled]
+pub struct TopModel<const W: usize> {
     generator: JobGenerator,
-    ho_model: &'a mut HOEnum<'a, W>,
+    ho_model: HOEnum<W>,
 }
 
-impl<'a, const W: usize> Component for TopModel<'a, W> {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+impl<const W: usize> Component for TopModel<W> {
+    type Kind = xdevs::CoupledKind;
+    type Input = xdevs::Port<usize, 1>;
+    type Output = xdevs::Port<usize, 1>;
 }
 
-impl<'a, const W: usize> TopModel<'a, W> {
+impl<const W: usize> TopModel<W> {
     pub fn get_n_internals(&self) -> usize {
         self.components.ho_model.get_n_internals()
     }
@@ -256,10 +253,10 @@ impl<'a, const W: usize> TopModel<'a, W> {
     }
 }
 
-impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
+impl<const W: usize> xdevs::Coupled for TopModel<W> {
     fn ic(
-        from: &<Self::Components as crate::Component>::Output,
-        to: &mut <Self::Components as crate::Component>::Input,
+        from: &<Self::Components as xdevs::Component>::Output,
+        to: &mut <Self::Components as xdevs::Component>::Input,
     ) {
         let _ = from.generator.couple(&mut to.ho_model);
     }
@@ -279,17 +276,17 @@ mod test {
 
     #[test]
     fn simulation_matches_expected_counts() {
-        use crate::simulation::Simulable;
+        use xdevs::simulation::Simulable;
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;
 
-        crate::generate_ho!(10, 10);
+        xdevs::generate_ho_box!(10, 10);
 
         let generator = JobGenerator::new(5);
-        let top_model: TopModel<'_, W> = TopModel::build(generator, &mut model_ho);
+        let top_model: TopModel<W> = TopModel::build(generator, model_ho);
         let mut simulator = top_model.to_simulator();
-        let config = crate::simulation::Config::new(0.0, 10.0, 1.0, None);
+        let config = xdevs::simulation::Config::new(0.0, 10.0, 1.0, None);
         simulator.simulate_vt(&config);
 
         assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());

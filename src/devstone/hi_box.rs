@@ -1,14 +1,14 @@
-use crate::{simulation::coordinator::Coordinator, AbstractSimulator, Component};
-
 use super::common::*;
+use crate::{simulation::coordinator::Coordinator, AbstractSimulator, Component};
+use alloc::boxed::Box;
 
-/// HI model enum (ref version)
-pub enum HIEnum<'a, const W: usize> {
+/// HI model enum
+pub enum HIEnum<const W: usize> {
     Leaf(Coordinator<LeafModel>),
-    Branch(Coordinator<HIModel<'a, W>>),
+    Branch(Coordinator<HIModel<W>>),
 }
 
-impl<'a, const W: usize> HIEnum<'a, W> {
+impl<const W: usize> HIEnum<W> {
     pub fn get_n_internals(&self) -> usize {
         match self {
             HIEnum::Leaf(leaf) => leaf.get_n_internals(),
@@ -38,17 +38,18 @@ impl<'a, const W: usize> HIEnum<'a, W> {
     }
 }
 
-/// Manual implementation of `Component` for HI enum (ref version)
-impl<'a, const W: usize> Component for HIEnum<'a, W> {
-    type Kind = crate::component::ComponentsKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+/// Manual implementation of `Component` for HI enum
+impl<const W: usize> Component for HIEnum<W> {
+    type Kind = xdevs::component::ComponentsKind;
+    type Input = xdevs::Port<usize, 1>;
+    type Output = xdevs::Port<usize, 1>;
 }
 
-/// Manual implementation of `AbstractSimulator` for HI enum (ref version)
-unsafe impl<'a, const W: usize> AbstractSimulator for HIEnum<'a, W> {
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+/// Manual implementation of `AbstractSimulator` for HI enum
+unsafe impl<const W: usize> AbstractSimulator for HIEnum<W> {
+    type Input = xdevs::Port<usize, 1>;
+
+    type Output = xdevs::Port<usize, 1>;
 
     fn start(&mut self, t_start: f64) -> f64 {
         match self {
@@ -56,7 +57,7 @@ unsafe impl<'a, const W: usize> AbstractSimulator for HIEnum<'a, W> {
                 <Coordinator<LeafModel> as AbstractSimulator>::start(leaf, t_start)
             }
             HIEnum::Branch(branch) => {
-                <Coordinator<HIModel<'a, W>> as AbstractSimulator>::start(branch, t_start)
+                <Coordinator<HIModel<W>> as AbstractSimulator>::start(branch, t_start)
             }
         }
     }
@@ -64,9 +65,7 @@ unsafe impl<'a, const W: usize> AbstractSimulator for HIEnum<'a, W> {
     fn stop(&mut self) {
         match self {
             HIEnum::Leaf(leaf) => <Coordinator<LeafModel> as AbstractSimulator>::stop(leaf),
-            HIEnum::Branch(branch) => {
-                <Coordinator<HIModel<'a, W>> as AbstractSimulator>::stop(branch)
-            }
+            HIEnum::Branch(branch) => <Coordinator<HIModel<W>> as AbstractSimulator>::stop(branch),
         }
     }
 
@@ -76,7 +75,7 @@ unsafe impl<'a, const W: usize> AbstractSimulator for HIEnum<'a, W> {
                 <Coordinator<LeafModel> as AbstractSimulator>::lambda(leaf, output, t)
             }
             HIEnum::Branch(branch) => {
-                <Coordinator<HIModel<'a, W>> as AbstractSimulator>::lambda(branch, output, t)
+                <Coordinator<HIModel<W>> as AbstractSimulator>::lambda(branch, output, t)
             }
         }
     }
@@ -87,27 +86,27 @@ unsafe impl<'a, const W: usize> AbstractSimulator for HIEnum<'a, W> {
                 <Coordinator<LeafModel> as AbstractSimulator>::delta(leaf, input, output, t)
             }
             HIEnum::Branch(branch) => {
-                <Coordinator<HIModel<'a, W>> as AbstractSimulator>::delta(branch, input, output, t)
+                <Coordinator<HIModel<W>> as AbstractSimulator>::delta(branch, input, output, t)
             }
         }
     }
 }
 
-/// HI coupled model (ref version)
-#[crate::coupled]
-pub struct HIModel<'a, const W: usize> {
+/// HI coupled model
+#[xdevs::coupled]
+pub struct HIModel<const W: usize> {
     atomics: [AtomicModel; W],
-    inner: &'a mut HIEnum<'a, W>,
+    inner: Box<HIEnum<W>>,
 }
 
-impl<'a, const W: usize> crate::Component for HIModel<'a, W> {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+impl<const W: usize> xdevs::Component for HIModel<W> {
+    type Kind = xdevs::CoupledKind;
+    type Input = xdevs::Port<usize, 1>;
+    type Output = xdevs::Port<usize, 1>;
 }
 
-impl<'a, const W: usize> crate::Coupled for HIModel<'a, W> {
-    fn eic(from: &Self::Input, to: &mut <Self::Components as crate::Component>::Input) {
+impl<const W: usize> xdevs::Coupled for HIModel<W> {
+    fn eic(from: &Self::Input, to: &mut <Self::Components as xdevs::Component>::Input) {
         for atom_ports in to.atomics.iter_mut() {
             let _ = from.couple(atom_ports);
         }
@@ -115,13 +114,13 @@ impl<'a, const W: usize> crate::Coupled for HIModel<'a, W> {
         let _ = from.couple(&mut to.inner);
     }
 
-    fn eoc(from: &<Self::Components as crate::Component>::Output, to: &mut Self::Output) {
+    fn eoc(from: &<Self::Components as xdevs::Component>::Output, to: &mut Self::Output) {
         let _ = from.inner.couple(to);
     }
 
     fn ic(
-        from: &<Self::Components as crate::Component>::Output,
-        to: &mut <Self::Components as crate::Component>::Input,
+        from: &<Self::Components as xdevs::Component>::Output,
+        to: &mut <Self::Components as xdevs::Component>::Input,
     ) {
         for i in 0..(W.saturating_sub(1)) {
             let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
@@ -129,8 +128,8 @@ impl<'a, const W: usize> crate::Coupled for HIModel<'a, W> {
     }
 }
 
-impl<'a, const W: usize> HIModel<'a, W> {
-    pub fn new(inner: &'a mut HIEnum<'a, W>) -> Self {
+impl<const W: usize> HIModel<W> {
+    pub fn new(inner: Box<HIEnum<W>>) -> Self {
         Self::build(core::array::from_fn(|_| AtomicModel::default()), inner)
     }
 
@@ -167,20 +166,19 @@ impl<'a, const W: usize> HIModel<'a, W> {
     }
 }
 
-/// End model with Generator and HI model coupled together (ref version)
-#[crate::coupled]
-pub struct TopModel<'a, const W: usize> {
+/// End model with Generator and HI model coupled together
+#[xdevs::coupled]
+pub struct TopModel<const W: usize> {
     generator: JobGenerator,
-    hi_model: &'a mut HIEnum<'a, W>,
+    hi_model: HIEnum<W>,
 }
 
-impl<'a, const W: usize> Component for TopModel<'a, W> {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+impl<const W: usize> Component for TopModel<W> {
+    type Kind = xdevs::CoupledKind;
+    type Input = xdevs::Port<usize, 1>;
+    type Output = xdevs::Port<usize, 1>;
 }
-
-impl<'a, const W: usize> TopModel<'a, W> {
+impl<const W: usize> TopModel<W> {
     pub fn get_n_internals(&self) -> usize {
         self.components.hi_model.get_n_internals()
     }
@@ -198,10 +196,10 @@ impl<'a, const W: usize> TopModel<'a, W> {
     }
 }
 
-impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
+impl<const W: usize> xdevs::Coupled for TopModel<W> {
     fn ic(
-        from: &<Self::Components as crate::Component>::Output,
-        to: &mut <Self::Components as crate::Component>::Input,
+        from: &<Self::Components as xdevs::Component>::Output,
+        to: &mut <Self::Components as xdevs::Component>::Input,
     ) {
         let _ = from.generator.couple(&mut to.hi_model);
     }
@@ -221,17 +219,17 @@ mod test {
 
     #[test]
     fn simulation_matches_expected_counts() {
-        use crate::simulation::Simulable;
+        use xdevs::simulation::Simulable;
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;
 
-        crate::generate_hi!(10, 10);
+        xdevs::generate_hi_box!(10, 10);
 
         let generator = JobGenerator::new(5);
-        let top_model: TopModel<'_, W> = TopModel::build(generator, &mut model_hi);
+        let top_model: TopModel<W> = TopModel::build(generator, model_hi);
         let mut simulator = top_model.to_simulator();
-        let config = crate::simulation::Config::new(0.0, 10.0, 1.0, None);
+        let config = xdevs::simulation::Config::new(0.0, 10.0, 1.0, None);
         simulator.simulate_vt(&config);
 
         assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());

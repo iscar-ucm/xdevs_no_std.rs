@@ -66,7 +66,7 @@ pub(crate) fn combine_err(acc: &mut Option<Error>, err: Error) {
     }
 }
 
-// DEVStone macros
+// DEVStone macros — ref version (default, no alloc needed)
 #[proc_macro]
 pub fn generate_li(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as devstone::GenerateArgs);
@@ -92,6 +92,37 @@ pub fn generate_ho(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as devstone::GenerateArgs);
 
     match devstone::expand_ho(args) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+// DEVStone macros — box version (needs alloc feature)
+#[proc_macro]
+pub fn generate_li_box(input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(input as devstone::GenerateArgs);
+
+    match devstone::expand_li_box(args) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+#[proc_macro]
+pub fn generate_hi_box(input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(input as devstone::GenerateArgs);
+
+    match devstone::expand_hi_box(args) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+#[proc_macro]
+pub fn generate_ho_box(input: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(input as devstone::GenerateArgs);
+
+    match devstone::expand_ho_box(args) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }
