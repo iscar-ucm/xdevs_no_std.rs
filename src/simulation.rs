@@ -272,6 +272,44 @@ unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for [T; N] {
     }
 }
 
+unsafe impl<T: AbstractSimulator> AbstractSimulator for Option<T> {
+    type Input = T::Input;
+    type Output = T::Output;
+
+    #[inline(always)]
+    fn start(&mut self, t_start: f64) -> f64 {
+        match self {
+            Some(processor) => T::start(processor, t_start),
+            None => f64::INFINITY,
+        }
+    }
+
+    #[inline(always)]
+    fn stop(&mut self) {
+        if let Some(processor) = self {
+            T::stop(processor);
+        }
+    }
+
+    #[inline(always)]
+    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+        if let Some(processor) = self {
+            T::lambda(processor, output, t);
+        }
+    }
+
+    #[inline(always)]
+    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+        match self {
+            Some(processor) => T::delta(processor, input, output, t),
+            None => {
+                input.clear();
+                f64::INFINITY
+            }
+        }
+    }
+}
+
 macro_rules! impl_abstract_simulator_for_tuple {
     ($($idx:tt => $T:ident),+) => {
         unsafe impl<$($T: AbstractSimulator),+> AbstractSimulator for ($($T,)+) {
@@ -368,6 +406,20 @@ where
     K: crate::component::sealed::Sealed,
 {
     type Simulator = [T::Simulator; N];
+
+    #[inline(always)]
+    fn to_simulator(self) -> Self::Simulator {
+        self.map(|component| component.to_simulator())
+    }
+}
+
+impl<T, K> Simulable<Option<K>> for Option<T>
+where
+    T: Component<Kind = K>,
+    T: Simulable<K>,
+    K: crate::component::sealed::Sealed,
+{
+    type Simulator = Option<T::Simulator>;
 
     #[inline(always)]
     fn to_simulator(self) -> Self::Simulator {

@@ -52,6 +52,10 @@ name = "gpt_async"
 required-features = ["std"]
 
 [[example]]
+name = "gpt_optional"
+required-features = ["std"]
+
+[[example]]
 name = "gpt"
 required-features = ["std"]
 
