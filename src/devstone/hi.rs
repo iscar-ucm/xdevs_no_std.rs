@@ -1,96 +1,15 @@
-use crate::{simulation::coordinator::Coordinator, AbstractSimulator, Component};
-
-use super::common::*;
+use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
+use crate::Component;
 
 /// HI model enum (ref version)
+#[crate::model_enum]
 pub enum HIEnum<'a, const W: usize> {
-    Leaf(Coordinator<LeafModel>),
-    Branch(Coordinator<HIModel<'a, W>>),
+    Leaf(LeafModel),
+    Branch(HIModel<'a, W>),
 }
 
-impl<'a, const W: usize> HIEnum<'a, W> {
-    pub fn get_n_internals(&self) -> usize {
-        match self {
-            HIEnum::Leaf(leaf) => leaf.get_n_internals(),
-            HIEnum::Branch(branch) => branch.get_n_internals(),
-        }
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        match self {
-            HIEnum::Leaf(leaf) => leaf.get_n_externals(),
-            HIEnum::Branch(branch) => branch.get_n_externals(),
-        }
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        match self {
-            HIEnum::Leaf(leaf) => leaf.get_n_events(),
-            HIEnum::Branch(branch) => branch.get_n_events(),
-        }
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        match self {
-            HIEnum::Leaf(leaf) => leaf.get_n_atomics(),
-            HIEnum::Branch(branch) => branch.get_n_atomics(),
-        }
-    }
-}
-
-/// Manual implementation of `Component` for HI enum (ref version)
-impl<'a, const W: usize> Component for HIEnum<'a, W> {
-    type Kind = crate::component::ComponentsKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
-}
-
-/// Manual implementation of `AbstractSimulator` for HI enum (ref version)
-unsafe impl<'a, const W: usize> AbstractSimulator for HIEnum<'a, W> {
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
-
-    fn start(&mut self, t_start: f64) -> f64 {
-        match self {
-            HIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::start(leaf, t_start)
-            }
-            HIEnum::Branch(branch) => {
-                <Coordinator<HIModel<'a, W>> as AbstractSimulator>::start(branch, t_start)
-            }
-        }
-    }
-
-    fn stop(&mut self) {
-        match self {
-            HIEnum::Leaf(leaf) => <Coordinator<LeafModel> as AbstractSimulator>::stop(leaf),
-            HIEnum::Branch(branch) => {
-                <Coordinator<HIModel<'a, W>> as AbstractSimulator>::stop(branch)
-            }
-        }
-    }
-
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        match self {
-            HIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::lambda(leaf, output, t)
-            }
-            HIEnum::Branch(branch) => {
-                <Coordinator<HIModel<'a, W>> as AbstractSimulator>::lambda(branch, output, t)
-            }
-        }
-    }
-
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        match self {
-            HIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::delta(leaf, input, output, t)
-            }
-            HIEnum::Branch(branch) => {
-                <Coordinator<HIModel<'a, W>> as AbstractSimulator>::delta(branch, input, output, t)
-            }
-        }
-    }
+impl<'a, const W: usize> Devstone for HIEnum<'a, W> {
+    crate::impl_devstone_enum!();
 }
 
 /// HI coupled model (ref version)
@@ -133,38 +52,10 @@ impl<'a, const W: usize> HIModel<'a, W> {
     pub fn new(inner: &'a mut HIEnum<'a, W>) -> Self {
         Self::build(core::array::from_fn(|_| AtomicModel::default()), inner)
     }
+}
 
-    pub fn get_n_internals(&self) -> usize {
-        let mut sum_int = self.components.inner.get_n_internals();
-        for atomic in self.components.atomics.iter() {
-            sum_int += atomic.get_n_internals();
-        }
-        sum_int
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        let mut sum_ext = self.components.inner.get_n_externals();
-        for atomic in self.components.atomics.iter() {
-            sum_ext += atomic.get_n_externals();
-        }
-        sum_ext
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        let mut sum_ev = self.components.inner.get_n_events();
-        for atomic in self.components.atomics.iter() {
-            sum_ev += atomic.get_n_events();
-        }
-        sum_ev
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        let mut sum_atomic = self.components.inner.get_n_atomics();
-        for _atomic in self.components.atomics.iter() {
-            sum_atomic += 1;
-        }
-        sum_atomic
-    }
+impl<'a, const W: usize> Devstone for HIModel<'a, W> {
+    crate::impl_devstone_coupled!();
 }
 
 /// End model with Generator and HI model coupled together (ref version)
@@ -180,22 +71,8 @@ impl<'a, const W: usize> Component for TopModel<'a, W> {
     type Output = crate::Port<usize, 1>;
 }
 
-impl<'a, const W: usize> TopModel<'a, W> {
-    pub fn get_n_internals(&self) -> usize {
-        self.components.hi_model.get_n_internals()
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        self.components.hi_model.get_n_externals()
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        self.components.hi_model.get_n_events()
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        self.components.hi_model.get_n_atomics()
-    }
+impl<'a, const W: usize> Devstone for TopModel<'a, W> {
+    crate::impl_devstone_top!(hi_model);
 }
 
 impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
@@ -210,6 +87,7 @@ impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::simulation::AbstractSimulator;
 
     fn expected_n_atomic(width: usize, depth: usize) -> usize {
         (width - 1) * (depth - 1) + 1

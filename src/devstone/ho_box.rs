@@ -1,6 +1,4 @@
-use crate::{simulation::coordinator::Coordinator, AbstractSimulator};
-
-use super::common::{AtomicModel, JobGenerator};
+use super::common::{AtomicModel, Devstone, JobGenerator};
 use alloc::boxed::Box;
 use xdevs::Component;
 
@@ -42,110 +40,21 @@ impl<const W: usize> LeafModel<W> {
     pub fn new() -> Self {
         Self::build(AtomicModel::default())
     }
+}
 
-    pub fn get_n_internals(&self) -> usize {
-        self.components.atomic.get_n_internals()
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        self.components.atomic.get_n_externals()
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        self.components.atomic.get_n_events()
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        self.components.atomic.get_n_atomics()
-    }
+impl<const W: usize> Devstone for LeafModel<W> {
+    crate::impl_devstone_leaf!();
 }
 
 /// HO model enum
+#[xdevs::model_enum]
 pub enum HOEnum<const W: usize> {
-    Leaf(Coordinator<LeafModel<W>>),
-    Branch(Coordinator<HOModel<W>>),
+    Leaf(LeafModel<W>),
+    Branch(HOModel<W>),
 }
 
-impl<const W: usize> HOEnum<W> {
-    pub fn get_n_internals(&self) -> usize {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.get_n_internals(),
-            HOEnum::Branch(branch) => branch.get_n_internals(),
-        }
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.get_n_externals(),
-            HOEnum::Branch(branch) => branch.get_n_externals(),
-        }
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.get_n_events(),
-            HOEnum::Branch(branch) => branch.get_n_events(),
-        }
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.get_n_atomics(),
-            HOEnum::Branch(branch) => branch.get_n_atomics(),
-        }
-    }
-}
-
-/// Manual implementation of `Component` for HO enum
-impl<const W: usize> Component for HOEnum<W> {
-    type Kind = xdevs::ComponentsKind;
-    type Input = xdevs::Port<usize, 1>;
-    type Output = HOModelOutput<W>;
-}
-
-/// Manual implementation of `AbstractSimulator` for HO enum
-unsafe impl<const W: usize> AbstractSimulator for HOEnum<W> {
-    type Input = xdevs::Port<usize, 1>;
-    type Output = HOModelOutput<W>;
-    fn start(&mut self, t_start: f64) -> f64 {
-        match self {
-            HOEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel<W>> as AbstractSimulator>::start(leaf, t_start)
-            }
-            HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<W>> as AbstractSimulator>::start(branch, t_start)
-            }
-        }
-    }
-
-    fn stop(&mut self) {
-        match self {
-            HOEnum::Leaf(leaf) => <Coordinator<LeafModel<W>> as AbstractSimulator>::stop(leaf),
-            HOEnum::Branch(branch) => <Coordinator<HOModel<W>> as AbstractSimulator>::stop(branch),
-        }
-    }
-
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        match self {
-            HOEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel<W>> as AbstractSimulator>::lambda(leaf, output, t)
-            }
-            HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<W>> as AbstractSimulator>::lambda(branch, output, t)
-            }
-        }
-    }
-
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        match self {
-            HOEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel<W>> as AbstractSimulator>::delta(leaf, input, output, t)
-            }
-            HOEnum::Branch(branch) => {
-                <Coordinator<HOModel<W>> as AbstractSimulator>::delta(branch, input, output, t)
-            }
-        }
-    }
+impl<const W: usize> Devstone for HOEnum<W> {
+    crate::impl_devstone_enum!();
 }
 
 /// HO coupled model
@@ -158,38 +67,10 @@ impl<const W: usize> HOModel<W> {
     pub fn new(inner: Box<HOEnum<W>>) -> Self {
         Self::build(core::array::from_fn(|_| AtomicModel::default()), inner)
     }
+}
 
-    pub fn get_n_internals(&self) -> usize {
-        let mut sum_int = self.components.inner.get_n_internals();
-        for atomic in self.components.atomics.iter() {
-            sum_int += atomic.get_n_internals();
-        }
-        sum_int
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        let mut sum_ext = self.components.inner.get_n_externals();
-        for atomic in self.components.atomics.iter() {
-            sum_ext += atomic.get_n_externals();
-        }
-        sum_ext
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        let mut sum_ev = self.components.inner.get_n_events();
-        for atomic in self.components.atomics.iter() {
-            sum_ev += atomic.get_n_events();
-        }
-        sum_ev
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        let mut sum_atomic = self.components.inner.get_n_atomics();
-        for _atomic in self.components.atomics.iter() {
-            sum_atomic += 1;
-        }
-        sum_atomic
-    }
+impl<const W: usize> Devstone for HOModel<W> {
+    crate::impl_devstone_coupled!();
 }
 impl<const W: usize> xdevs::Component for HOModel<W> {
     type Kind = xdevs::CoupledKind;
@@ -235,22 +116,8 @@ impl<const W: usize> Component for TopModel<W> {
     type Output = xdevs::Port<usize, 1>;
 }
 
-impl<const W: usize> TopModel<W> {
-    pub fn get_n_internals(&self) -> usize {
-        self.components.ho_model.get_n_internals()
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        self.components.ho_model.get_n_externals()
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        self.components.ho_model.get_n_events()
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        self.components.ho_model.get_n_atomics()
-    }
+impl<const W: usize> Devstone for TopModel<W> {
+    crate::impl_devstone_top!(ho_model);
 }
 
 impl<const W: usize> xdevs::Coupled for TopModel<W> {
@@ -276,7 +143,8 @@ mod test {
 
     #[test]
     fn simulation_matches_expected_counts() {
-        use xdevs::simulation::Simulable;
+        use xdevs::simulation::{AbstractSimulator, Simulable};
+
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;
