@@ -41,6 +41,12 @@ impl<T: Component, const N: usize> Component for [T; N] {
     type Output = [T::Output; N];
 }
 
+impl<T: Component> Component for Option<T> {
+    type Kind = Option<T::Kind>;
+    type Input = T::Input;
+    type Output = T::Output;
+}
+
 impl<T: Component> Component for &mut T {
     type Input = T::Input;
     type Output = T::Output;
@@ -54,9 +60,52 @@ impl<T: Component> Component for alloc::boxed::Box<T> {
     type Kind = T::Kind;
 }
 
+macro_rules! impl_component_for_tuple {
+    ($($T:ident),+) => {
+        impl<$($T: Component),+> Component for ($($T,)+) {
+            type Kind = ($($T::Kind,)+);
+            type Input = ($($T::Input,)+);
+            type Output = ($($T::Output,)+);
+        }
+    }
+}
+
+impl_component_for_tuple!(T0);
+impl_component_for_tuple!(T0, T1);
+impl_component_for_tuple!(T0, T1, T2);
+impl_component_for_tuple!(T0, T1, T2, T3);
+impl_component_for_tuple!(T0, T1, T2, T3, T4);
+impl_component_for_tuple!(T0, T1, T2, T3, T4, T5);
+impl_component_for_tuple!(T0, T1, T2, T3, T4, T5, T6);
+impl_component_for_tuple!(T0, T1, T2, T3, T4, T5, T6, T7);
+impl_component_for_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8);
+impl_component_for_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9);
+impl_component_for_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+impl_component_for_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
+
 pub(crate) mod sealed {
     /// Trait used to prevent users from implementing certain traits manually.
     pub trait Sealed {}
 
     impl<T: Sealed, const N: usize> Sealed for [T; N] {}
+    impl<T: Sealed> Sealed for Option<T> {}
+
+    macro_rules! impl_sealed_for_tuple {
+        ($($T:ident),+) => {
+            impl<$($T: Sealed),+> Sealed for ($($T,)+) {}
+        }
+    }
+
+    impl_sealed_for_tuple!(T0);
+    impl_sealed_for_tuple!(T0, T1);
+    impl_sealed_for_tuple!(T0, T1, T2);
+    impl_sealed_for_tuple!(T0, T1, T2, T3);
+    impl_sealed_for_tuple!(T0, T1, T2, T3, T4);
+    impl_sealed_for_tuple!(T0, T1, T2, T3, T4, T5);
+    impl_sealed_for_tuple!(T0, T1, T2, T3, T4, T5, T6);
+    impl_sealed_for_tuple!(T0, T1, T2, T3, T4, T5, T6, T7);
+    impl_sealed_for_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8);
+    impl_sealed_for_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9);
+    impl_sealed_for_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10);
+    impl_sealed_for_tuple!(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11);
 }

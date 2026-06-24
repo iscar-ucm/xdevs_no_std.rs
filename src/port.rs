@@ -163,6 +163,39 @@ unsafe impl Bag for () {
     fn clear(&mut self) {}
 }
 
+macro_rules! impl_bag_for_tuple {
+    ($($idx:tt => $T:ident),+) => {
+        unsafe impl<$($T: Bag),+> Bag for ($($T,)+) {
+            fn build() -> Self {
+                ($($T::build(),)+)
+            }
+
+            fn is_empty(&self) -> bool {
+                let mut empty = true;
+                $(empty = empty && self.$idx.is_empty();)+
+                empty
+            }
+
+            fn clear(&mut self) {
+                $(self.$idx.clear();)+
+            }
+        }
+    }
+}
+
+impl_bag_for_tuple!(0 => T0);
+impl_bag_for_tuple!(0 => T0, 1 => T1);
+impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2);
+impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3);
+impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4);
+impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5);
+impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6);
+impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7);
+impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8);
+impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9);
+impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10);
+impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10, 11 => T11);
+
 mod sealed {
     /// Trait used to prevent users from implementing certain traits manually.
     pub trait Sealed {}

@@ -272,6 +272,120 @@ unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for [T; N] {
     }
 }
 
+unsafe impl<T: AbstractSimulator> AbstractSimulator for Option<T> {
+    type Input = T::Input;
+    type Output = T::Output;
+
+    #[inline(always)]
+    fn start(&mut self, t_start: f64) -> f64 {
+        match self {
+            Some(processor) => T::start(processor, t_start),
+            None => f64::INFINITY,
+        }
+    }
+
+    #[inline(always)]
+    fn stop(&mut self) {
+        if let Some(processor) = self {
+            T::stop(processor);
+        }
+    }
+
+    #[inline(always)]
+    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+        if let Some(processor) = self {
+            T::lambda(processor, output, t);
+        }
+    }
+
+    #[inline(always)]
+    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+        match self {
+            Some(processor) => T::delta(processor, input, output, t),
+            None => {
+                input.clear();
+                f64::INFINITY
+            }
+        }
+    }
+}
+
+macro_rules! impl_abstract_simulator_for_tuple {
+    ($($idx:tt => $T:ident),+) => {
+        unsafe impl<$($T: AbstractSimulator),+> AbstractSimulator for ($($T,)+) {
+            type Input = ($($T::Input,)+);
+            type Output = ($($T::Output,)+);
+
+            #[inline(always)]
+            fn start(&mut self, t_start: f64) -> f64 {
+                let mut min_t = f64::INFINITY;
+                $(min_t = min_t.min(self.$idx.start(t_start));)+
+                min_t
+            }
+
+            #[inline(always)]
+            fn stop(&mut self) {
+                $(self.$idx.stop();)+
+            }
+
+            #[inline(always)]
+            fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+                $(self.$idx.lambda(&mut output.$idx, t);)+
+            }
+
+            #[inline(always)]
+            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+                let mut min_t = f64::INFINITY;
+                $(min_t = min_t.min(self.$idx.delta(&mut input.$idx, &mut output.$idx, t));)+
+                min_t
+            }
+        }
+    }
+}
+
+impl_abstract_simulator_for_tuple!(0 => T0);
+impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1);
+impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2);
+impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3);
+impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4);
+impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5);
+impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6);
+impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7);
+impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8);
+impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9);
+impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10);
+impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10, 11 => T11);
+
+macro_rules! impl_simulable_for_tuple {
+    ($($idx:tt => ($T:ident, $K:ident)),+) => {
+        impl<$($T, $K),+> Simulable<($($K,)+)> for ($($T,)+)
+        where
+            $($T: Component<Kind = $K> + Simulable<$K>),+,
+            $($K: crate::component::sealed::Sealed),+
+        {
+            type Simulator = ($($T::Simulator,)+);
+
+            #[inline(always)]
+            fn to_simulator(self) -> Self::Simulator {
+                ($(self.$idx.to_simulator(),)+)
+            }
+        }
+    }
+}
+
+impl_simulable_for_tuple!(0 => (T0, K0));
+impl_simulable_for_tuple!(0 => (T0, K0), 1 => (T1, K1));
+impl_simulable_for_tuple!(0 => (T0, K0), 1 => (T1, K1), 2 => (T2, K2));
+impl_simulable_for_tuple!(0 => (T0, K0), 1 => (T1, K1), 2 => (T2, K2), 3 => (T3, K3));
+impl_simulable_for_tuple!(0 => (T0, K0), 1 => (T1, K1), 2 => (T2, K2), 3 => (T3, K3), 4 => (T4, K4));
+impl_simulable_for_tuple!(0 => (T0, K0), 1 => (T1, K1), 2 => (T2, K2), 3 => (T3, K3), 4 => (T4, K4), 5 => (T5, K5));
+impl_simulable_for_tuple!(0 => (T0, K0), 1 => (T1, K1), 2 => (T2, K2), 3 => (T3, K3), 4 => (T4, K4), 5 => (T5, K5), 6 => (T6, K6));
+impl_simulable_for_tuple!(0 => (T0, K0), 1 => (T1, K1), 2 => (T2, K2), 3 => (T3, K3), 4 => (T4, K4), 5 => (T5, K5), 6 => (T6, K6), 7 => (T7, K7));
+impl_simulable_for_tuple!(0 => (T0, K0), 1 => (T1, K1), 2 => (T2, K2), 3 => (T3, K3), 4 => (T4, K4), 5 => (T5, K5), 6 => (T6, K6), 7 => (T7, K7), 8 => (T8, K8));
+impl_simulable_for_tuple!(0 => (T0, K0), 1 => (T1, K1), 2 => (T2, K2), 3 => (T3, K3), 4 => (T4, K4), 5 => (T5, K5), 6 => (T6, K6), 7 => (T7, K7), 8 => (T8, K8), 9 => (T9, K9));
+impl_simulable_for_tuple!(0 => (T0, K0), 1 => (T1, K1), 2 => (T2, K2), 3 => (T3, K3), 4 => (T4, K4), 5 => (T5, K5), 6 => (T6, K6), 7 => (T7, K7), 8 => (T8, K8), 9 => (T9, K9), 10 => (T10, K10));
+impl_simulable_for_tuple!(0 => (T0, K0), 1 => (T1, K1), 2 => (T2, K2), 3 => (T3, K3), 4 => (T4, K4), 5 => (T5, K5), 6 => (T6, K6), 7 => (T7, K7), 8 => (T8, K8), 9 => (T9, K9), 10 => (T10, K10), 11 => (T11, K11));
+
 impl<T> Simulable<ComponentsKind> for T
 where
     T: Component<Kind = ComponentsKind>,
@@ -292,6 +406,20 @@ where
     K: crate::component::sealed::Sealed,
 {
     type Simulator = [T::Simulator; N];
+
+    #[inline(always)]
+    fn to_simulator(self) -> Self::Simulator {
+        self.map(|component| component.to_simulator())
+    }
+}
+
+impl<T, K> Simulable<Option<K>> for Option<T>
+where
+    T: Component<Kind = K>,
+    T: Simulable<K>,
+    K: crate::component::sealed::Sealed,
+{
+    type Simulator = Option<T::Simulator>;
 
     #[inline(always)]
     fn to_simulator(self) -> Self::Simulator {
