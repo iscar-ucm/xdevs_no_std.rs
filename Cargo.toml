@@ -56,6 +56,10 @@ name = "gpt_optional"
 required-features = ["std"]
 
 [[example]]
+name = "gpt_enum"
+required-features = ["std"]
+
+[[example]]
 name = "gpt"
 required-features = ["std"]
 

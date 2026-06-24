@@ -4,9 +4,10 @@ use syn::{parse, parse_macro_input, Error};
 mod coupled;
 mod derive;
 mod devstone;
+mod model_enum;
 mod rt_engine;
 
-// Main macro to generate coupled DEVS models
+/// Main macro to generate coupled DEVS models
 #[proc_macro_attribute]
 pub fn coupled(_args: TokenStream, item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as syn::ItemStruct);
@@ -17,7 +18,18 @@ pub fn coupled(_args: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
-// Macro to generate RT engine components
+/// Macro to generate enum-based DEVS components
+#[proc_macro_attribute]
+pub fn model_enum(_args: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as syn::ItemEnum);
+
+    match model_enum::expand(item) {
+        Ok(component) => component.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+/// Macro to generate RT engine components
 #[proc_macro_attribute]
 pub fn rt_engine(args: TokenStream, item: TokenStream) -> TokenStream {
     let args = match parse::<rt_engine::RtEngineArgs>(args) {
@@ -58,7 +70,7 @@ pub fn derive_bagmux(input: TokenStream) -> TokenStream {
     }
 }
 
-/// Function to combine errors when parsing
+// Function to combine errors when parsing
 pub(crate) fn combine_err(acc: &mut Option<Error>, err: Error) {
     match acc {
         Some(e) => e.combine(err),
@@ -66,7 +78,7 @@ pub(crate) fn combine_err(acc: &mut Option<Error>, err: Error) {
     }
 }
 
-// DEVStone macros — ref version (default, no alloc needed)
+/// DEVStone macros — ref version (default, no alloc needed)
 #[proc_macro]
 pub fn generate_li(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as devstone::GenerateArgs);
@@ -97,7 +109,7 @@ pub fn generate_ho(input: TokenStream) -> TokenStream {
     }
 }
 
-// DEVStone macros — box version (needs alloc feature)
+/// DEVStone macros — box version (needs alloc feature)
 #[proc_macro]
 pub fn generate_li_box(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as devstone::GenerateArgs);

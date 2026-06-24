@@ -87,20 +87,29 @@ impl AtomicModel {
             n_events: 0,
         }
     }
+}
 
-    pub fn get_n_internals(&self) -> usize {
+pub trait Devstone {
+    fn get_n_internals(&self) -> usize;
+    fn get_n_externals(&self) -> usize;
+    fn get_n_events(&self) -> usize;
+    fn get_n_atomics(&self) -> usize;
+}
+
+impl Devstone for AtomicModel {
+    fn get_n_internals(&self) -> usize {
         self.n_internals
     }
 
-    pub fn get_n_externals(&self) -> usize {
+    fn get_n_externals(&self) -> usize {
         self.n_externals
     }
 
-    pub fn get_n_events(&self) -> usize {
+    fn get_n_events(&self) -> usize {
         self.n_events
     }
 
-    pub fn get_n_atomics(&self) -> usize {
+    fn get_n_atomics(&self) -> usize {
         1
     }
 }
@@ -121,20 +130,22 @@ impl LeafModel {
     pub fn new() -> Self {
         Self::build(AtomicModel::new())
     }
+}
 
-    pub fn get_n_internals(&self) -> usize {
+impl Devstone for LeafModel {
+    fn get_n_internals(&self) -> usize {
         self.components.atomic.get_n_internals()
     }
 
-    pub fn get_n_externals(&self) -> usize {
+    fn get_n_externals(&self) -> usize {
         self.components.atomic.get_n_externals()
     }
 
-    pub fn get_n_events(&self) -> usize {
+    fn get_n_events(&self) -> usize {
         self.components.atomic.get_n_events()
     }
 
-    pub fn get_n_atomics(&self) -> usize {
+    fn get_n_atomics(&self) -> usize {
         self.components.atomic.get_n_atomics()
     }
 }
@@ -152,6 +163,106 @@ impl xdevs::Coupled for LeafModel {
     fn eoc(from: &<Self::Components as xdevs::Component>::Output, to: &mut Self::Output) {
         let _ = from.atomic.couple(to);
     }
+}
+
+#[macro_export]
+macro_rules! impl_devstone_leaf {
+    () => {
+        fn get_n_internals(&self) -> usize {
+            self.components.atomic.get_n_internals()
+        }
+        fn get_n_externals(&self) -> usize {
+            self.components.atomic.get_n_externals()
+        }
+        fn get_n_events(&self) -> usize {
+            self.components.atomic.get_n_events()
+        }
+        fn get_n_atomics(&self) -> usize {
+            self.components.atomic.get_n_atomics()
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_devstone_enum {
+    () => {
+        fn get_n_internals(&self) -> usize {
+            match self {
+                Self::Leaf(leaf) => leaf.get_n_internals(),
+                Self::Branch(branch) => branch.get_n_internals(),
+            }
+        }
+        fn get_n_externals(&self) -> usize {
+            match self {
+                Self::Leaf(leaf) => leaf.get_n_externals(),
+                Self::Branch(branch) => branch.get_n_externals(),
+            }
+        }
+        fn get_n_events(&self) -> usize {
+            match self {
+                Self::Leaf(leaf) => leaf.get_n_events(),
+                Self::Branch(branch) => branch.get_n_events(),
+            }
+        }
+        fn get_n_atomics(&self) -> usize {
+            match self {
+                Self::Leaf(leaf) => leaf.get_n_atomics(),
+                Self::Branch(branch) => branch.get_n_atomics(),
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_devstone_coupled {
+    () => {
+        fn get_n_internals(&self) -> usize {
+            let mut sum = self.components.inner.get_n_internals();
+            for a in self.components.atomics.iter() {
+                sum += a.get_n_internals();
+            }
+            sum
+        }
+        fn get_n_externals(&self) -> usize {
+            let mut sum = self.components.inner.get_n_externals();
+            for a in self.components.atomics.iter() {
+                sum += a.get_n_externals();
+            }
+            sum
+        }
+        fn get_n_events(&self) -> usize {
+            let mut sum = self.components.inner.get_n_events();
+            for a in self.components.atomics.iter() {
+                sum += a.get_n_events();
+            }
+            sum
+        }
+        fn get_n_atomics(&self) -> usize {
+            let mut sum = self.components.inner.get_n_atomics();
+            for _ in self.components.atomics.iter() {
+                sum += 1;
+            }
+            sum
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_devstone_top {
+    ($child:ident) => {
+        fn get_n_internals(&self) -> usize {
+            self.components.$child.get_n_internals()
+        }
+        fn get_n_externals(&self) -> usize {
+            self.components.$child.get_n_externals()
+        }
+        fn get_n_events(&self) -> usize {
+            self.components.$child.get_n_events()
+        }
+        fn get_n_atomics(&self) -> usize {
+            self.components.$child.get_n_atomics()
+        }
+    };
 }
 
 #[cfg(test)]

@@ -1,95 +1,15 @@
-use crate::{simulation::coordinator::Coordinator, AbstractSimulator};
-
-use super::common::*;
+use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
 use alloc::boxed::Box;
 use xdevs::Component;
 
+#[xdevs::model_enum]
 pub enum LIEnum<const W: usize> {
-    Leaf(Coordinator<LeafModel>),
-    Branch(Coordinator<LIModel<W>>),
+    Leaf(LeafModel),
+    Branch(LIModel<W>),
 }
 
-impl<const W: usize> LIEnum<W> {
-    pub fn get_n_internals(&self) -> usize {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.get_n_internals(),
-            LIEnum::Branch(branch) => branch.get_n_internals(),
-        }
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.get_n_externals(),
-            LIEnum::Branch(branch) => branch.get_n_externals(),
-        }
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.get_n_events(),
-            LIEnum::Branch(branch) => branch.get_n_events(),
-        }
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.get_n_atomics(),
-            LIEnum::Branch(branch) => branch.get_n_atomics(),
-        }
-    }
-}
-
-/// Manual implementation of `Component` for LI enum
-impl<const W: usize> Component for LIEnum<W> {
-    type Kind = xdevs::ComponentsKind;
-    type Input = xdevs::Port<usize, 1>;
-    type Output = xdevs::Port<usize, 1>;
-}
-
-/// Manual implementation of `AbstractSimulator` for LI enum
-unsafe impl<const W: usize> AbstractSimulator for LIEnum<W> {
-    type Input = xdevs::Port<usize, 1>;
-    type Output = xdevs::Port<usize, 1>;
-
-    fn start(&mut self, t_start: f64) -> f64 {
-        match self {
-            LIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::start(leaf, t_start)
-            }
-            LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<W>> as AbstractSimulator>::start(branch, t_start)
-            }
-        }
-    }
-
-    fn stop(&mut self) {
-        match self {
-            LIEnum::Leaf(leaf) => <Coordinator<LeafModel> as AbstractSimulator>::stop(leaf),
-            LIEnum::Branch(branch) => <Coordinator<LIModel<W>> as AbstractSimulator>::stop(branch),
-        }
-    }
-
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        match self {
-            LIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::lambda(leaf, output, t)
-            }
-            LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<W>> as AbstractSimulator>::lambda(branch, output, t)
-            }
-        }
-    }
-
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        match self {
-            LIEnum::Leaf(leaf) => {
-                <Coordinator<LeafModel> as AbstractSimulator>::delta(leaf, input, output, t)
-            }
-            LIEnum::Branch(branch) => {
-                <Coordinator<LIModel<W>> as AbstractSimulator>::delta(branch, input, output, t)
-            }
-        }
-    }
+impl<const W: usize> Devstone for LIEnum<W> {
+    crate::impl_devstone_enum!();
 }
 
 /// LI coupled model
@@ -123,38 +43,10 @@ impl<const W: usize> LIModel<W> {
     pub fn new(inner: Box<LIEnum<W>>) -> Self {
         Self::build(core::array::from_fn(|_| AtomicModel::default()), inner)
     }
+}
 
-    pub fn get_n_internals(&self) -> usize {
-        let mut sum_int = self.components.inner.get_n_internals();
-        for atomic in self.components.atomics.iter() {
-            sum_int += atomic.get_n_internals();
-        }
-        sum_int
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        let mut sum_ext = self.components.inner.get_n_externals();
-        for atomic in self.components.atomics.iter() {
-            sum_ext += atomic.get_n_externals();
-        }
-        sum_ext
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        let mut sum_ev = self.components.inner.get_n_events();
-        for atomic in self.components.atomics.iter() {
-            sum_ev += atomic.get_n_events();
-        }
-        sum_ev
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        let mut sum_atomic = self.components.inner.get_n_atomics();
-        for _atomic in self.components.atomics.iter() {
-            sum_atomic += 1;
-        }
-        sum_atomic
-    }
+impl<const W: usize> Devstone for LIModel<W> {
+    crate::impl_devstone_coupled!();
 }
 
 /// End model with Generator and LI model coupled together
@@ -170,22 +62,8 @@ impl<const W: usize> Component for TopModel<W> {
     type Output = ();
 }
 
-impl<const W: usize> TopModel<W> {
-    pub fn get_n_internals(&self) -> usize {
-        self.components.li_model.get_n_internals()
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        self.components.li_model.get_n_externals()
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        self.components.li_model.get_n_events()
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        self.components.li_model.get_n_atomics()
-    }
+impl<const W: usize> Devstone for TopModel<W> {
+    crate::impl_devstone_top!(li_model);
 }
 
 impl<const W: usize> xdevs::Coupled for TopModel<W> {
@@ -210,7 +88,8 @@ mod test {
 
     #[test]
     fn simulation_matches_expected_counts() {
-        use xdevs::simulation::Simulable;
+        use xdevs::simulation::{AbstractSimulator, Simulable};
+
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;
