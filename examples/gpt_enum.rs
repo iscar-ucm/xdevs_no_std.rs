@@ -1,4 +1,4 @@
-/// Illustrates #[xdevs::modelenum]: a GPT model where the processor is
+/// Illustrates #[xdevs::model_enum]: a GPT model where the processor is
 /// chosen at build time between a fast and a slow variant, without any
 /// conditional logic in the coupled model.
 use xdevs::simulation::Simulable;
@@ -92,10 +92,10 @@ mod processor {
     }
 
     impl FastProcessor {
-        pub fn new() -> Self {
+        pub fn new(time: f64) -> Self {
             Self {
-                sigma: f64::INFINITY,
-                time: 0.5,
+                sigma: 0.0,
+                time,
                 job: None,
             }
         }
@@ -135,23 +135,23 @@ mod processor {
                 if self.job.is_none() {
                     println!("[P-slow] received job {}", job);
                     self.job = Some(job);
-                    self.sigma = self.time;
+                    self.sigma = self.time * 2.0; // Slow processor takes twice as long
                 }
             }
         }
     }
 
     impl SlowProcessor {
-        pub fn new() -> Self {
+        pub fn new(time: f64) -> Self {
             Self {
-                sigma: f64::INFINITY,
-                time: 2.0,
+                sigma: 0.0,
+                time,
                 job: None,
             }
         }
     }
 
-    #[xdevs::modelenum]
+    #[xdevs::model_enum]
     pub enum Processor {
         Fast(FastProcessor),
         Slow(SlowProcessor),
@@ -251,15 +251,18 @@ impl xdevs::Coupled for GPT {
 }
 
 fn run_gpt(processor: processor::Processor) {
+    let period = 1.;
+    let obs_time = 10.;
+
     let label = match &processor {
         processor::Processor::Fast(_) => "fast",
         processor::Processor::Slow(_) => "slow",
     };
     println!("\n--- GPT with {} processor ---", label);
     let gpt = GPT::build(
-        generator::Generator::new(1.0),
+        generator::Generator::new(period),
         processor,
-        transducer::Transducer::new(10.0),
+        transducer::Transducer::new(obs_time),
     );
     let mut simulator = gpt.to_simulator();
     let config = xdevs::simulation::Config::new(0.0, 14.0, 1.0, None);
@@ -267,9 +270,10 @@ fn run_gpt(processor: processor::Processor) {
 }
 
 fn main() {
-    let fast = processor::Processor::Fast(processor::FastProcessor::new().to_simulator());
+    let proc_time = 1.1;
+    let fast = processor::Processor::Fast(processor::FastProcessor::new(proc_time).to_simulator());
     run_gpt(fast);
 
-    let slow = processor::Processor::Slow(processor::SlowProcessor::new().to_simulator());
+    let slow = processor::Processor::Slow(processor::SlowProcessor::new(proc_time).to_simulator());
     run_gpt(slow);
 }

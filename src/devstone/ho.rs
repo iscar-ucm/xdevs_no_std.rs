@@ -1,6 +1,6 @@
 use crate::Component;
 
-use super::common::{AtomicModel, JobGenerator};
+use super::common::{AtomicModel, Devstone, JobGenerator};
 
 /// Output struct for HO models (ref version)
 #[derive(Debug, Default, crate::Bag)]
@@ -40,59 +40,21 @@ impl<const W: usize> LeafModel<W> {
     pub fn new() -> Self {
         Self::build(AtomicModel::default())
     }
+}
 
-    pub fn get_n_internals(&self) -> usize {
-        self.components.atomic.get_n_internals()
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        self.components.atomic.get_n_externals()
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        self.components.atomic.get_n_events()
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        self.components.atomic.get_n_atomics()
-    }
+impl<const W: usize> Devstone for LeafModel<W> {
+    crate::impl_devstone_leaf!();
 }
 
 /// HO model enum (ref version)
-#[crate::modelenum]
+#[crate::model_enum]
 pub enum HOEnum<'a, const W: usize> {
     Leaf(LeafModel<W>),
     Branch(HOModel<'a, W>),
 }
 
-impl<'a, const W: usize> HOEnum<'a, W> {
-    pub fn get_n_internals(&self) -> usize {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.get_n_internals(),
-            HOEnum::Branch(branch) => branch.get_n_internals(),
-        }
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.get_n_externals(),
-            HOEnum::Branch(branch) => branch.get_n_externals(),
-        }
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.get_n_events(),
-            HOEnum::Branch(branch) => branch.get_n_events(),
-        }
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        match self {
-            HOEnum::Leaf(leaf) => leaf.get_n_atomics(),
-            HOEnum::Branch(branch) => branch.get_n_atomics(),
-        }
-    }
+impl<'a, const W: usize> Devstone for HOEnum<'a, W> {
+    crate::impl_devstone_enum!();
 }
 
 /// HO coupled model (ref version)
@@ -106,38 +68,10 @@ impl<'a, const W: usize> HOModel<'a, W> {
     pub fn new(inner: &'a mut HOEnum<'a, W>) -> Self {
         Self::build(core::array::from_fn(|_| AtomicModel::default()), inner)
     }
+}
 
-    pub fn get_n_internals(&self) -> usize {
-        let mut sum_int = self.components.inner.get_n_internals();
-        for atomic in self.components.atomics.iter() {
-            sum_int += atomic.get_n_internals();
-        }
-        sum_int
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        let mut sum_ext = self.components.inner.get_n_externals();
-        for atomic in self.components.atomics.iter() {
-            sum_ext += atomic.get_n_externals();
-        }
-        sum_ext
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        let mut sum_ev = self.components.inner.get_n_events();
-        for atomic in self.components.atomics.iter() {
-            sum_ev += atomic.get_n_events();
-        }
-        sum_ev
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        let mut sum_atomic = self.components.inner.get_n_atomics();
-        for _atomic in self.components.atomics.iter() {
-            sum_atomic += 1;
-        }
-        sum_atomic
-    }
+impl<'a, const W: usize> Devstone for HOModel<'a, W> {
+    crate::impl_devstone_coupled!();
 }
 
 impl<'a, const W: usize> crate::Component for HOModel<'a, W> {
@@ -184,22 +118,8 @@ impl<'a, const W: usize> Component for TopModel<'a, W> {
     type Output = crate::Port<usize, 1>;
 }
 
-impl<'a, const W: usize> TopModel<'a, W> {
-    pub fn get_n_internals(&self) -> usize {
-        self.components.ho_model.get_n_internals()
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        self.components.ho_model.get_n_externals()
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        self.components.ho_model.get_n_events()
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        self.components.ho_model.get_n_atomics()
-    }
+impl<'a, const W: usize> Devstone for TopModel<'a, W> {
+    crate::impl_devstone_top!(ho_model);
 }
 
 impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {

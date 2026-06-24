@@ -1,41 +1,15 @@
-use super::common::*;
+use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
 use alloc::boxed::Box;
 use xdevs::Component;
 
-#[xdevs::modelenum]
+#[xdevs::model_enum]
 pub enum LIEnum<const W: usize> {
     Leaf(LeafModel),
     Branch(LIModel<W>),
 }
 
-impl<const W: usize> LIEnum<W> {
-    pub fn get_n_internals(&self) -> usize {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.get_n_internals(),
-            LIEnum::Branch(branch) => branch.get_n_internals(),
-        }
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.get_n_externals(),
-            LIEnum::Branch(branch) => branch.get_n_externals(),
-        }
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.get_n_events(),
-            LIEnum::Branch(branch) => branch.get_n_events(),
-        }
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        match self {
-            LIEnum::Leaf(leaf) => leaf.get_n_atomics(),
-            LIEnum::Branch(branch) => branch.get_n_atomics(),
-        }
-    }
+impl<const W: usize> Devstone for LIEnum<W> {
+    crate::impl_devstone_enum!();
 }
 
 /// LI coupled model
@@ -69,38 +43,10 @@ impl<const W: usize> LIModel<W> {
     pub fn new(inner: Box<LIEnum<W>>) -> Self {
         Self::build(core::array::from_fn(|_| AtomicModel::default()), inner)
     }
+}
 
-    pub fn get_n_internals(&self) -> usize {
-        let mut sum_int = self.components.inner.get_n_internals();
-        for atomic in self.components.atomics.iter() {
-            sum_int += atomic.get_n_internals();
-        }
-        sum_int
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        let mut sum_ext = self.components.inner.get_n_externals();
-        for atomic in self.components.atomics.iter() {
-            sum_ext += atomic.get_n_externals();
-        }
-        sum_ext
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        let mut sum_ev = self.components.inner.get_n_events();
-        for atomic in self.components.atomics.iter() {
-            sum_ev += atomic.get_n_events();
-        }
-        sum_ev
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        let mut sum_atomic = self.components.inner.get_n_atomics();
-        for _atomic in self.components.atomics.iter() {
-            sum_atomic += 1;
-        }
-        sum_atomic
-    }
+impl<const W: usize> Devstone for LIModel<W> {
+    crate::impl_devstone_coupled!();
 }
 
 /// End model with Generator and LI model coupled together
@@ -116,22 +62,8 @@ impl<const W: usize> Component for TopModel<W> {
     type Output = ();
 }
 
-impl<const W: usize> TopModel<W> {
-    pub fn get_n_internals(&self) -> usize {
-        self.components.li_model.get_n_internals()
-    }
-
-    pub fn get_n_externals(&self) -> usize {
-        self.components.li_model.get_n_externals()
-    }
-
-    pub fn get_n_events(&self) -> usize {
-        self.components.li_model.get_n_events()
-    }
-
-    pub fn get_n_atomics(&self) -> usize {
-        self.components.li_model.get_n_atomics()
-    }
+impl<const W: usize> Devstone for TopModel<W> {
+    crate::impl_devstone_top!(li_model);
 }
 
 impl<const W: usize> xdevs::Coupled for TopModel<W> {

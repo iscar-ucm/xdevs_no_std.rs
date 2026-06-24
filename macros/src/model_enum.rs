@@ -44,8 +44,14 @@ pub fn expand(mut item: ItemEnum) -> Result<TokenStream2> {
         return Err(err);
     }
 
-    let first_variant_ty = &variant_tys[0];
+    if variant_tys.is_empty() {
+        return Err(Error::new_spanned(
+            &item.ident,
+            "enum component must have at least one variant",
+        ));
+    }
 
+    let first_variant_ty = &variant_tys[0];
     for variant in item.variants.iter_mut() {
         if let syn::Fields::Unnamed(fields) = &mut variant.fields {
             if let Some(field) = fields.unnamed.first_mut() {
