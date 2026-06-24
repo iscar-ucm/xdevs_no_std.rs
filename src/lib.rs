@@ -1,41 +1,22 @@
 #![no_std]
+#[cfg(feature = "alloc")]
+extern crate alloc;
+extern crate self as xdevs;
+#[cfg(feature = "std")]
+extern crate std;
 
-pub use xdevs_no_std_macros::*;
-
+pub mod component;
+pub mod devstone;
+pub mod export;
 pub mod port;
-pub mod simulator;
-pub mod traits;
+#[cfg(any(feature = "embassy", feature = "std"))]
+pub mod rt_engine;
+pub mod simulation;
 
-/// Interface for DEVS atomic models. All DEVS atomic models must implement this trait.
-pub trait Atomic: traits::PartialAtomic {
-    /// Method for performing any operation before simulating. By default, it does nothing.
-    #[allow(unused_variables)]
-    #[inline]
-    fn start(state: &mut Self::State) {}
-
-    /// Method for performing any operation after simulating. By default, it does nothing.
-    #[allow(unused_variables)]
-    #[inline]
-    fn stop(state: &mut Self::State) {}
-
-    /// Internal transition function. It modifies the state of the model when an internal event happens.
-    fn delta_int(state: &mut Self::State);
-
-    /// External transition function. It modifies the state of the model when an external event happens.
-    /// The time elapsed since the last state transition is `e`.
-    fn delta_ext(state: &mut Self::State, e: f64, x: &Self::Input);
-
-    /// Confluent transition function. It modifies the state of the model when an external and an internal event occur simultaneously.
-    /// By default, it calls [`Atomic::delta_int`] and [`Atomic::delta_ext`] with `e = 0`, in that order.
-    #[inline]
-    fn delta_conf(state: &mut Self::State, x: &Self::Input) {
-        Self::delta_int(state);
-        Self::delta_ext(state, 0., x);
-    }
-
-    /// Output function. It triggers output events when an internal event is about to happen.
-    fn lambda(state: &Self::State, output: &mut Self::Output);
-
-    /// Time advance function. It returns the time until the next internal event happens.
-    fn ta(state: &Self::State) -> f64;
-}
+pub use component::{
+    atomic::Atomic, coupled::Coupled, AtomicKind, Component, ComponentsKind, CoupledKind,
+};
+pub use embassy_time::{Duration, Instant};
+pub use port::Port;
+pub use simulation::{AbstractSimulator, Config};
+pub use xdevs_no_std_macros::*;

@@ -2,7 +2,7 @@
 name = "xdevs-no-std"
 version = "0.3.0"
 edition = "2021"
-license = "GPL-3.0"
+license = "GPL-3.0-or-later"
 authors = ["Román Cárdenas <r.cardenas@upm.es>"]
 description = "no-std implementation of xDEVS for real-time simulation on embedded systems"
 keywords = ["embedded", "simulation", "real-time", "no-std"]
@@ -19,15 +19,57 @@ path = "src/lib.rs"
 [dependencies]
 heapless = "0.9"
 xdevs-no-std-macros = { path = "macros", version = "0.2.0" }
-tokio = { version = "1.0", optional = true }
-embassy-time = { version = "0.5.0", optional = true }
+tokio = { version = "1.0", optional = true, features = ["sync"] }
+embassy-time = { version = "0.5.0" }
+embassy-sync = { version = "0.7.2", optional = true }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+criterion = "0.8.2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 
 [features]
-embassy = ["embassy-time"]
-std = ["tokio/time"]
+alloc = []
+embassy = ["embassy-sync", "xdevs-no-std-macros/embassy-backend"]
+std = [
+    "alloc",
+    "tokio/time",
+    "xdevs-no-std-macros/std-backend",
+    "embassy-time/std",
+    "embassy-time/generic-queue-8",
+]
+
+[[bench]]
+name = "ho"
+harness = false
+required-features = ["alloc"]
+
+[[example]]
+name = "gpb"
+required-features = ["std"]
+
+[[example]]
+name = "gpt_async"
+required-features = ["std"]
+
+[[example]]
+name = "gpt_optional"
+required-features = ["std"]
+
+[[example]]
+name = "gpt_enum"
+required-features = ["std"]
+
+[[example]]
+name = "gpt"
+required-features = ["std"]
+
+[[example]]
+name = "multiprocessor"
+required-features = ["std"]
+
+[[example]]
+name = "rt_engine"
+required-features = ["std"]
 
 [package.metadata.docs.rs]
 all-features = true

@@ -1,8 +1,6 @@
-extern crate std;
-
 use crate::{
-    simulator::Config,
-    traits::{AsyncInput, Bag},
+    port::Bag,
+    simulation::{AsyncInput, Config},
 };
 use std::{
     thread,

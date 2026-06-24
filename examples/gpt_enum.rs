@@ -1,5 +1,8 @@
-/// A simple DEVS GPT model
-use xdevs::{simulation::Simulable, AbstractSimulator};
+/// Illustrates #[xdevs::model_enum]: a GPT model where the processor is
+/// chosen at build time between a fast and a slow variant, without any
+/// conditional logic in the coupled model.
+use xdevs::simulation::Simulable;
+use xdevs::AbstractSimulator;
 
 mod generator {
     pub struct Generator {
@@ -13,25 +16,22 @@ mod generator {
         type Input = xdevs::Port<bool, 1>;
         type Output = xdevs::Port<usize, 1>;
     }
+
     impl xdevs::Atomic for Generator {
         fn delta_int(&mut self) {
             self.count += 1;
             self.sigma = self.period;
+            println!("[G] generated job {}", self.count);
         }
-
         fn lambda(&self, output: &mut Self::Output) {
-            println!("[G] sending job {}", self.count);
             output.add_value(self.count).unwrap();
         }
-
         fn ta(&self) -> f64 {
             self.sigma
         }
-
         fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
             self.sigma -= elapsed;
             if let Some(&stop) = input.get_values().last() {
-                println!("[G] received stop: {}", stop);
                 if stop {
                     self.sigma = f64::INFINITY;
                 }
@@ -49,53 +49,49 @@ mod generator {
         }
     }
 }
+
 mod processor {
-    pub struct Processor {
+    pub struct FastProcessor {
         sigma: f64,
         time: f64,
         job: Option<usize>,
     }
 
-    impl xdevs::Component for Processor {
+    impl xdevs::Component for FastProcessor {
         type Kind = xdevs::AtomicKind;
         type Input = xdevs::Port<usize, 1>;
         type Output = xdevs::Port<usize, 1>;
     }
-    impl xdevs::Atomic for Processor {
+
+    impl xdevs::Atomic for FastProcessor {
         fn delta_int(&mut self) {
             self.sigma = f64::INFINITY;
             if let Some(job) = self.job {
-                println!("[P] processed job {}", job);
-                self.job = None;
+                println!("[P-fast] processed job {}", job);
             }
+            self.job = None;
         }
-
         fn lambda(&self, output: &mut Self::Output) {
             if let Some(job) = self.job {
                 output.add_value(job).unwrap();
             }
         }
-
         fn ta(&self) -> f64 {
             self.sigma
         }
-
         fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
             self.sigma -= elapsed;
             if let Some(&job) = input.get_values().last() {
-                print!("[P] received job {}", job);
                 if self.job.is_none() {
-                    println!(" (idle)");
+                    println!("[P-fast] received job {}", job);
                     self.job = Some(job);
                     self.sigma = self.time;
-                } else {
-                    println!(" (busy)");
                 }
             }
         }
     }
 
-    impl Processor {
+    impl FastProcessor {
         pub fn new(time: f64) -> Self {
             Self {
                 sigma: 0.0,
@@ -103,6 +99,62 @@ mod processor {
                 job: None,
             }
         }
+    }
+
+    pub struct SlowProcessor {
+        sigma: f64,
+        time: f64,
+        job: Option<usize>,
+    }
+
+    impl xdevs::Component for SlowProcessor {
+        type Kind = xdevs::AtomicKind;
+        type Input = xdevs::Port<usize, 1>;
+        type Output = xdevs::Port<usize, 1>;
+    }
+
+    impl xdevs::Atomic for SlowProcessor {
+        fn delta_int(&mut self) {
+            self.sigma = f64::INFINITY;
+            if let Some(job) = self.job {
+                println!("[P-slow] processed job {}", job);
+            }
+            self.job = None;
+        }
+        fn lambda(&self, output: &mut Self::Output) {
+            if let Some(job) = self.job {
+                output.add_value(job).unwrap();
+            }
+        }
+        fn ta(&self) -> f64 {
+            self.sigma
+        }
+        fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+            self.sigma -= elapsed;
+            if let Some(&job) = input.get_values().last() {
+                if self.job.is_none() {
+                    println!("[P-slow] received job {}", job);
+                    self.job = Some(job);
+                    self.sigma = self.time * 2.0; // Slow processor takes twice as long
+                }
+            }
+        }
+    }
+
+    impl SlowProcessor {
+        pub fn new(time: f64) -> Self {
+            Self {
+                sigma: 0.0,
+                time,
+                job: None,
+            }
+        }
+    }
+
+    #[xdevs::model_enum]
+    pub enum Processor {
+        Fast(FastProcessor),
+        Slow(SlowProcessor),
     }
 }
 
@@ -138,20 +190,17 @@ mod transducer {
                 (0.0, 0.0)
             };
             println!(
-                "[T] acceptance: {:.2}, throughput: {:.2}",
+                "[T] acceptance: {:.2}, throughput: {:.2} jobs/s",
                 acceptance, throughput
             );
             self.sigma = f64::INFINITY;
         }
-
         fn lambda(&self, output: &mut Self::Output) {
             output.add_value(true).unwrap();
         }
-
         fn ta(&self) -> f64 {
             self.sigma
         }
-
         fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
             self.sigma -= elapsed;
             self.clock += elapsed;
@@ -201,70 +250,30 @@ impl xdevs::Coupled for GPT {
     }
 }
 
-#[xdevs::coupled]
-struct EF {
-    generator: generator::Generator,
-    transducer: transducer::Transducer,
-}
+fn run_gpt(processor: processor::Processor) {
+    let period = 1.;
+    let obs_time = 10.;
 
-impl xdevs::Component for EF {
-    type Kind = xdevs::CoupledKind;
-    type Input = xdevs::Port<usize, 1>;
-    type Output = xdevs::Port<usize, 1>;
-}
-
-impl xdevs::Coupled for EF {
-    fn ic(
-        from: &xdevs::component::coupled::ComponentsOutput<Self>,
-        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
-    ) {
-        from.generator
-            .couple(&mut to.transducer.in_generator)
-            .unwrap();
-        from.transducer.couple(&mut to.generator).unwrap();
-    }
-    fn eic(from: &Self::Input, to: &mut xdevs::component::coupled::ComponentsInput<Self>) {
-        from.couple(&mut to.transducer.in_processor).unwrap();
-    }
-    fn eoc(from: &xdevs::component::coupled::ComponentsOutput<Self>, to: &mut Self::Output) {
-        from.generator.couple(to).unwrap();
-    }
-}
-
-#[xdevs::coupled]
-pub struct EFP {
-    ef: EF,
-    processor: processor::Processor,
-}
-
-impl xdevs::Component for EFP {
-    type Kind = xdevs::CoupledKind;
-    type Input = ();
-    type Output = ();
-}
-impl xdevs::Coupled for EFP {
-    fn ic(
-        from: &xdevs::component::coupled::ComponentsOutput<Self>,
-        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
-    ) {
-        from.ef.couple(&mut to.processor).unwrap();
-        from.processor.couple(&mut to.ef).unwrap();
-    }
+    let label = match &processor {
+        processor::Processor::Fast(_) => "fast",
+        processor::Processor::Slow(_) => "slow",
+    };
+    println!("\n--- GPT with {} processor ---", label);
+    let gpt = GPT::build(
+        generator::Generator::new(period),
+        processor,
+        transducer::Transducer::new(obs_time),
+    );
+    let mut simulator = gpt.to_simulator();
+    let config = xdevs::simulation::Config::new(0.0, 14.0, 1.0, None);
+    simulator.simulate_rt(&config, xdevs::simulation::std::sleep(&config), |_| {});
 }
 
 fn main() {
-    let period = 1.;
     let proc_time = 1.1;
-    let obs_time = 10.;
+    let fast = processor::Processor::Fast(processor::FastProcessor::new(proc_time).to_simulator());
+    run_gpt(fast);
 
-    let generator = generator::Generator::new(period);
-    let processor = processor::Processor::new(proc_time);
-    let transducer = transducer::Transducer::new(obs_time);
-
-    let ef = EF::build(generator, transducer);
-    let efp = EFP::build(ef, processor);
-
-    let mut simulator = efp.to_simulator();
-    let config = xdevs::simulation::Config::new(0.0, 14.0, 1.0, None);
-    simulator.simulate_rt(&config, xdevs::simulation::std::sleep(&config), |_| {});
+    let slow = processor::Processor::Slow(processor::SlowProcessor::new(proc_time).to_simulator());
+    run_gpt(slow);
 }

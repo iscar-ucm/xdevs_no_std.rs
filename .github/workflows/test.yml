@@ -6,6 +6,15 @@ on:
   pull_request:
   merge_group:
 
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+env:
+  # Set this to a value > 0 to enforce a minimum line coverage percentage.
+  MIN_COVERAGE_LINES: "0"
+
 jobs:
   test:
     name: Test
@@ -44,3 +53,50 @@ jobs:
     if: always()
     steps:
       - run: jq --exit-status 'all(.result == "success")' <<< '${{ toJson(needs) }}'
+
+  coverage:
+    name: coverage
+    needs:
+    - test-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Run tests and generate HTML coverage
+        run: >-
+          cargo llvm-cov --all --features std
+          --html --output-dir coverage-html
+          --fail-under-lines "${MIN_COVERAGE_LINES}"
+
+      - name: Export lcov report
+        run: cargo llvm-cov report --lcov --output-path lcov.info
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          use_oidc: true
+          files: lcov.info
+          flags: rust
+          fail_ci_if_error: true
+          verbose: true
+
+      - name: Upload lcov report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcov-report
+          path: lcov.info
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-report
+          path: coverage-html
