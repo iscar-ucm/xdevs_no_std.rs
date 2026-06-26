@@ -10,7 +10,7 @@ pub struct HOModelOutput<const W: usize> {
 }
 
 /// Leaf coupled model with only one atomic in HO models
-#[xdevs::coupled]
+#[xdevs::to_component]
 pub struct LeafModel<const W: usize> {
     atomic: AtomicModel,
 }
@@ -47,7 +47,7 @@ impl<const W: usize> Devstone for LeafModel<W> {
 }
 
 /// HO model enum
-#[xdevs::model_enum]
+#[xdevs::to_component]
 pub enum HOEnum<const W: usize> {
     Leaf(LeafModel<W>),
     Branch(HOModel<W>),
@@ -58,7 +58,7 @@ impl<const W: usize> Devstone for HOEnum<W> {
 }
 
 /// HO coupled model
-#[xdevs::coupled]
+#[xdevs::to_component]
 pub struct HOModel<const W: usize> {
     atomics: [AtomicModel; W],
     inner: Box<HOEnum<W>>,
@@ -104,7 +104,7 @@ impl<const W: usize> xdevs::Coupled for HOModel<W> {
 }
 
 /// End model with Generator and HO model coupled together
-#[xdevs::coupled]
+#[xdevs::to_component]
 pub struct TopModel<const W: usize> {
     generator: JobGenerator,
     ho_model: HOEnum<W>,

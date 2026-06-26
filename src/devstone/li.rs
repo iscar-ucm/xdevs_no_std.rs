@@ -2,7 +2,7 @@ use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
 use crate::Component;
 
 /// LI model enum (ref version)
-#[crate::model_enum]
+#[crate::to_component]
 pub enum LIEnum<'a, const W: usize> {
     Leaf(LeafModel),
     Branch(LIModel<'a, W>),
@@ -13,7 +13,7 @@ impl<'a, const W: usize> Devstone for LIEnum<'a, W> {
 }
 
 /// LI coupled model (ref version)
-#[crate::coupled]
+#[crate::to_component]
 pub struct LIModel<'a, const W: usize> {
     atomics: [AtomicModel; W],
     inner: &'a mut LIEnum<'a, W>,
@@ -50,7 +50,7 @@ impl<'a, const W: usize> Devstone for LIModel<'a, W> {
 }
 
 /// End model with Generator and LI model coupled together (ref version)
-#[crate::coupled]
+#[crate::to_component]
 pub struct TopModel<'a, const W: usize> {
     generator: JobGenerator,
     li_model: &'a mut LIEnum<'a, W>,

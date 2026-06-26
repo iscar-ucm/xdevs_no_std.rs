@@ -3,7 +3,7 @@ use crate::Component;
 use alloc::boxed::Box;
 
 /// HI model enum
-#[xdevs::model_enum]
+#[xdevs::to_component]
 pub enum HIEnum<const W: usize> {
     Leaf(LeafModel),
     Branch(HIModel<W>),
@@ -14,7 +14,7 @@ impl<const W: usize> Devstone for HIEnum<W> {
 }
 
 /// HI coupled model
-#[xdevs::coupled]
+#[xdevs::to_component]
 pub struct HIModel<const W: usize> {
     atomics: [AtomicModel; W],
     inner: Box<HIEnum<W>>,
@@ -60,7 +60,7 @@ impl<const W: usize> Devstone for HIModel<W> {
 }
 
 /// End model with Generator and HI model coupled together
-#[xdevs::coupled]
+#[xdevs::to_component]
 pub struct TopModel<const W: usize> {
     generator: JobGenerator,
     hi_model: HIEnum<W>,

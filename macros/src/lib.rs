@@ -7,26 +7,36 @@ mod devstone;
 mod model_enum;
 mod rt_engine;
 
-/// Main macro to generate coupled DEVS models
+/// Macro to generate DEVS components.
+///
+/// On a struct, behaves like the old `#[coupled]` macro — generates a coupled model.
+/// On an enum, behaves like the old `#[model_enum]` macro — generates an enum-based component.
 #[proc_macro_attribute]
-pub fn coupled(_args: TokenStream, item: TokenStream) -> TokenStream {
-    let item = parse_macro_input!(item as syn::ItemStruct);
+pub fn to_component(_args: TokenStream, item: TokenStream) -> TokenStream {
+    let item2 = item.clone();
 
-    match coupled::expand(item) {
-        Ok(component) => component.into(),
-        Err(err) => err.to_compile_error().into(),
+    // Try parsing as a struct first (coupled model)
+    if let Ok(item_struct) = syn::parse::<syn::ItemStruct>(item2) {
+        return match coupled::expand(item_struct) {
+            Ok(component) => component.into(),
+            Err(err) => err.to_compile_error().into(),
+        };
     }
-}
 
-/// Macro to generate enum-based DEVS components
-#[proc_macro_attribute]
-pub fn model_enum(_args: TokenStream, item: TokenStream) -> TokenStream {
-    let item = parse_macro_input!(item as syn::ItemEnum);
-
-    match model_enum::expand(item) {
-        Ok(component) => component.into(),
-        Err(err) => err.to_compile_error().into(),
+    // Then try parsing as an enum (enum-based model)
+    let item2 = item.clone();
+    if let Ok(item_enum) = syn::parse::<syn::ItemEnum>(item2) {
+        return match model_enum::expand(item_enum) {
+            Ok(component) => component.into(),
+            Err(err) => err.to_compile_error().into(),
+        };
     }
+
+    let err = Error::new(
+        proc_macro2::Span::call_site(),
+        "#[to_component] requires a struct (for coupled models) or an enum (for enum-based models)",
+    );
+    err.to_compile_error().into()
 }
 
 /// Macro to generate RT engine components

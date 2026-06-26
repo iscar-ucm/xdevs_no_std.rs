@@ -8,7 +8,7 @@ use xdevs::{
 };
 
 /// Coupled model with an array of processor-transducer pairs.
-#[xdevs::coupled]
+#[xdevs::to_component]
 struct GPTArray<const N: usize> {
     generator: Generator,
     processors: [Processor; N],

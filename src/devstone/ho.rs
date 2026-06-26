@@ -10,7 +10,7 @@ pub struct HOModelOutput<const W: usize> {
 }
 
 /// Leaf coupled model with only one atomic in HO models (ref version)
-#[crate::coupled]
+#[crate::to_component]
 pub struct LeafModel<const W: usize> {
     atomic: AtomicModel,
 }
@@ -47,7 +47,7 @@ impl<const W: usize> Devstone for LeafModel<W> {
 }
 
 /// HO model enum (ref version)
-#[crate::model_enum]
+#[crate::to_component]
 pub enum HOEnum<'a, const W: usize> {
     Leaf(LeafModel<W>),
     Branch(HOModel<'a, W>),
@@ -58,7 +58,7 @@ impl<'a, const W: usize> Devstone for HOEnum<'a, W> {
 }
 
 /// HO coupled model (ref version)
-#[crate::coupled]
+#[crate::to_component]
 pub struct HOModel<'a, const W: usize> {
     atomics: [AtomicModel; W],
     inner: &'a mut HOEnum<'a, W>,
@@ -106,7 +106,7 @@ impl<'a, const W: usize> crate::Coupled for HOModel<'a, W> {
 }
 
 /// End model with Generator and HO model coupled together (ref version)
-#[crate::coupled]
+#[crate::to_component]
 pub struct TopModel<'a, const W: usize> {
     generator: JobGenerator,
     ho_model: &'a mut HOEnum<'a, W>,

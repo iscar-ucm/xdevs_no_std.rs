@@ -187,7 +187,7 @@ impl Transducer {
     }
 }
 
-#[xdevs::coupled]
+#[xdevs::to_component]
 pub struct GPT {
     generator: Generator,
     processor: Processor,
@@ -216,7 +216,7 @@ impl xdevs::Coupled for GPT {
     }
 }
 
-#[xdevs::coupled]
+#[xdevs::to_component]
 pub struct EF {
     generator: Generator,
     transducer: Transducer,
@@ -246,7 +246,7 @@ impl xdevs::Coupled for EF {
     }
 }
 
-#[xdevs::coupled]
+#[xdevs::to_component]
 pub struct EFP {
     ef: EF,
     processor: Processor,

@@ -2,7 +2,7 @@ use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
 use alloc::boxed::Box;
 use xdevs::Component;
 
-#[xdevs::model_enum]
+#[xdevs::to_component]
 pub enum LIEnum<const W: usize> {
     Leaf(LeafModel),
     Branch(LIModel<W>),
@@ -13,7 +13,7 @@ impl<const W: usize> Devstone for LIEnum<W> {
 }
 
 /// LI coupled model
-#[xdevs::coupled]
+#[xdevs::to_component]
 pub struct LIModel<const W: usize> {
     atomics: [AtomicModel; W],
     inner: Box<LIEnum<W>>,
@@ -50,7 +50,7 @@ impl<const W: usize> Devstone for LIModel<W> {
 }
 
 /// End model with Generator and LI model coupled together
-#[xdevs::coupled]
+#[xdevs::to_component]
 pub struct TopModel<const W: usize> {
     generator: JobGenerator,
     li_model: LIEnum<W>,

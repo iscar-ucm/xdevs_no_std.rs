@@ -60,7 +60,7 @@ impl Default for Config {
 ///
 /// # Safety
 ///
-/// This trait must be implemented internally or via the [`coupled`](crate::coupled) macro. Do not implement it manually.
+/// This trait must be implemented internally or via the [`to_component`](crate::to_component) macro. Do not implement it manually.
 pub unsafe trait AbstractSimulator {
     type Input: Bag;
 
@@ -486,7 +486,7 @@ pub(crate) mod test_utils {
         }
     }
 
-    #[crate::coupled]
+    #[crate::to_component]
     pub(crate) struct TestCoupled {
         pub a0: TestAtomic,
         pub a1: TestAtomic,
@@ -510,7 +510,7 @@ pub(crate) mod test_utils {
         }
     }
 
-    #[crate::coupled]
+    #[crate::to_component]
     pub(crate) struct TestCoupledWithOption {
         pub a0: TestAtomic,
         pub opt: Option<TestAtomic>,

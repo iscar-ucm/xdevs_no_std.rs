@@ -115,7 +115,7 @@ impl Devstone for AtomicModel {
 }
 
 /// Leaf coupled model with only one atomic in LI models and HI leaf model
-#[xdevs::coupled]
+#[xdevs::to_component]
 pub struct LeafModel {
     atomic: AtomicModel,
 }

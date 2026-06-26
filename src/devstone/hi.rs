@@ -2,7 +2,7 @@ use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
 use crate::Component;
 
 /// HI model enum (ref version)
-#[crate::model_enum]
+#[crate::to_component]
 pub enum HIEnum<'a, const W: usize> {
     Leaf(LeafModel),
     Branch(HIModel<'a, W>),
@@ -13,7 +13,7 @@ impl<'a, const W: usize> Devstone for HIEnum<'a, W> {
 }
 
 /// HI coupled model (ref version)
-#[crate::coupled]
+#[crate::to_component]
 pub struct HIModel<'a, const W: usize> {
     atomics: [AtomicModel; W],
     inner: &'a mut HIEnum<'a, W>,
@@ -59,7 +59,7 @@ impl<'a, const W: usize> Devstone for HIModel<'a, W> {
 }
 
 /// End model with Generator and HI model coupled together (ref version)
-#[crate::coupled]
+#[crate::to_component]
 pub struct TopModel<'a, const W: usize> {
     generator: JobGenerator,
     hi_model: &'a mut HIEnum<'a, W>,

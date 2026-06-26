@@ -10,7 +10,7 @@ use xdevs::{
 ///
 /// The coupling code routes unconditionally (same type whether present or not).
 /// When the processor is `None`, it silently absorbs any routed events in its `delta`.
-#[xdevs::coupled]
+#[xdevs::to_component]
 pub struct GPTOptional {
     generator: Generator,
     processor: Option<Processor>,

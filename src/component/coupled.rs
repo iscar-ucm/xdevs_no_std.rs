@@ -101,8 +101,6 @@ impl<T: Coupled> Coupled for alloc::boxed::Box<T> {
 
 #[cfg(test)]
 mod tests {
-    use xdevs_no_std_macros::coupled;
-
     use super::{ComponentsInput, ComponentsOutput, Coupled, PartialCoupled};
     use crate::{
         component::CoupledKind,
@@ -111,7 +109,7 @@ mod tests {
         Component,
     };
 
-    #[coupled]
+    #[crate::to_component]
     struct ForwardChain {
         components: [Processor; 2],
     }
