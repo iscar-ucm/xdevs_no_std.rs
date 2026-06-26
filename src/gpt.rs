@@ -359,12 +359,12 @@ mod tests {
         );
 
         let mut input = <Processor as Component>::Input::build();
-        input.add_value(42).unwrap();
+        input.add_value(99).unwrap();
         proc.delta_ext(0.0, &input);
         assert_eq!(proc.ta(), 2.5, "processor should be busy for 2.5 seconds");
 
         proc.lambda(&mut out);
-        assert_eq!(out.get_values(), &[42]);
+        assert_eq!(out.get_values(), &[99]);
         proc.delta_int();
         assert_eq!(
             proc.ta(),
