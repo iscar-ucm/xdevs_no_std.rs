@@ -426,3 +426,577 @@ where
         self.map(|component| component.to_simulator())
     }
 }
+
+// Module with models for simulation, simulator and coordinator testing
+#[cfg(test)]
+pub(crate) mod test_utils {
+    use crate::{
+        component::coupled::{ComponentsInput, ComponentsOutput, Coupled},
+        component::CoupledKind,
+        port::Port,
+        Atomic, AtomicKind, Component,
+    };
+
+    pub(crate) struct TestAtomic {
+        pub sigma: f64,
+        pub period: f64,
+        pub int_calls: usize,
+        pub ext_calls: usize,
+        pub last_elapsed: f64,
+        pub out_val: usize,
+    }
+
+    impl Component for TestAtomic {
+        type Kind = AtomicKind;
+        type Input = Port<usize, 1>;
+        type Output = Port<usize, 1>;
+    }
+
+    impl Atomic for TestAtomic {
+        fn delta_int(&mut self) {
+            self.int_calls += 1;
+            self.sigma = self.period;
+        }
+        fn delta_ext(&mut self, elapsed: f64, _input: &Self::Input) {
+            self.ext_calls += 1;
+            self.last_elapsed = elapsed;
+            self.sigma = 0.0;
+        }
+        fn lambda(&self, output: &mut Self::Output) {
+            let _ = output.add_value(self.out_val);
+        }
+        fn ta(&self) -> f64 {
+            self.sigma
+        }
+    }
+
+    impl TestAtomic {
+        pub(crate) fn periodic(sigma: f64, period: f64) -> Self {
+            Self {
+                sigma,
+                period,
+                int_calls: 0,
+                ext_calls: 0,
+                last_elapsed: 0.0,
+                out_val: 99,
+            }
+        }
+        pub(crate) fn oneshot(sigma: f64) -> Self {
+            Self::periodic(sigma, f64::INFINITY)
+        }
+    }
+
+    #[crate::coupled]
+    pub(crate) struct TestCoupled {
+        pub a0: TestAtomic,
+        pub a1: TestAtomic,
+    }
+
+    impl Component for TestCoupled {
+        type Kind = CoupledKind;
+        type Input = Port<usize, 1>;
+        type Output = Port<usize, 1>;
+    }
+
+    impl Coupled for TestCoupled {
+        fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
+            let _ = from.couple(&mut to.a0);
+        }
+        fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
+            let _ = from.a0.couple(&mut to.a1);
+        }
+        fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
+            let _ = from.a1.couple(to);
+        }
+    }
+
+    #[crate::coupled]
+    pub(crate) struct TestCoupledWithOption {
+        pub a0: TestAtomic,
+        pub opt: Option<TestAtomic>,
+    }
+
+    impl Component for TestCoupledWithOption {
+        type Kind = CoupledKind;
+        type Input = Port<usize, 1>;
+        type Output = ();
+    }
+
+    impl Coupled for TestCoupledWithOption {
+        fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
+            let _ = from.couple(&mut to.a0);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_utils::{TestAtomic, TestCoupled, TestCoupledWithOption};
+    use crate::{
+        component::coupled::PartialCoupled,
+        port::Port,
+        simulation::{simulator::Simulator, AbstractSimulator, Config, Simulable},
+        Component,
+    };
+    #[test]
+    fn simulate_vt_single_event() {
+        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
+        let config = Config::new(0.0, 20.0, 1.0, None);
+        sim.simulate_vt(&config);
+
+        assert_eq!(sim.int_calls, 1, "one internal transition");
+        assert_eq!(sim.ext_calls, 0, "no external transitions");
+    }
+
+    #[test]
+    fn simulate_vt_multiple_events() {
+        let mut sim = TestAtomic::periodic(0.0, 2.0).to_simulator();
+        let config = Config::new(0.0, 9.0, 1.0, None);
+        sim.simulate_vt(&config);
+
+        assert_eq!(sim.int_calls, 5, "expected 5 internal transitions in 9s");
+        assert_eq!(sim.ext_calls, 0, "no external transitions");
+    }
+
+    #[test]
+    fn simulate_vt_no_spurious_transitions() {
+        let mut sim = TestAtomic::oneshot(f64::INFINITY).to_simulator();
+        let config = Config::new(0.0, 10.0, 1.0, None);
+        sim.simulate_vt(&config);
+
+        assert_eq!(sim.int_calls, 0, "no internal events");
+        assert_eq!(sim.ext_calls, 0, "no external events");
+    }
+
+    #[test]
+    fn simulate_rt_single_event() {
+        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
+        let config = Config::new(0.0, 10.0, 1.0, None);
+        sim.simulate_rt(&config, |_, t_until, _| t_until, |_| {});
+        assert_eq!(sim.int_calls, 1, "rt single event");
+        assert_eq!(sim.ext_calls, 0, "no external transitions");
+    }
+
+    #[test]
+    fn simulate_rt_injects_external_input() {
+        // wait_until injects input at t=0 before the first internal (t=5)
+        // external transition triggers. external transition sets sigma=0,
+        // so an immediate internal transition follows.
+        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
+        let config = Config::new(0.0, 10.0, 1.0, None);
+
+        let mut injected = false;
+        sim.simulate_rt(
+            &config,
+            |t, t_until, input| {
+                if !injected {
+                    injected = true;
+                    input.add_value(99).unwrap();
+                    t // inject at current time, return same t to process
+                } else {
+                    t_until // proceed normally afterwards
+                }
+            },
+            |_| {},
+        );
+
+        assert_eq!(sim.ext_calls, 1, "external transition via wait_until");
+    }
+
+    #[test]
+    fn simulate_rt_propagate_output() {
+        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
+        let config = Config::new(0.0, 10.0, 1.0, None);
+        let mut captured = Port::<usize, 1>::new();
+
+        sim.simulate_rt(
+            &config,
+            |_, t_until, _| t_until,
+            |output| {
+                for v in output.get_values() {
+                    captured.add_value(*v).unwrap();
+                }
+            },
+        );
+
+        assert_eq!(
+            captured.get_values(),
+            &[99],
+            "propagate_output captures lambda output"
+        );
+    }
+
+    struct IdentityAsyncInput;
+
+    impl crate::simulation::AsyncInput for IdentityAsyncInput {
+        type Input = Port<usize, 1>;
+        async fn handle(
+            &mut self,
+            _config: &Config,
+            _t_from: f64,
+            t_until: f64,
+            _input: &mut Self::Input,
+        ) -> f64 {
+            t_until
+        }
+    }
+
+    #[tokio::test]
+    async fn simulate_rt_async_single_event() {
+        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
+        let config = Config::new(0.0, 10.0, 1.0, None);
+        sim.simulate_rt_async(&config, IdentityAsyncInput, |_| {})
+            .await;
+        assert_eq!(sim.int_calls, 1, "async single event");
+        assert_eq!(sim.ext_calls, 0, "no external transitions");
+    }
+
+    #[tokio::test]
+    async fn simulate_rt_async_external_input() {
+        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
+        let config = Config::new(0.0, 10.0, 1.0, None);
+
+        struct InjectInput {
+            injected: bool,
+        }
+        impl crate::simulation::AsyncInput for InjectInput {
+            type Input = Port<usize, 1>;
+            async fn handle(
+                &mut self,
+                _config: &Config,
+                t_from: f64,
+                t_until: f64,
+                input: &mut Self::Input,
+            ) -> f64 {
+                if !self.injected {
+                    self.injected = true;
+                    input.add_value(99).unwrap();
+                    t_from
+                } else {
+                    t_until
+                }
+            }
+        }
+
+        sim.simulate_rt_async(&config, InjectInput { injected: false }, |_| {})
+            .await;
+        assert_eq!(sim.ext_calls, 1, "async external input");
+    }
+
+    #[tokio::test]
+    async fn simulate_rt_async_propagate_output() {
+        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
+        let config = Config::new(0.0, 10.0, 1.0, None);
+        let mut captured = Port::<usize, 1>::new();
+
+        sim.simulate_rt_async(&config, IdentityAsyncInput, |output| {
+            for v in output.get_values() {
+                let _ = captured.add_value(*v);
+            }
+        })
+        .await;
+
+        assert_eq!(captured.get_values(), &[99], "async propagate_output");
+    }
+
+    #[test]
+    fn array_start_returns_min() {
+        let a0 = TestAtomic::oneshot(3.0);
+        let a1 = TestAtomic::oneshot(1.0);
+        let a2 = TestAtomic::oneshot(5.0);
+        let mut arr = [a0, a1, a2].to_simulator();
+
+        let t = arr.start(0.0);
+        assert_eq!(t, 1.0, "min of 3, 1, 5 is 1.0");
+    }
+
+    #[test]
+    fn array_lambda_iterates_all() {
+        let mut arr = [
+            TestAtomic::periodic(0.0, 1.0),
+            TestAtomic::periodic(0.0, 1.0),
+        ]
+        .to_simulator();
+        arr.start(0.0);
+
+        let mut output = [Port::<usize, 1>::new(), Port::<usize, 1>::new()];
+        arr.lambda(&mut output, 0.0);
+
+        assert_eq!(output[0].get_values(), &[99], "first atomic lambda ran");
+        assert_eq!(output[1].get_values(), &[99], "second atomic lambda ran");
+    }
+
+    #[test]
+    fn array_delta_iterates_all() {
+        let mut arr = [
+            TestAtomic::periodic(0.0, 1.0),
+            TestAtomic::periodic(0.0, 1.0),
+        ]
+        .to_simulator();
+        arr.start(0.0);
+
+        let mut input = [Port::<usize, 1>::new(), Port::<usize, 1>::new()];
+        let mut output = [Port::<usize, 1>::new(), Port::<usize, 1>::new()];
+        let t = arr.delta(&mut input, &mut output, 0.0);
+
+        assert_eq!(arr[0].int_calls, 1, "first atomic delta_int");
+        assert_eq!(arr[1].int_calls, 1, "second atomic delta_int");
+        assert!(t > 0.0, "t_next should be > 0");
+    }
+
+    #[test]
+    fn array_stop_iterates_all() {
+        let mut arr = [
+            TestAtomic::periodic(0.0, 1.0),
+            TestAtomic::periodic(0.0, 1.0),
+        ]
+        .to_simulator();
+        arr.start(0.0);
+        arr.stop();
+
+        assert_eq!(arr[0].ext_calls, 0, "stop on first array element");
+        assert_eq!(arr[1].ext_calls, 0, "stop on second array element");
+    }
+
+    #[test]
+    fn option_some_delegates() {
+        let mut opt = Some(TestAtomic::periodic(0.0, 1.0)).to_simulator();
+
+        let t = opt.start(0.0);
+        assert_eq!(t, 0.0, "Some start returns t_next");
+        assert_eq!(
+            opt.as_ref().unwrap().int_calls,
+            0,
+            "Some starts with no internal transitions"
+        );
+
+        let mut output = Port::<usize, 1>::new();
+        opt.lambda(&mut output, 0.0);
+        assert_eq!(output.get_values(), &[99], "Some lambda produces output");
+
+        let t = opt.delta(&mut Port::new(), &mut Port::new(), 0.0);
+        assert_eq!(
+            opt.as_ref().unwrap().int_calls,
+            1,
+            "Some delta triggers transition"
+        );
+        assert!(t > 0.0, "Some delta returns next time");
+
+        opt.stop();
+    }
+
+    #[test]
+    fn option_none_start_infinity() {
+        let mut opt: Option<Simulator<TestAtomic>> = None;
+        let t = opt.start(0.0);
+        assert_eq!(t, f64::INFINITY, "None start returns INFINITY");
+    }
+
+    #[test]
+    fn option_none_lambda_noop() {
+        let mut opt: Option<Simulator<TestAtomic>> = None;
+        let mut output = Port::<usize, 1>::new();
+        opt.lambda(&mut output, 0.0);
+        assert!(output.is_empty(), "None lambda leaves output unchanged");
+    }
+
+    #[test]
+    fn option_none_delta_clears_input() {
+        let mut opt: Option<Simulator<TestAtomic>> = None;
+        let mut input = Port::<usize, 1>::new();
+        input.add_value(99).unwrap();
+        let mut output = Port::<usize, 1>::new();
+        let t = opt.delta(&mut input, &mut output, 0.0);
+        assert!(input.is_empty(), "None delta clears input");
+        assert_eq!(t, f64::INFINITY, "None delta returns INFINITY");
+    }
+
+    #[test]
+    fn option_none_stop_noop() {
+        let mut opt: Option<Simulator<TestAtomic>> = None;
+        opt.stop();
+        // No panic = pass
+    }
+
+    #[test]
+    fn tuple_start_returns_min() {
+        let mut tup = (TestAtomic::oneshot(3.0), TestAtomic::oneshot(1.0)).to_simulator();
+        assert_eq!(tup.start(0.0), 1.0, "min of 3, 1 is 1.0");
+    }
+
+    #[test]
+    fn tuple_lambda_iterates_all() {
+        let mut tup = (
+            TestAtomic::periodic(0.0, 1.0),
+            TestAtomic::periodic(0.0, 1.0),
+        )
+            .to_simulator();
+        tup.start(0.0);
+        let mut out = (Port::<usize, 1>::new(), Port::<usize, 1>::new());
+        tup.lambda(&mut out, 0.0);
+        assert_eq!(out.0.get_values(), &[99], "lambda on tuple[0]");
+        assert_eq!(out.1.get_values(), &[99], "lambda on tuple[1]");
+    }
+
+    #[test]
+    fn tuple_delta_iterates_all() {
+        let mut tup = (
+            TestAtomic::periodic(0.0, 1.0),
+            TestAtomic::periodic(0.0, 1.0),
+        )
+            .to_simulator();
+        tup.start(0.0);
+        let t = tup.delta(
+            &mut (Port::new(), Port::new()),
+            &mut (Port::new(), Port::new()),
+            0.0,
+        );
+        assert!(t > 0.0, "delta on tuple returns t_next");
+    }
+
+    #[test]
+    fn tuple_stop_iterates_all() {
+        let mut tup = (
+            TestAtomic::periodic(0.0, 1.0),
+            TestAtomic::periodic(0.0, 1.0),
+        )
+            .to_simulator();
+        tup.start(0.0);
+        tup.stop();
+        // No panic = pass
+    }
+
+    #[test]
+    fn ref_mut_delegates_abstract_simulator() {
+        let mut raw = TestAtomic::oneshot(5.0).to_simulator();
+        let t = <&mut Simulator<TestAtomic> as AbstractSimulator>::start(&mut &mut raw, 0.0);
+        assert_eq!(t, 5.0, "start delegates through &mut T");
+        <&mut Simulator<TestAtomic> as AbstractSimulator>::stop(&mut &mut raw);
+    }
+
+    #[cfg(feature = "alloc")]
+    #[test]
+    fn box_delegates_abstract_simulator() {
+        let mut raw = alloc::boxed::Box::new(TestAtomic::oneshot(3.0).to_simulator());
+        let t =
+            <alloc::boxed::Box<Simulator<TestAtomic>> as AbstractSimulator>::start(&mut raw, 0.0);
+        assert_eq!(t, 3.0, "start delegates through Box<T>");
+        <alloc::boxed::Box<Simulator<TestAtomic>> as AbstractSimulator>::stop(&mut raw);
+    }
+
+    #[test]
+    fn simulate_vt_coupled() {
+        let a0 = TestAtomic::oneshot(1.0);
+        let a1 = TestAtomic::oneshot(f64::INFINITY); // passive, expects external
+        let model = TestCoupled::build(a0, a1);
+        let mut coord = model.to_simulator();
+        let config = Config::new(0.0, 5.0, 1.0, None);
+        coord.simulate_vt(&config);
+
+        let comps = <TestCoupled as PartialCoupled>::get_components(&coord);
+        assert_eq!(comps.a0.int_calls, 1, "atomic[0] fires once");
+        assert_eq!(
+            comps.a1.ext_calls, 1,
+            "atomic[1] receives external from a0's lambda"
+        );
+    }
+
+    #[test]
+    fn simulate_vt_with_option_none() {
+        let a0 = TestAtomic::oneshot(1.0);
+        let model = TestCoupledWithOption::build(a0, None);
+        let mut coord = model.to_simulator();
+        let config = Config::new(0.0, 3.0, 1.0, None);
+        coord.simulate_vt(&config);
+
+        let comps = <TestCoupledWithOption as PartialCoupled>::get_components(&coord);
+        assert_eq!(comps.a0.int_calls, 1, "atomic[0] fires");
+        assert!(comps.opt.is_none(), "optional component is None");
+    }
+
+    #[test]
+    fn simulate_vt_with_array() {
+        // Coupled model with array of atomics
+        use crate::component::{
+            coupled::{ComponentsInput, ComponentsOutput, Coupled},
+            CoupledKind,
+        };
+
+        struct ArrayCoupled {
+            components: [Simulator<TestAtomic>; 3],
+        }
+
+        impl Component for ArrayCoupled {
+            type Kind = CoupledKind;
+            type Input = Port<usize, 1>;
+            type Output = Port<usize, 1>;
+        }
+
+        impl crate::component::coupled::PartialCoupled for ArrayCoupled {
+            type Components = [TestAtomic; 3];
+            fn get_components(&self) -> &crate::component::coupled::Processors<Self> {
+                &self.components
+            }
+            fn get_components_mut(&mut self) -> &mut crate::component::coupled::Processors<Self> {
+                &mut self.components
+            }
+        }
+
+        impl Coupled for ArrayCoupled {
+            fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
+                let _ = from.couple(&mut to[0]);
+            }
+            fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
+                let _ = from[0].couple(&mut to[1]);
+                let _ = from[1].couple(&mut to[2]);
+            }
+        }
+
+        let a0 = TestAtomic::periodic(0.0, 2.0);
+        let a1 = TestAtomic::oneshot(f64::INFINITY);
+        let a2 = TestAtomic::oneshot(f64::INFINITY);
+        let model = ArrayCoupled {
+            components: [a0.to_simulator(), a1.to_simulator(), a2.to_simulator()],
+        };
+
+        let comps =
+            <ArrayCoupled as crate::component::coupled::PartialCoupled>::get_components(&model);
+        assert_eq!(
+            comps as *const _ as usize,
+            &model.components as *const _ as usize
+        );
+
+        let mut coord = model.to_simulator();
+        let config = Config::new(0.0, 5.0, 1.0, None);
+        coord.simulate_vt(&config);
+
+        let arr = &coord.components;
+        assert_eq!(arr[0].int_calls, 3, "a0 fires 3 times (t=0,2,4)");
+        assert_eq!(
+            arr[1].ext_calls, 3,
+            "a1 receives external from a0 each time"
+        );
+        assert_eq!(
+            arr[2].ext_calls, 3,
+            "a2 receives external from a1 each time"
+        );
+    }
+
+    #[test]
+    fn config_default() {
+        let c = Config::default();
+        assert_eq!(c.t_start, 0.0);
+        assert_eq!(c.t_stop, f64::INFINITY);
+        assert_eq!(c.time_scale, 1.0);
+        assert!(c.max_jitter.is_none());
+    }
+
+    #[test]
+    fn config_custom() {
+        let c = Config::new(1.0, 10.0, 2.0, Some(core::time::Duration::from_millis(100)));
+        assert_eq!(c.t_start, 1.0);
+        assert_eq!(c.t_stop, 10.0);
+        assert_eq!(c.time_scale, 2.0);
+        assert_eq!(c.max_jitter, Some(core::time::Duration::from_millis(100)));
+    }
+}
