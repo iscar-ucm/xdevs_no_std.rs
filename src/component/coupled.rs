@@ -192,7 +192,7 @@ mod tests {
         <&mut ForwardChain as Coupled>::eoc(&comp_out, &mut output);
         assert_eq!(output.get_values(), &[99], "eoc delegates through &mut T");
 
-        // PartialCoupled: &mut T delegation of get_components
+        // PartialCoupled: get_components through &mut T blanket
         let mut model = ForwardChain::build([Processor::new(1.), Processor::new(1.)]);
         let mut r: &mut ForwardChain = &mut model;
         let addr_real = &r.components as *const _ as usize;
@@ -241,7 +241,7 @@ mod tests {
         <Box<ForwardChain> as Coupled>::eoc(&comp_out, &mut output);
         assert_eq!(output.get_values(), &[99], "eoc delegates through Box<T>");
 
-        // PartialCoupled: get_components through Box<T>
+        // PartialCoupled: get_components through Box<T> blanket
         let mut model = Box::new(ForwardChain::build([
             Processor::new(1.),
             Processor::new(1.),
