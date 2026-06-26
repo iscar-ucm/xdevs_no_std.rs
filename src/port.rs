@@ -254,7 +254,7 @@ mod tests {
     #[test]
     fn port_clear_empties() {
         let mut port: Port<u32, 5> = Port::new();
-        port.add_value(42).unwrap();
+        port.add_value(99).unwrap();
         assert!(!port.is_empty());
         port.clear();
         assert!(port.is_empty());
@@ -372,13 +372,13 @@ mod tests {
         let mut bag = <(Port<u32, 1>, Port<u32, 1>, Port<u32, 1>) as Bag>::build();
         assert!(bag.is_empty());
 
-        bag.0.add_value(42).unwrap();
+        bag.0.add_value(99).unwrap();
         assert!(!bag.is_empty());
 
-        bag.1.add_value(42).unwrap();
+        bag.1.add_value(99).unwrap();
         assert!(!bag.is_empty());
 
-        bag.2.add_value(42).unwrap();
+        bag.2.add_value(99).unwrap();
         assert!(!bag.is_empty());
 
         bag.clear();
