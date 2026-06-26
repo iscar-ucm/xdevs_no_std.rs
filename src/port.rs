@@ -200,3 +200,196 @@ mod sealed {
     /// Trait used to prevent users from implementing certain traits manually.
     pub trait Sealed {}
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn port_new_is_empty() {
+        let port: Port<u32, 5> = Port::new();
+        assert!(port.is_empty());
+        assert_eq!(port.len(), 0);
+    }
+
+    #[test]
+    fn port_add_value_and_get_values() {
+        let mut port: Port<u32, 5> = Port::new();
+        assert!(port.add_value(1).is_ok());
+        assert!(port.add_value(2).is_ok());
+        assert!(port.add_value(3).is_ok());
+        assert_eq!(port.get_values(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn port_add_value_rejects_when_full() {
+        let mut port: Port<u32, 3> = Port::new();
+        assert!(port.add_value(10).is_ok());
+        assert!(port.add_value(20).is_ok());
+        assert!(port.add_value(30).is_ok());
+        assert!(port.is_full());
+        let result = port.add_value(40);
+        assert_eq!(result, Err(40));
+        assert_eq!(port.get_values(), &[10, 20, 30]);
+    }
+
+    #[test]
+    fn port_add_values_from_slice() {
+        let mut port: Port<u32, 5> = Port::new();
+        assert!(port.add_values(&[10, 20, 30]).is_ok());
+        assert_eq!(port.len(), 3);
+        assert_eq!(port.get_values(), &[10, 20, 30]);
+    }
+
+    #[test]
+    fn port_add_values_capacity_error() {
+        let mut port: Port<u32, 3> = Port::new();
+        port.add_values(&[1, 2, 3]).unwrap();
+        assert!(port.is_full());
+        let result = port.add_values(&[4]);
+        assert!(result.is_err());
+        assert_eq!(port.get_values(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn port_clear_empties() {
+        let mut port: Port<u32, 5> = Port::new();
+        port.add_value(42).unwrap();
+        assert!(!port.is_empty());
+        port.clear();
+        assert!(port.is_empty());
+        assert_eq!(port.len(), 0);
+    }
+
+    #[test]
+    fn port_couple_copies_values() {
+        let mut src: Port<u32, 5> = Port::new();
+        src.add_values(&[1, 2, 3]).unwrap();
+        let mut dst: Port<u32, 5> = Port::new();
+        assert!(src.couple(&mut dst).is_ok());
+        assert_eq!(dst.get_values(), &[1, 2, 3]);
+        assert_eq!(src.get_values(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn port_couple_capacity_error() {
+        let mut src: Port<u32, 5> = Port::new();
+        src.add_values(&[1, 2, 3]).unwrap();
+        let mut dst: Port<u32, 2> = Port::new();
+        let result = src.couple(&mut dst);
+        assert!(result.is_err());
+        assert_eq!(src.get_values(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn port_is_full_len_cycle() {
+        let mut port: Port<u32, 3> = Port::new();
+        assert_eq!(port.len(), 0);
+        assert!(port.is_empty());
+        assert!(!port.is_full());
+
+        port.add_value(1).unwrap();
+        assert_eq!(port.len(), 1);
+        assert!(!port.is_empty());
+        assert!(!port.is_full());
+
+        port.add_value(2).unwrap();
+        assert_eq!(port.len(), 2);
+
+        port.add_value(3).unwrap();
+        assert_eq!(port.len(), 3);
+        assert!(port.is_full());
+
+        port.clear();
+        assert_eq!(port.len(), 0);
+        assert!(port.is_empty());
+        assert!(!port.is_full());
+    }
+
+    #[test]
+    fn port_multiple_add_clear_cycle() {
+        let mut port: Port<u32, 3> = Port::new();
+        for _ in 0..3 {
+            port.add_value(99).unwrap();
+            assert_eq!(port.len(), 1);
+            port.clear();
+            assert!(port.is_empty());
+        }
+    }
+
+    #[test]
+    fn port_bag_impl_contract() {
+        let mut bag = <Port<u32, 5> as Bag>::build();
+        assert!(bag.is_empty());
+
+        bag.add_value(7).unwrap();
+        assert!(!bag.is_empty());
+
+        bag.clear();
+        assert!(bag.is_empty());
+    }
+
+    #[test]
+    fn array_bag_impl_contract() {
+        let mut bags = <[Port<u32, 1>; 3] as Bag>::build();
+        assert!(bags.is_empty());
+
+        bags[0].add_value(1).unwrap();
+        assert!(!bags.is_empty());
+
+        bags[1].add_value(2).unwrap();
+        assert!(!bags.is_empty());
+
+        bags.clear();
+        assert!(bags.is_empty());
+    }
+
+    #[test]
+    fn unit_bag_impl() {
+        <() as Bag>::build();
+        assert!(<() as Bag>::is_empty(&()));
+        <() as Bag>::clear(&mut ());
+    }
+
+    #[test]
+    fn tuple_bag_impl_2_elements() {
+        let mut bag = <(Port<u32, 1>, Port<bool, 1>) as Bag>::build();
+        assert!(bag.is_empty());
+
+        bag.0.add_value(99).unwrap();
+        assert!(!bag.is_empty());
+
+        bag.1.add_value(true).unwrap();
+        assert!(!bag.is_empty());
+
+        bag.clear();
+        assert!(bag.is_empty());
+        assert!(bag.0.is_empty() && bag.1.is_empty());
+    }
+
+    #[test]
+    fn tuple_bag_impl_3_elements() {
+        let mut bag = <(Port<u32, 1>, Port<u32, 1>, Port<u32, 1>) as Bag>::build();
+        assert!(bag.is_empty());
+
+        bag.0.add_value(42).unwrap();
+        assert!(!bag.is_empty());
+
+        bag.1.add_value(42).unwrap();
+        assert!(!bag.is_empty());
+
+        bag.2.add_value(42).unwrap();
+        assert!(!bag.is_empty());
+
+        bag.clear();
+        assert!(bag.is_empty());
+        assert!(bag.0.is_empty() && bag.1.is_empty() && bag.2.is_empty());
+    }
+
+    #[test]
+    fn port_default_creates_empty() {
+        let port: Port<u32, 5> = Default::default();
+        assert!(port.is_empty());
+        assert_eq!(port.len(), 0);
+    }
+}
