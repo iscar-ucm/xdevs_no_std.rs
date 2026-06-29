@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use syn::{parse, parse_macro_input, Error};
+use syn::{parse, parse_macro_input, Error, Ident, ItemStruct};
 
 mod coupled;
 mod derive;
@@ -156,4 +156,55 @@ pub fn generate_ho_box(input: TokenStream) -> TokenStream {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }
+}
+
+/// Generate the input and output wrapper structs, and modify the original struct's fields to be of Simulator types
+fn build_component_structs(mut item: ItemStruct) -> (ItemStruct, ItemStruct, ItemStruct) {
+    let item_ident = &item.ident;
+
+    // Generate the input wrapper struct
+    let item_input_ident = Ident::new(&format!("{}Input", item_ident), item_ident.span());
+    let input_struct = {
+        let mut s = item.clone();
+        s.attrs = Vec::new();
+        s.ident = item_input_ident.clone();
+        if let syn::Fields::Named(fields) = &mut s.fields {
+            for field in &mut fields.named {
+                let original_ty = field.ty.clone();
+                field.ty = syn::parse_quote! {
+                    <#original_ty as ::xdevs::Component>::Input
+                };
+            }
+        }
+        s
+    };
+
+    // Generate the output wrapper struct
+    let item_output_ident = Ident::new(&format!("{}Output", item_ident), item_ident.span());
+    let output_struct = {
+        let mut s = item.clone();
+        s.attrs = Vec::new();
+        s.ident = item_output_ident.clone();
+        if let syn::Fields::Named(fields) = &mut s.fields {
+            for field in &mut fields.named {
+                let original_ty = field.ty.clone();
+                field.ty = syn::parse_quote! {
+                    <#original_ty as ::xdevs::Component>::Output
+                };
+            }
+        }
+        s
+    };
+
+    // Convert the struct's own fields to Simulator types
+    if let syn::Fields::Named(fields) = &mut item.fields {
+        for field in &mut fields.named {
+            let ty = &field.ty;
+            field.ty = syn::parse_quote! {
+                <#ty as ::xdevs::simulation::SimpleSimulable>::Simulator
+            };
+        }
+    }
+
+    (input_struct, output_struct, item)
 }

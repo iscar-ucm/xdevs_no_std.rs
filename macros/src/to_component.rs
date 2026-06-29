@@ -1,13 +1,11 @@
 use crate::combine_err;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Error, Ident, ItemEnum, ItemStruct, Result};
+use syn::{Error, ItemEnum, ItemStruct, Result};
 
-pub fn expand_struct(mut item: ItemStruct) -> Result<TokenStream2> {
+pub fn expand_struct(item: ItemStruct) -> Result<TokenStream2> {
     let mut acc: Option<Error> = None;
 
-    let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
-    let item_ident = &item.ident;
-
+    // Extract the field identifiers and types from the struct
     let mut item_fields = Vec::new();
     let mut item_tys = Vec::new();
 
@@ -25,10 +23,7 @@ pub fn expand_struct(mut item: ItemStruct) -> Result<TokenStream2> {
         _ => {
             combine_err(
                 &mut acc,
-                Error::new_spanned(
-                    &item.fields,
-                    "only named fields are supported",
-                ),
+                Error::new_spanned(&item.fields, "only named fields are supported"),
             );
         }
     }
@@ -37,57 +32,20 @@ pub fn expand_struct(mut item: ItemStruct) -> Result<TokenStream2> {
         return Err(err);
     }
 
-    // Generate the input wrapper struct
-    let item_input_ident =
-        Ident::new(&format!("{}Input", item_ident), item_ident.span());
-    let input_struct = {
-        let mut s = item.clone();
-        s.attrs = Vec::new();
-        s.ident = item_input_ident.clone();
-        if let syn::Fields::Named(fields) = &mut s.fields {
-            for field in &mut fields.named {
-                let original_ty = field.ty.clone();
-                field.ty = syn::parse_quote! {
-                    <#original_ty as ::xdevs::Component>::Input
-                };
-            }
-        }
-        s
-    };
+    // Generate the input and output wrapper structs, and modify the original struct's fields to be of Simulator types
+    let (input_struct, output_struct, item) = crate::build_component_structs(item);
 
-    // Generate the output wrapper struct
-    let item_output_ident =
-        Ident::new(&format!("{}Output", item_ident), item_ident.span());
-    let output_struct = {
-        let mut s = item.clone();
-        s.attrs = Vec::new();
-        s.ident = item_output_ident.clone();
-        if let syn::Fields::Named(fields) = &mut s.fields {
-            for field in &mut fields.named {
-                let original_ty = field.ty.clone();
-                field.ty = syn::parse_quote! {
-                    <#original_ty as ::xdevs::Component>::Output
-                };
-            }
-        }
-        s
-    };
-
-    // Convert the struct's own fields to Simulator types
-    if let syn::Fields::Named(fields) = &mut item.fields {
-        for field in &mut fields.named {
-            let ty = &field.ty;
-            field.ty = syn::parse_quote! {
-                <#ty as ::xdevs::simulation::SimpleSimulable>::Simulator
-            };
-        }
-    }
+    // Generate the implementation of the Component and AbstractSimulator traits for the struct
+    let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
+    let item_ident = &item.ident;
+    let item_input_ident = &input_struct.ident;
+    let item_output_ident = &output_struct.ident;
 
     let expanded = quote::quote! {
-        #[derive(::xdevs::Bag)]
+        #[derive(xdevs::Bag)]
         #input_struct
 
-        #[derive(::xdevs::Bag)]
+        #[derive(xdevs::Bag)]
         #output_struct
 
         #item
