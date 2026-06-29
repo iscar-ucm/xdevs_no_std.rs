@@ -47,7 +47,7 @@ impl<const W: usize> Devstone for LeafModel<W> {
 }
 
 /// HO model enum
-#[xdevs::model_enum]
+#[xdevs::to_component]
 pub enum HOEnum<const W: usize> {
     Leaf(LeafModel<W>),
     Branch(HOModel<W>),

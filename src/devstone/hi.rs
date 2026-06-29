@@ -2,7 +2,7 @@ use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
 use crate::Component;
 
 /// HI model enum (ref version)
-#[crate::model_enum]
+#[crate::to_component]
 pub enum HIEnum<'a, const W: usize> {
     Leaf(LeafModel),
     Branch(HIModel<'a, W>),

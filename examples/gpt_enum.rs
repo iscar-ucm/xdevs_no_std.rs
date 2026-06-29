@@ -1,4 +1,4 @@
-/// Illustrates #[xdevs::model_enum]: a GPT model where the processor is
+/// Illustrates #[xdevs::to_component] on an enum: a GPT model where the processor is
 /// chosen at build time between a fast and a slow variant, without any
 /// conditional logic in the coupled model.
 use xdevs::{
@@ -107,7 +107,7 @@ mod processor {
         }
     }
 
-    #[xdevs::model_enum]
+    #[xdevs::to_component]
     pub enum Processor {
         Fast(FastProcessor),
         Slow(SlowProcessor),

@@ -2,7 +2,7 @@ use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
 use alloc::boxed::Box;
 use xdevs::Component;
 
-#[xdevs::model_enum]
+#[xdevs::to_component]
 pub enum LIEnum<const W: usize> {
     Leaf(LeafModel),
     Branch(LIModel<W>),

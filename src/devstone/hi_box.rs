@@ -3,7 +3,7 @@ use crate::Component;
 use alloc::boxed::Box;
 
 /// HI model enum
-#[xdevs::model_enum]
+#[xdevs::to_component]
 pub enum HIEnum<const W: usize> {
     Leaf(LeafModel),
     Branch(HIModel<W>),
