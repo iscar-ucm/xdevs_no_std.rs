@@ -21,3 +21,9 @@ pub use embassy_time::{Duration, Instant};
 pub use port::Port;
 pub use simulation::{AbstractSimulator, Config};
 pub use xdevs_no_std_macros::*;
+
+/// Silly uncovered function to trigger codecov patch check.
+/// TODO: remove after testing.
+pub fn codecov_test_patch() -> u32 {
+    42
+}
