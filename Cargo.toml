@@ -67,5 +67,10 @@ required-features = ["std"]
 name = "rt_engine"
 required-features = ["std"]
 
+[[bin]]
+name = "devstone_generator"
+path = "src/bin/devstone_generator.rs"
+test = false
+
 [package.metadata.docs.rs]
 all-features = true

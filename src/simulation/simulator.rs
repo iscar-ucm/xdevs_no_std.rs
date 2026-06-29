@@ -99,3 +99,108 @@ unsafe impl<T: Atomic> AbstractSimulator for Simulator<T> {
         t_next
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{port::Port, simulation::test_utils::TestAtomic};
+
+    #[test]
+    fn start_sets_timing() {
+        let mut sim = Simulator::new(TestAtomic::oneshot(3.0));
+        let t_next = sim.start(0.0);
+        assert_eq!(sim.t_last, 0.0, "t_last = t_start");
+        assert_eq!(sim.t_next, 3.0, "t_next = t_start + ta()");
+        assert_eq!(t_next, 3.0, "start returns t_next");
+    }
+
+    #[test]
+    fn stop_called() {
+        let mut sim = Simulator::new(TestAtomic::oneshot(5.0));
+        sim.start(0.0);
+        sim.stop();
+        // No panic = pass
+    }
+
+    #[test]
+    fn lambda_called_on_internal() {
+        let mut sim = Simulator::new(TestAtomic::oneshot(3.0));
+        sim.start(0.0);
+        let mut output = Port::<usize, 1>::new();
+        sim.lambda(&mut output, 3.0);
+        assert_eq!(output.get_values(), &[99], "lambda called at t = t_next");
+    }
+
+    #[test]
+    fn lambda_not_called_before_internal() {
+        let mut sim = Simulator::new(TestAtomic::oneshot(5.0));
+        sim.start(0.0);
+        let mut output = Port::<usize, 1>::new();
+        sim.lambda(&mut output, 2.0);
+        assert!(output.is_empty(), "lambda skipped before t_next");
+    }
+
+    #[test]
+    fn delta_internal_transition() {
+        let mut sim = Simulator::new(TestAtomic::periodic(0.0, 2.0));
+        sim.start(0.0);
+        let mut output = Port::<usize, 1>::new();
+        output.add_value(99).unwrap();
+        sim.delta(&mut Port::new(), &mut output, 0.0);
+        assert_eq!(sim.component.int_calls, 1, "delta_int called");
+        assert!(output.is_empty(), "output cleared after delta_int");
+    }
+
+    #[test]
+    fn delta_external_transition() {
+        let mut sim = Simulator::new(TestAtomic::oneshot(5.0));
+        sim.start(0.0);
+        let mut input = Port::<usize, 1>::new();
+        input.add_value(99).unwrap();
+        let mut output = Port::<usize, 1>::new();
+        sim.delta(&mut input, &mut output, 2.0);
+        assert_eq!(sim.component.ext_calls, 1, "delta_ext called");
+        assert_eq!(sim.component.last_elapsed, 2.0, "elapsed = t - t_last");
+        assert!(input.is_empty(), "input cleared after delta_ext");
+    }
+
+    #[test]
+    fn delta_confluent_transition() {
+        let mut sim = Simulator::new(TestAtomic::periodic(0.0, 5.0));
+        sim.start(0.0);
+        let mut input = Port::<usize, 1>::new();
+        input.add_value(99).unwrap();
+        let mut output = Port::<usize, 1>::new();
+        output.add_value(99).unwrap();
+        sim.delta(&mut input, &mut output, 0.0);
+        assert_eq!(
+            sim.component.int_calls, 1,
+            "delta_int called (via delta_conf)"
+        );
+        assert_eq!(
+            sim.component.ext_calls, 1,
+            "delta_ext called (via delta_conf)"
+        );
+        assert!(input.is_empty(), "input cleared after delta_conf");
+        assert!(output.is_empty(), "output cleared after delta_conf");
+    }
+
+    #[test]
+    fn delta_no_transition() {
+        let mut sim = Simulator::new(TestAtomic::oneshot(5.0));
+        sim.start(0.0);
+        let t_next = sim.delta(&mut Port::new(), &mut Port::new(), 2.0);
+        assert_eq!(t_next, 5.0, "returns unchanged t_next");
+        assert_eq!(sim.component.int_calls, 0, "no delta_int");
+        assert_eq!(sim.component.ext_calls, 0, "no delta_ext");
+    }
+
+    #[test]
+    fn delta_updates_timing() {
+        let mut sim = Simulator::new(TestAtomic::periodic(0.0, 3.0));
+        sim.start(0.0);
+        sim.delta(&mut Port::new(), &mut Port::new(), 0.0);
+        assert_eq!(sim.t_last, 0.0, "t_last = t");
+        assert_eq!(sim.t_next, 3.0, "t_next = t + ta() (= period)");
+    }
+}
