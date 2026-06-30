@@ -1,7 +1,7 @@
 /// GPT-like example with an optional processor, using the library gpt module.
 use xdevs::{
     gpt::{Generator, Processor, Transducer},
-    AbstractSimulator, Simulable,
+    AbstractSimulator, ComponentsInput, ComponentsOutput, CoupledKind, Simulable,
 };
 
 /// Coupled model with an optional processor, demonstrates
@@ -17,13 +17,13 @@ pub struct GPTOptional {
 }
 
 impl xdevs::Component for GPTOptional {
-    type Kind = xdevs::CoupledKind;
+    type Kind = CoupledKind;
     type Input = ();
     type Output = ();
 }
 
 impl xdevs::Coupled for GPTOptional {
-    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
+    fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
         from.generator.couple(&mut to.processor).unwrap();
         from.generator
             .couple(&mut to.transducer.in_generator)

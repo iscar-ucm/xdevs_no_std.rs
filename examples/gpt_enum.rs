@@ -3,10 +3,12 @@
 /// conditional logic in the coupled model.
 use xdevs::{
     gpt::{Generator, Transducer},
-    AbstractSimulator, Simulable,
+    AbstractSimulator, CoupledKind, Simulable,
 };
 
 mod processor {
+    use xdevs::{AtomicKind, Port};
+
     pub struct FastProcessor {
         sigma: f64,
         time: f64,
@@ -14,9 +16,9 @@ mod processor {
     }
 
     impl xdevs::Component for FastProcessor {
-        type Kind = xdevs::AtomicKind;
-        type Input = xdevs::Port<usize, 1>;
-        type Output = xdevs::Port<usize, 1>;
+        type Kind = AtomicKind;
+        type Input = Port<usize, 1>;
+        type Output = Port<usize, 1>;
     }
 
     impl xdevs::Atomic for FastProcessor {
@@ -64,9 +66,9 @@ mod processor {
     }
 
     impl xdevs::Component for SlowProcessor {
-        type Kind = xdevs::AtomicKind;
-        type Input = xdevs::Port<usize, 1>;
-        type Output = xdevs::Port<usize, 1>;
+        type Kind = AtomicKind;
+        type Input = Port<usize, 1>;
+        type Output = Port<usize, 1>;
     }
 
     impl xdevs::Atomic for SlowProcessor {
@@ -122,7 +124,7 @@ pub struct GPT {
 }
 
 impl xdevs::Component for GPT {
-    type Kind = xdevs::CoupledKind;
+    type Kind = CoupledKind;
     type Input = ();
     type Output = ();
 }

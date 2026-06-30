@@ -4,7 +4,7 @@
 /// The last Transducer sends the stop signal back to the Generator.
 use xdevs::{
     gpt::{Generator, Processor, Transducer},
-    AbstractSimulator, Config, Simulable,
+    AbstractSimulator, ComponentsInput, ComponentsOutput, Config, CoupledKind, Simulable,
 };
 
 /// Coupled model with an array of processor-transducer pairs.
@@ -16,13 +16,13 @@ struct GPTArray<const N: usize> {
 }
 
 impl<const N: usize> xdevs::Component for GPTArray<N> {
-    type Kind = xdevs::CoupledKind;
+    type Kind = CoupledKind;
     type Input = ();
     type Output = ();
 }
 
 impl<const N: usize> xdevs::Coupled for GPTArray<N> {
-    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
+    fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
         for i in 0..N {
             from.generator.couple(&mut to.processors[i]).unwrap();
             from.processors[i]
