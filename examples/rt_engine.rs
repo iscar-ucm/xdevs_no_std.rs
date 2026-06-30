@@ -103,7 +103,7 @@ async fn receiver(mut receiver: TransparentReceiver) {
 async fn main() {
     let transparent = Transparent::new();
     let mut engine = transparent.into_rt_engine();
-    let config = xdevs::simulation::Config::new(0.0, 15.0, 1.0, None);
+    let config = xdevs::Config::new(0.0, 15.0, 1.0, None);
 
     let send = engine.sender();
     let recv = engine.receiver().unwrap();

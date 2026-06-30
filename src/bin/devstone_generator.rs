@@ -159,7 +159,7 @@ fn render_example(model: ModelType, width: usize, depth: usize) -> String {
     use std::time::Instant;
 {alloc_line}
     fn main() {{
-        use xdevs::simulation::{{AbstractSimulator, Simulable}};
+        use xdevs::{{AbstractSimulator, Simulable}};
 
         const WIDTH: usize = {width};
         const W: usize = WIDTH - 1;
@@ -175,7 +175,7 @@ fn render_example(model: ModelType, width: usize, depth: usize) -> String {
         println!("Model creation time: {{:?}}", duration);
         let start = Instant::now();
         let mut simulator = top_model.to_simulator();
-        let config = xdevs::simulation::Config::new(0.0, 10.0, 1.0, None);
+        let config = xdevs::Config::new(0.0, 10.0, 1.0, None);
         let duration = start.elapsed();
         println!("Simulator creation time: {{:?}}", duration);
         let start = Instant::now();

@@ -4,7 +4,7 @@
 /// The last Transducer sends the stop signal back to the Generator.
 use xdevs::{
     gpt::{Generator, Processor, Transducer},
-    simulation::{AbstractSimulator, Config, Simulable},
+    AbstractSimulator, Config, Simulable,
 };
 
 /// Coupled model with an array of processor-transducer pairs.

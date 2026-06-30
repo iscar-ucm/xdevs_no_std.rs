@@ -92,7 +92,7 @@ mod test {
 
     #[test]
     fn simulation_matches_expected_counts() {
-        use xdevs::simulation::{AbstractSimulator, Simulable};
+        use xdevs::{AbstractSimulator, Simulable};
 
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;
@@ -103,7 +103,7 @@ mod test {
         let generator = JobGenerator::new(5);
         let top_model: TopModel<W> = TopModel::build(generator, model_hi);
         let mut simulator = top_model.to_simulator();
-        let config = xdevs::simulation::Config::new(0.0, 10.0, 1.0, None);
+        let config = xdevs::Config::new(0.0, 10.0, 1.0, None);
         simulator.simulate_vt(&config);
 
         assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());

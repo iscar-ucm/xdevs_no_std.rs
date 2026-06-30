@@ -3,7 +3,7 @@
 /// conditional logic in the coupled model.
 use xdevs::{
     gpt::{Generator, Transducer},
-    simulation::{AbstractSimulator, Simulable},
+    AbstractSimulator, Simulable,
 };
 
 mod processor {
@@ -151,7 +151,7 @@ fn run_gpt(processor: processor::Processor) {
     println!("\n--- GPT with {} processor ---", label);
     let gpt = GPT::build(Generator::new(PERIOD), processor, Transducer::new(OBS_TIME));
     let mut simulator = gpt.to_simulator();
-    let config = xdevs::simulation::Config::new(0.0, 14.0, 1.0, None);
+    let config = xdevs::Config::new(0.0, 14.0, 1.0, None);
     simulator.simulate_rt(&config, xdevs::simulation::std::sleep(&config), |_| {});
 }
 
