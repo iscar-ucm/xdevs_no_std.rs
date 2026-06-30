@@ -67,10 +67,7 @@ impl<const W: usize> Devstone for TopModel<W> {
 }
 
 impl<const W: usize> xdevs::Coupled for TopModel<W> {
-    fn ic(
-        from: &xdevs::ComponentsOutput<Self>,
-        to: &mut xdevs::ComponentsInput<Self>,
-    ) {
+    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
         let _ = from.generator.couple(&mut to.li_model);
     }
 }

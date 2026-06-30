@@ -21,5 +21,5 @@ pub use component::{
 };
 pub use embassy_time::{Duration, Instant};
 pub use port::Port;
-pub use simulation::{AbstractSimulator, Config};
+pub use simulation::{AbstractSimulator, Config, Simulable};
 pub use xdevs_no_std_macros::*;

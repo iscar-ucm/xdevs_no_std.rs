@@ -67,10 +67,7 @@ impl<'a, const W: usize> Devstone for TopModel<'a, W> {
 }
 
 impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
-    fn ic(
-        from: &crate::ComponentsOutput<Self>,
-        to: &mut crate::ComponentsInput<Self>,
-    ) {
+    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
         let _ = from.generator.couple(&mut to.li_model);
     }
 }

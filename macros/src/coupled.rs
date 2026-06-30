@@ -2,8 +2,6 @@ use crate::combine_err;
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{Error, FieldsNamed, Ident, ItemStruct, Result};
 
-use super::to_component;
-
 pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
     let mut acc: Option<Error> = None;
 
@@ -41,18 +39,18 @@ pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
         return Err(err);
     }
 
-    // Generate the raw components struct (fields keep their original types).
-    // to_component will convert them to Simulator types and add Component + AbstractSimulator impls.
-    let components_ident =
-        Ident::new(&format!("{}Components", item_ident), item_ident.span());
+    // Generate the raw components struct with #[to_component] attribute.
+    let components_ident = Ident::new(&format!("{}Components", item_ident), item_ident.span());
     let raw_components = {
         let mut item = item.clone();
         item.ident = components_ident.clone();
         item
     };
 
-    // Delegate to to_component::expand_struct for type conversions and trait impls.
-    let component_tokens = to_component::expand_struct(raw_components)?;
+    let component_tokens = quote::quote! {
+        #[::xdevs::to_component]
+        #raw_components
+    };
 
     // Construct the initialization fields.
     let mut init_fields = Vec::new();

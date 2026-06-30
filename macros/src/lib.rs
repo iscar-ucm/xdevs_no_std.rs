@@ -9,7 +9,13 @@ mod to_component;
 
 /// Macro to generate coupled DEVS components.
 #[proc_macro_attribute]
-pub fn coupled(_args: TokenStream, item: TokenStream) -> TokenStream {
+pub fn coupled(args: TokenStream, item: TokenStream) -> TokenStream {
+    let args = proc_macro2::TokenStream::from(args);
+    if !args.is_empty() {
+        return syn::Error::new_spanned(args, "#[coupled] does not accept arguments")
+            .to_compile_error()
+            .into();
+    }
     let item = parse_macro_input!(item as syn::ItemStruct);
 
     match coupled::expand(item) {
@@ -20,7 +26,13 @@ pub fn coupled(_args: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Macro to generate DEVS components.
 #[proc_macro_attribute]
-pub fn to_component(_args: TokenStream, item: TokenStream) -> TokenStream {
+pub fn to_component(args: TokenStream, item: TokenStream) -> TokenStream {
+    let args = proc_macro2::TokenStream::from(args);
+    if !args.is_empty() {
+        return syn::Error::new_spanned(args, "#[to_component] does not accept arguments")
+            .to_compile_error()
+            .into();
+    }
     let item2 = item.clone();
 
     // Try parsing as a struct first (coupled model)

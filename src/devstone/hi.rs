@@ -38,10 +38,7 @@ impl<'a, const W: usize> crate::Coupled for HIModel<'a, W> {
         let _ = from.inner.couple(to);
     }
 
-    fn ic(
-        from: &crate::ComponentsOutput<Self>,
-        to: &mut crate::ComponentsInput<Self>,
-    ) {
+    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
         for i in 0..(W.saturating_sub(1)) {
             let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
         }
@@ -76,10 +73,7 @@ impl<'a, const W: usize> Devstone for TopModel<'a, W> {
 }
 
 impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
-    fn ic(
-        from: &crate::ComponentsOutput<Self>,
-        to: &mut crate::ComponentsInput<Self>,
-    ) {
+    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
         let _ = from.generator.couple(&mut to.hi_model);
     }
 }
