@@ -922,8 +922,13 @@ mod tests {
             CoupledKind,
         };
 
+        #[crate::to_component]
+        struct ArrayCoupledComponents {
+            inner: [TestAtomic; 3],
+        }
+
         struct ArrayCoupled {
-            components: [Simulator<TestAtomic>; 3],
+            components: ArrayCoupledComponents,
         }
 
         impl Component for ArrayCoupled {
@@ -933,22 +938,22 @@ mod tests {
         }
 
         impl crate::component::coupled::PartialCoupled for ArrayCoupled {
-            type Components = [TestAtomic; 3];
-            fn get_components(&self) -> &crate::component::coupled::Processors<Self> {
+            type Components = ArrayCoupledComponents;
+            fn get_components(&self) -> &crate::component::coupled::Components<Self> {
                 &self.components
             }
-            fn get_components_mut(&mut self) -> &mut crate::component::coupled::Processors<Self> {
+            fn get_components_mut(&mut self) -> &mut crate::component::coupled::Components<Self> {
                 &mut self.components
             }
         }
 
         impl Coupled for ArrayCoupled {
             fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
-                let _ = from.couple(&mut to[0]);
+                let _ = from.couple(&mut to.inner[0]);
             }
             fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-                let _ = from[0].couple(&mut to[1]);
-                let _ = from[1].couple(&mut to[2]);
+                let _ = from.inner[0].couple(&mut to.inner[1]);
+                let _ = from.inner[1].couple(&mut to.inner[2]);
             }
         }
 
@@ -956,7 +961,9 @@ mod tests {
         let a1 = TestAtomic::oneshot(f64::INFINITY);
         let a2 = TestAtomic::oneshot(f64::INFINITY);
         let model = ArrayCoupled {
-            components: [a0.to_simulator(), a1.to_simulator(), a2.to_simulator()],
+            components: ArrayCoupledComponents {
+                inner: [a0.to_simulator(), a1.to_simulator(), a2.to_simulator()],
+            },
         };
 
         let comps =
@@ -970,7 +977,7 @@ mod tests {
         let config = Config::new(0.0, 5.0, 1.0, None);
         coord.simulate_vt(&config);
 
-        let arr = &coord.components;
+        let arr = &coord.components.inner;
         assert_eq!(arr[0].int_calls, 3, "a0 fires 3 times (t=0,2,4)");
         assert_eq!(
             arr[1].ext_calls, 3,

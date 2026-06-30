@@ -1,8 +1,7 @@
 /// GPT-like example with an optional processor, using the library gpt module.
 use xdevs::{
-    component::coupled::ComponentsOutput,
     gpt::{Generator, Processor, Transducer},
-    simulation::{AbstractSimulator, Simulable},
+    AbstractSimulator, ComponentsInput, ComponentsOutput, CoupledKind, Simulable,
 };
 
 /// Coupled model with an optional processor, demonstrates
@@ -18,16 +17,13 @@ pub struct GPTOptional {
 }
 
 impl xdevs::Component for GPTOptional {
-    type Kind = xdevs::CoupledKind;
+    type Kind = CoupledKind;
     type Input = ();
     type Output = ();
 }
 
 impl xdevs::Coupled for GPTOptional {
-    fn ic(
-        from: &ComponentsOutput<Self>,
-        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
-    ) {
+    fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
         from.generator.couple(&mut to.processor).unwrap();
         from.generator
             .couple(&mut to.transducer.in_generator)
@@ -53,7 +49,7 @@ fn run_gpt(some_processor: bool) {
     println!("\n--- GPT with {} processor ---", label);
     let gpt = GPTOptional::build(Generator::new(PERIOD), processor, Transducer::new(OBS_TIME));
     let mut simulator = gpt.to_simulator();
-    let config = xdevs::simulation::Config::new(0.0, 14.0, 1.0, None);
+    let config = xdevs::Config::new(0.0, 14.0, 1.0, None);
     simulator.simulate_rt(&config, xdevs::simulation::std::sleep(&config), |_| {});
 }
 

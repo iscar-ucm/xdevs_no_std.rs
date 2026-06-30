@@ -1,6 +1,7 @@
 /// This example demonstrates how the rt_engine can be used to simplify the DEVS simulation
 /// interaction with other tasks. An array is used for the input to showcase how the input enum
 /// would look like for an input array.
+use xdevs::{AtomicKind, Config};
 
 #[derive(xdevs::Bag, xdevs::BagMux)]
 pub struct TransparentInput {
@@ -20,7 +21,7 @@ pub struct Transparent {
 
 #[xdevs::rt_engine(in_channel_size = 3, out_channel_size = 1)]
 impl xdevs::Component for Transparent {
-    type Kind = xdevs::AtomicKind;
+    type Kind = AtomicKind;
     type Input = TransparentInput;
     type Output = TransparentOutput;
 }
@@ -103,7 +104,7 @@ async fn receiver(mut receiver: TransparentReceiver) {
 async fn main() {
     let transparent = Transparent::new();
     let mut engine = transparent.into_rt_engine();
-    let config = xdevs::simulation::Config::new(0.0, 15.0, 1.0, None);
+    let config = Config::new(0.0, 15.0, 1.0, None);
 
     let send = engine.sender();
     let recv = engine.receiver().unwrap();

@@ -1,8 +1,98 @@
 use crate::combine_err;
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Error, ItemEnum, Result};
+use syn::{Error, ItemEnum, ItemStruct, Result};
 
-pub fn expand(mut item: ItemEnum) -> Result<TokenStream2> {
+pub fn expand_struct(item: ItemStruct) -> Result<TokenStream2> {
+    let mut acc: Option<Error> = None;
+
+    // Extract the field identifiers and types from the struct
+    let mut item_fields = Vec::new();
+    let mut item_tys = Vec::new();
+
+    match &item.fields {
+        syn::Fields::Named(fields) => {
+            for field in &fields.named {
+                let Some(field_ident) = &field.ident else {
+                    combine_err(&mut acc, Error::new_spanned(field, "expected named field"));
+                    continue;
+                };
+                item_fields.push(field_ident.clone());
+                item_tys.push(field.ty.clone());
+            }
+        }
+        _ => {
+            combine_err(
+                &mut acc,
+                Error::new_spanned(&item.fields, "only named fields are supported"),
+            );
+        }
+    }
+
+    if let Some(err) = acc {
+        return Err(err);
+    }
+
+    // Generate the input and output wrapper structs, and modify the original struct's fields to be of Simulator types
+    let (input_struct, output_struct, item) = crate::build_component_structs(item);
+
+    // Generate the implementation of the Component and AbstractSimulator traits for the struct
+    let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
+    let item_ident = &item.ident;
+    let item_input_ident = &input_struct.ident;
+    let item_output_ident = &output_struct.ident;
+
+    let expanded = quote::quote! {
+        #[derive(xdevs::Bag)]
+        #input_struct
+
+        #[derive(xdevs::Bag)]
+        #output_struct
+
+        #item
+
+        impl #impl_generics ::xdevs::Component for #item_ident #ty_generics #where_clause {
+            type Kind = ::xdevs::ComponentsKind;
+            type Input = #item_input_ident #ty_generics;
+            type Output = #item_output_ident #ty_generics;
+        }
+
+        unsafe impl #impl_generics ::xdevs::simulation::AbstractSimulator for #item_ident #ty_generics #where_clause {
+            type Input = <Self as ::xdevs::Component>::Input;
+            type Output = <Self as ::xdevs::Component>::Output;
+
+            #[inline(always)]
+            fn start(&mut self, t_start: f64) -> f64 {
+                let mut t_next = f64::INFINITY;
+                #(t_next = f64::min(t_next, ::xdevs::simulation::AbstractSimulator::start(&mut self.#item_fields, t_start));)*
+                t_next
+            }
+
+            #[inline(always)]
+            fn stop(&mut self) {
+                #(::xdevs::simulation::AbstractSimulator::stop(&mut self.#item_fields);)*
+            }
+
+            #[inline(always)]
+            fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+                #(::xdevs::simulation::AbstractSimulator::lambda(&mut self.#item_fields, &mut output.#item_fields, t);)*
+            }
+
+            #[inline(always)]
+            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+                let mut t_next = f64::INFINITY;
+                #(t_next = f64::min(t_next, ::xdevs::simulation::AbstractSimulator::delta(
+                        &mut self.#item_fields,
+                        &mut input.#item_fields,
+                        &mut output.#item_fields,
+                        t));)*
+                t_next
+            }
+        }
+    };
+
+    Ok(expanded)
+}
+pub fn expand_enum(mut item: ItemEnum) -> Result<TokenStream2> {
     let mut acc: Option<Error> = None;
 
     let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();

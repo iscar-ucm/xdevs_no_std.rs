@@ -1,7 +1,7 @@
 /// A simple DEVS GPT model using the library gpt module.
 use xdevs::{
     gpt::{Generator, Processor, Transducer, EF, EFP},
-    simulation::{AbstractSimulator, Simulable},
+    AbstractSimulator, Config, Simulable,
 };
 
 fn main() {
@@ -17,6 +17,6 @@ fn main() {
     let efp = EFP::build(ef, processor);
 
     let mut simulator = efp.to_simulator();
-    let config = xdevs::simulation::Config::new(0.0, 14.0, 1.0, None);
+    let config = Config::new(0.0, 14.0, 1.0, None);
     simulator.simulate_vt(&config);
 }

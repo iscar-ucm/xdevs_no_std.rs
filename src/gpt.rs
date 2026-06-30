@@ -201,10 +201,7 @@ impl xdevs::Component for GPT {
 }
 
 impl xdevs::Coupled for GPT {
-    fn ic(
-        from: &xdevs::component::coupled::ComponentsOutput<Self>,
-        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
-    ) {
+    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
         from.generator.couple(&mut to.processor).unwrap();
         from.processor
             .couple(&mut to.transducer.in_processor)
@@ -229,19 +226,16 @@ impl xdevs::Component for EF {
 }
 
 impl xdevs::Coupled for EF {
-    fn ic(
-        from: &xdevs::component::coupled::ComponentsOutput<Self>,
-        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
-    ) {
+    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
         from.generator
             .couple(&mut to.transducer.in_generator)
             .unwrap();
         from.transducer.couple(&mut to.generator).unwrap();
     }
-    fn eic(from: &Self::Input, to: &mut xdevs::component::coupled::ComponentsInput<Self>) {
+    fn eic(from: &Self::Input, to: &mut xdevs::ComponentsInput<Self>) {
         from.couple(&mut to.transducer.in_processor).unwrap();
     }
-    fn eoc(from: &xdevs::component::coupled::ComponentsOutput<Self>, to: &mut Self::Output) {
+    fn eoc(from: &xdevs::ComponentsOutput<Self>, to: &mut Self::Output) {
         from.generator.couple(to).unwrap();
     }
 }
@@ -259,10 +253,7 @@ impl xdevs::Component for EFP {
 }
 
 impl xdevs::Coupled for EFP {
-    fn ic(
-        from: &xdevs::component::coupled::ComponentsOutput<Self>,
-        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
-    ) {
+    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
         from.ef.couple(&mut to.processor).unwrap();
         from.processor.couple(&mut to.ef).unwrap();
     }

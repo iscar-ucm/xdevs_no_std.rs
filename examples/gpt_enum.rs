@@ -1,12 +1,14 @@
-/// Illustrates #[xdevs::model_enum]: a GPT model where the processor is
+/// Illustrates #[xdevs::to_component] on an enum: a GPT model where the processor is
 /// chosen at build time between a fast and a slow variant, without any
 /// conditional logic in the coupled model.
 use xdevs::{
     gpt::{Generator, Transducer},
-    simulation::{AbstractSimulator, Simulable},
+    AbstractSimulator, CoupledKind, Simulable,
 };
 
 mod processor {
+    use xdevs::{AtomicKind, Port};
+
     pub struct FastProcessor {
         sigma: f64,
         time: f64,
@@ -14,9 +16,9 @@ mod processor {
     }
 
     impl xdevs::Component for FastProcessor {
-        type Kind = xdevs::AtomicKind;
-        type Input = xdevs::Port<usize, 1>;
-        type Output = xdevs::Port<usize, 1>;
+        type Kind = AtomicKind;
+        type Input = Port<usize, 1>;
+        type Output = Port<usize, 1>;
     }
 
     impl xdevs::Atomic for FastProcessor {
@@ -64,9 +66,9 @@ mod processor {
     }
 
     impl xdevs::Component for SlowProcessor {
-        type Kind = xdevs::AtomicKind;
-        type Input = xdevs::Port<usize, 1>;
-        type Output = xdevs::Port<usize, 1>;
+        type Kind = AtomicKind;
+        type Input = Port<usize, 1>;
+        type Output = Port<usize, 1>;
     }
 
     impl xdevs::Atomic for SlowProcessor {
@@ -107,7 +109,7 @@ mod processor {
         }
     }
 
-    #[xdevs::model_enum]
+    #[xdevs::to_component]
     pub enum Processor {
         Fast(FastProcessor),
         Slow(SlowProcessor),
@@ -122,16 +124,13 @@ pub struct GPT {
 }
 
 impl xdevs::Component for GPT {
-    type Kind = xdevs::CoupledKind;
+    type Kind = CoupledKind;
     type Input = ();
     type Output = ();
 }
 
 impl xdevs::Coupled for GPT {
-    fn ic(
-        from: &xdevs::component::coupled::ComponentsOutput<Self>,
-        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
-    ) {
+    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
         from.generator.couple(&mut to.processor).unwrap();
         from.processor
             .couple(&mut to.transducer.in_processor)
@@ -154,7 +153,7 @@ fn run_gpt(processor: processor::Processor) {
     println!("\n--- GPT with {} processor ---", label);
     let gpt = GPT::build(Generator::new(PERIOD), processor, Transducer::new(OBS_TIME));
     let mut simulator = gpt.to_simulator();
-    let config = xdevs::simulation::Config::new(0.0, 14.0, 1.0, None);
+    let config = xdevs::Config::new(0.0, 14.0, 1.0, None);
     simulator.simulate_rt(&config, xdevs::simulation::std::sleep(&config), |_| {});
 }
 

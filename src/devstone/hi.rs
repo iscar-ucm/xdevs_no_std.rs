@@ -2,7 +2,7 @@ use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
 use crate::Component;
 
 /// HI model enum (ref version)
-#[crate::model_enum]
+#[crate::to_component]
 pub enum HIEnum<'a, const W: usize> {
     Leaf(LeafModel),
     Branch(HIModel<'a, W>),
@@ -26,7 +26,7 @@ impl<'a, const W: usize> crate::Component for HIModel<'a, W> {
 }
 
 impl<'a, const W: usize> crate::Coupled for HIModel<'a, W> {
-    fn eic(from: &Self::Input, to: &mut <Self::Components as crate::Component>::Input) {
+    fn eic(from: &Self::Input, to: &mut crate::ComponentsInput<Self>) {
         for atom_ports in to.atomics.iter_mut() {
             let _ = from.couple(atom_ports);
         }
@@ -34,14 +34,11 @@ impl<'a, const W: usize> crate::Coupled for HIModel<'a, W> {
         let _ = from.couple(&mut to.inner);
     }
 
-    fn eoc(from: &<Self::Components as crate::Component>::Output, to: &mut Self::Output) {
+    fn eoc(from: &crate::ComponentsOutput<Self>, to: &mut Self::Output) {
         let _ = from.inner.couple(to);
     }
 
-    fn ic(
-        from: &<Self::Components as crate::Component>::Output,
-        to: &mut <Self::Components as crate::Component>::Input,
-    ) {
+    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
         for i in 0..(W.saturating_sub(1)) {
             let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
         }
@@ -76,10 +73,7 @@ impl<'a, const W: usize> Devstone for TopModel<'a, W> {
 }
 
 impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
-    fn ic(
-        from: &<Self::Components as crate::Component>::Output,
-        to: &mut <Self::Components as crate::Component>::Input,
-    ) {
+    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
         let _ = from.generator.couple(&mut to.hi_model);
     }
 }

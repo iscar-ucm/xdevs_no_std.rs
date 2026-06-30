@@ -22,10 +22,10 @@ impl<const W: usize> xdevs::Component for LeafModel<W> {
 }
 
 impl<const W: usize> xdevs::Coupled for LeafModel<W> {
-    fn eic(from: &Self::Input, to: &mut <Self::Components as xdevs::Component>::Input) {
+    fn eic(from: &Self::Input, to: &mut xdevs::ComponentsInput<Self>) {
         let _ = from.couple(&mut to.atomic);
     }
-    fn eoc(from: &<Self::Components as xdevs::Component>::Output, to: &mut Self::Output) {
+    fn eoc(from: &xdevs::ComponentsOutput<Self>, to: &mut Self::Output) {
         let _ = from.atomic.couple(&mut to.output_port_1);
     }
 }
@@ -47,7 +47,7 @@ impl<const W: usize> Devstone for LeafModel<W> {
 }
 
 /// HO model enum
-#[xdevs::model_enum]
+#[xdevs::to_component]
 pub enum HOEnum<const W: usize> {
     Leaf(LeafModel<W>),
     Branch(HOModel<W>),
@@ -79,24 +79,21 @@ impl<const W: usize> xdevs::Component for HOModel<W> {
 }
 
 impl<const W: usize> xdevs::Coupled for HOModel<W> {
-    fn eic(from: &Self::Input, to: &mut <Self::Components as xdevs::Component>::Input) {
+    fn eic(from: &Self::Input, to: &mut xdevs::ComponentsInput<Self>) {
         let _ = from.couple(&mut to.inner);
         for atom_ports in to.atomics.iter_mut() {
             let _ = from.couple(atom_ports);
         }
     }
 
-    fn eoc(from: &<Self::Components as xdevs::Component>::Output, to: &mut Self::Output) {
+    fn eoc(from: &xdevs::ComponentsOutput<Self>, to: &mut Self::Output) {
         let _ = from.inner.output_port_1.couple(&mut to.output_port_1);
         for atom_output_ports in from.atomics.iter() {
             let _ = atom_output_ports.couple(&mut to.output_port_2);
         }
     }
 
-    fn ic(
-        from: &<Self::Components as xdevs::Component>::Output,
-        to: &mut <Self::Components as xdevs::Component>::Input,
-    ) {
+    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
         for i in 0..(W.saturating_sub(1)) {
             let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
         }
@@ -121,10 +118,7 @@ impl<const W: usize> Devstone for TopModel<W> {
 }
 
 impl<const W: usize> xdevs::Coupled for TopModel<W> {
-    fn ic(
-        from: &<Self::Components as xdevs::Component>::Output,
-        to: &mut <Self::Components as xdevs::Component>::Input,
-    ) {
+    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
         let _ = from.generator.couple(&mut to.ho_model);
     }
 }
@@ -143,7 +137,7 @@ mod test {
 
     #[test]
     fn simulation_matches_expected_counts() {
-        use xdevs::simulation::{AbstractSimulator, Simulable};
+        use xdevs::{AbstractSimulator, Simulable};
 
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;
@@ -154,7 +148,7 @@ mod test {
         let generator = JobGenerator::new(5);
         let top_model: TopModel<W> = TopModel::build(generator, model_ho);
         let mut simulator = top_model.to_simulator();
-        let config = xdevs::simulation::Config::new(0.0, 10.0, 1.0, None);
+        let config = xdevs::Config::new(0.0, 10.0, 1.0, None);
         simulator.simulate_vt(&config);
 
         assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());
