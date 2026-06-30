@@ -91,11 +91,11 @@ pub fn expand(mut item: ItemStruct) -> Result<TokenStream2> {
         impl #impl_generics ::xdevs::component::coupled::PartialCoupled for #item_ident #ty_generics #where_clause {
             type Components = #components_ident #ty_generics;
 
-            fn get_components(&self) -> &::xdevs::component::coupled::Processors<Self> {
+            fn get_components(&self) -> &::xdevs::component::coupled::Components<Self> {
                 &self.components
             }
 
-            fn get_components_mut(&mut self) -> &mut ::xdevs::component::coupled::Processors<Self> {
+            fn get_components_mut(&mut self) -> &mut ::xdevs::component::coupled::Components<Self> {
                 &mut self.components
             }
         }

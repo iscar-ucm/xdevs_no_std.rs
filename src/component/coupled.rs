@@ -1,23 +1,24 @@
 use crate::{
     component::{Component, CoupledKind},
-    simulation::SimpleSimulable,
+    simulation::AbstractSimulator,
 };
 
 /// Partial interface for DEVS coupled models. All DEVS coupled models must implement this trait.
 pub trait PartialCoupled: Component<Kind = CoupledKind> {
     /// Type of the inner components of this coupled model.
-    type Components: SimpleSimulable;
+    type Components: Component
+        + AbstractSimulator<
+            Input = <<Self as PartialCoupled>::Components as Component>::Input,
+            Output = <<Self as PartialCoupled>::Components as Component>::Output,
+        >;
 
-    fn get_components(&self) -> &Processors<Self>;
+    fn get_components(&self) -> &Components<Self>;
 
-    fn get_components_mut(&mut self) -> &mut Processors<Self>;
+    fn get_components_mut(&mut self) -> &mut Components<Self>;
 }
 
 /// Type alias for the inner components of a coupled model.
 pub type Components<T> = <T as PartialCoupled>::Components;
-
-/// Type alias for the simulator of the inner components of a coupled model.
-pub type Processors<T> = <<T as PartialCoupled>::Components as SimpleSimulable>::Simulator;
 
 /// Type alias for the input of the inner components of a coupled model.
 pub type ComponentsInput<T> = <<T as PartialCoupled>::Components as Component>::Input;
@@ -46,11 +47,11 @@ pub trait Coupled: PartialCoupled {
 impl<T: PartialCoupled> PartialCoupled for &mut T {
     type Components = T::Components;
 
-    fn get_components(&self) -> &Processors<Self> {
+    fn get_components(&self) -> &Components<Self> {
         T::get_components(&**self)
     }
 
-    fn get_components_mut(&mut self) -> &mut Processors<Self> {
+    fn get_components_mut(&mut self) -> &mut Components<Self> {
         T::get_components_mut(&mut **self)
     }
 }
@@ -74,11 +75,11 @@ impl<T: Coupled> Coupled for &mut T {
 impl<T: PartialCoupled> PartialCoupled for alloc::boxed::Box<T> {
     type Components = T::Components;
 
-    fn get_components(&self) -> &Processors<Self> {
+    fn get_components(&self) -> &Components<Self> {
         T::get_components(&**self)
     }
 
-    fn get_components_mut(&mut self) -> &mut Processors<Self> {
+    fn get_components_mut(&mut self) -> &mut Components<Self> {
         T::get_components_mut(&mut **self)
     }
 }

@@ -27,7 +27,7 @@ impl<const W: usize> xdevs::Component for HIModel<W> {
 }
 
 impl<const W: usize> xdevs::Coupled for HIModel<W> {
-    fn eic(from: &Self::Input, to: &mut <Self::Components as xdevs::Component>::Input) {
+    fn eic(from: &Self::Input, to: &mut xdevs::ComponentsInput<Self>) {
         for atom_ports in to.atomics.iter_mut() {
             let _ = from.couple(atom_ports);
         }
@@ -35,13 +35,13 @@ impl<const W: usize> xdevs::Coupled for HIModel<W> {
         let _ = from.couple(&mut to.inner);
     }
 
-    fn eoc(from: &<Self::Components as xdevs::Component>::Output, to: &mut Self::Output) {
+    fn eoc(from: &xdevs::ComponentsOutput<Self>, to: &mut Self::Output) {
         let _ = from.inner.couple(to);
     }
 
     fn ic(
-        from: &<Self::Components as xdevs::Component>::Output,
-        to: &mut <Self::Components as xdevs::Component>::Input,
+        from: &xdevs::ComponentsOutput<Self>,
+        to: &mut xdevs::ComponentsInput<Self>,
     ) {
         for i in 0..(W.saturating_sub(1)) {
             let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
@@ -77,8 +77,8 @@ impl<const W: usize> Devstone for TopModel<W> {
 
 impl<const W: usize> xdevs::Coupled for TopModel<W> {
     fn ic(
-        from: &<Self::Components as xdevs::Component>::Output,
-        to: &mut <Self::Components as xdevs::Component>::Input,
+        from: &xdevs::ComponentsOutput<Self>,
+        to: &mut xdevs::ComponentsInput<Self>,
     ) {
         let _ = from.generator.couple(&mut to.hi_model);
     }

@@ -15,7 +15,9 @@ pub mod rt_engine;
 pub mod simulation;
 
 pub use component::{
-    atomic::Atomic, coupled::Coupled, AtomicKind, Component, ComponentsKind, CoupledKind,
+    atomic::Atomic,
+    coupled::{ComponentsInput, ComponentsOutput, Coupled},
+    AtomicKind, Component, ComponentsKind, CoupledKind,
 };
 pub use embassy_time::{Duration, Instant};
 pub use port::Port;

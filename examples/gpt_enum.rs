@@ -128,10 +128,7 @@ impl xdevs::Component for GPT {
 }
 
 impl xdevs::Coupled for GPT {
-    fn ic(
-        from: &xdevs::component::coupled::ComponentsOutput<Self>,
-        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
-    ) {
+    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
         from.generator.couple(&mut to.processor).unwrap();
         from.processor
             .couple(&mut to.transducer.in_processor)

@@ -22,10 +22,7 @@ impl<const N: usize> xdevs::Component for GPTArray<N> {
 }
 
 impl<const N: usize> xdevs::Coupled for GPTArray<N> {
-    fn ic(
-        from: &xdevs::component::coupled::ComponentsOutput<Self>,
-        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
-    ) {
+    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
         for i in 0..N {
             from.generator.couple(&mut to.processors[i]).unwrap();
             from.processors[i]

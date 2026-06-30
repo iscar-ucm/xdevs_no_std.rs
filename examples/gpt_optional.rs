@@ -1,6 +1,5 @@
 /// GPT-like example with an optional processor, using the library gpt module.
 use xdevs::{
-    component::coupled::ComponentsOutput,
     gpt::{Generator, Processor, Transducer},
     simulation::{AbstractSimulator, Simulable},
 };
@@ -24,10 +23,7 @@ impl xdevs::Component for GPTOptional {
 }
 
 impl xdevs::Coupled for GPTOptional {
-    fn ic(
-        from: &ComponentsOutput<Self>,
-        to: &mut xdevs::component::coupled::ComponentsInput<Self>,
-    ) {
+    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
         from.generator.couple(&mut to.processor).unwrap();
         from.generator
             .couple(&mut to.transducer.in_generator)
