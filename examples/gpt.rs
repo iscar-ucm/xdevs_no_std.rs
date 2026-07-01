@@ -2,13 +2,13 @@
 use xdevs::{
     gpt::{Generator, Processor, Transducer, EF, EFP},
     prelude::*,
-    Config,
+    Config, Duration, Instant,
 };
 
 fn main() {
-    let period = 1.;
-    let proc_time = 1.1;
-    let obs_time = 10.;
+    let period = Duration::from_secs(1);
+    let proc_time = Duration::from_millis(1100);
+    let obs_time = Duration::from_secs(10);
 
     let generator = Generator::new(period);
     let processor = Processor::new(proc_time);
@@ -18,6 +18,6 @@ fn main() {
     let efp = EFP::build(ef, processor);
 
     let mut simulator = efp.to_simulator();
-    let config = Config::new(0.0, 14.0, 1.0, None);
+    let config = Config::new(Instant::from_secs(0), Instant::from_secs(14), 1, None);
     simulator.simulate_vt(&config);
 }

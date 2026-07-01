@@ -4,7 +4,7 @@ use xdevs::{
     devstone::ho,
     generate_ho,
     prelude::*,
-    Config,
+    Config, Instant,
 };
 #[cfg(feature = "alloc")]
 use xdevs::{devstone::ho_box, generate_ho_box};
@@ -19,7 +19,7 @@ fn bench_ho(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: ho::TopModel<'_, W> = ho::TopModel::build(generator, &mut model_ho);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(0.0, 10.0, 1.0, None);
+    let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
 
     let mut group = c.benchmark_group("ho-group");
     group.bench_function("ho-sim", |b| {
@@ -44,7 +44,7 @@ fn bench_ho_cycles(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: ho::TopModel<'_, W> = ho::TopModel::build(generator, &mut model_ho);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(0.0, 10.0, 1.0, None);
+    let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
 
     let mut group = c.benchmark_group("ho-group");
     group.bench_function("ho-cycles-sim", |b| {
@@ -73,7 +73,7 @@ fn bench_ho_box(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: ho_box::TopModel<W> = ho_box::TopModel::build(generator, model_ho);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(0.0, 10.0, 1.0, None);
+    let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
 
     let mut group = c.benchmark_group("ho-group");
     group.bench_function("ho-box-sim", |b| {

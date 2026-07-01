@@ -16,10 +16,10 @@ fn sim_send_predicates(item_tys: &[syn::Type]) -> Vec<TokenStream2> {
         .collect()
 }
 
-// Recursive helper: balanced rayon::join tree that returns f64 (start/delta).
+// Recursive helper: balanced rayon::join tree that returns xdevs::Instant (start/delta).
 fn join_min_tree(fields: &[&Ident], make_leaf: &dyn Fn(&Ident) -> TokenStream2) -> TokenStream2 {
     match fields.len() {
-        0 => quote::quote! { f64::INFINITY },
+        0 => quote::quote! { ::xdevs::Instant::MAX },
         1 => make_leaf(fields[0]),
         n => {
             let mid = n / 2;
@@ -30,7 +30,7 @@ fn join_min_tree(fields: &[&Ident], make_leaf: &dyn Fn(&Ident) -> TokenStream2) 
                     || { #left },
                     || { #right },
                 );
-                f64::min(l, r)
+                ::xdevs::Instant::min(l, r)
             }}
         }
     }
@@ -145,7 +145,7 @@ pub fn expand_struct(item: ItemStruct) -> Result<TokenStream2> {
                 type Output = <Self as ::xdevs::Component>::Output;
 
                 #[inline(always)]
-                fn start(&mut self, t_start: f64) -> f64 {
+                fn start(&mut self, t_start: ::xdevs::Instant) -> ::xdevs::Instant {
                     #par_start
                 }
 
@@ -155,12 +155,12 @@ pub fn expand_struct(item: ItemStruct) -> Result<TokenStream2> {
                 }
 
                 #[inline(always)]
-                fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+                fn lambda(&mut self, output: &mut Self::Output, t: ::xdevs::Instant) {
                     #par_lambda
                 }
 
                 #[inline(always)]
-                fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+                fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: ::xdevs::Instant) -> ::xdevs::Instant {
                     #par_delta
                 }
             }
@@ -168,31 +168,31 @@ pub fn expand_struct(item: ItemStruct) -> Result<TokenStream2> {
     } else {
         // Sequential path: simple loop over fields without SimSend bounds
         quote::quote! {
-            unsafe impl #impl_generics ::xdevs::simulation::AbstractSimulator for #item_ident #ty_generics #where_clause {
-                type Input = <Self as ::xdevs::Component>::Input;
-                type Output = <Self as ::xdevs::Component>::Output;
+                unsafe impl #impl_generics ::xdevs::simulation::AbstractSimulator for #item_ident #ty_generics #where_clause {
+                    type Input = <Self as ::xdevs::Component>::Input;
+                    type Output = <Self as ::xdevs::Component>::Output;
 
                 #[inline(always)]
-                fn start(&mut self, t_start: f64) -> f64 {
-                    let mut t_next = f64::INFINITY;
-                    #(t_next = f64::min(t_next, ::xdevs::simulation::AbstractSimulator::start(&mut self.#item_fields, t_start));)*
+                fn start(&mut self, t_start: ::xdevs::Instant) -> ::xdevs::Instant {
+                    let mut t_next = ::xdevs::Instant::MAX;
+                    #(t_next = ::xdevs::Instant::min(t_next, ::xdevs::simulation::AbstractSimulator::start(&mut self.#item_fields, t_start));)*
                     t_next
                 }
 
-                #[inline(always)]
-                fn stop(&mut self) {
-                    #(::xdevs::simulation::AbstractSimulator::stop(&mut self.#item_fields);)*
-                }
+                    #[inline(always)]
+                    fn stop(&mut self) {
+                        #(::xdevs::simulation::AbstractSimulator::stop(&mut self.#item_fields);)*
+                    }
 
                 #[inline(always)]
-                fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+                fn lambda(&mut self, output: &mut Self::Output, t: ::xdevs::Instant) {
                     #(::xdevs::simulation::AbstractSimulator::lambda(&mut self.#item_fields, &mut output.#item_fields, t);)*
                 }
 
                 #[inline(always)]
-                fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-                    let mut t_next = f64::INFINITY;
-                    #(t_next = f64::min(t_next, ::xdevs::simulation::AbstractSimulator::delta(
+                fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: ::xdevs::Instant) -> ::xdevs::Instant {
+                    let mut t_next = ::xdevs::Instant::MAX;
+                    #(t_next = ::xdevs::Instant::min(t_next, ::xdevs::simulation::AbstractSimulator::delta(
                             &mut self.#item_fields,
                             &mut input.#item_fields,
                             &mut output.#item_fields,
@@ -322,7 +322,7 @@ pub fn expand_enum(mut item: ItemEnum) -> Result<TokenStream2> {
             type Output = <#first_variant_ty as ::xdevs::Component>::Output;
 
             #[inline(always)]
-            fn start(&mut self, t_start: f64) -> f64 {
+            fn start(&mut self, t_start: ::xdevs::Instant) -> ::xdevs::Instant {
                 match self {
                     #(#start_arms),*
                 }
@@ -336,14 +336,14 @@ pub fn expand_enum(mut item: ItemEnum) -> Result<TokenStream2> {
             }
 
             #[inline(always)]
-            fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+            fn lambda(&mut self, output: &mut Self::Output, t: ::xdevs::Instant) {
                 match self {
                     #(#lambda_arms),*
                 }
             }
 
             #[inline(always)]
-            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: ::xdevs::Instant) -> ::xdevs::Instant {
                 match self {
                     #(#delta_arms),*
                 }
