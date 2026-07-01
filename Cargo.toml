@@ -41,6 +41,28 @@ std = [
 [[bench]]
 name = "ho"
 harness = false
+
+[[bench]]
+name = "hi"
+harness = false
+
+[[bench]]
+name = "li"
+harness = false
+
+[[bench]]
+name = "ho_box"
+harness = false
+required-features = ["alloc"]
+
+[[bench]]
+name = "hi_box"
+harness = false
+required-features = ["alloc"]
+
+[[bench]]
+name = "li_box"
+harness = false
 required-features = ["alloc"]
 
 [[example]]
