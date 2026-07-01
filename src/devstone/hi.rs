@@ -69,7 +69,7 @@ impl<'a, const W: usize> Component for TopModel<'a, W> {
 }
 
 impl<'a, const W: usize> Devstone for TopModel<'a, W> {
-    crate::impl_devstone_top!(hi_model);
+    crate::impl_devstone_top!(hi_model, generator);
 }
 
 impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
@@ -92,7 +92,7 @@ mod test {
     }
 
     #[test]
-    fn simulation_matches_expected_counts() {
+    fn simulation_matches_expected_counts_and_resets() {
         use crate::simulation::Simulable;
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;
@@ -109,5 +109,12 @@ mod test {
         assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());
         assert_eq!(expected_n_events(WIDTH, DEPTH), simulator.get_n_events());
         assert_eq!(simulator.get_n_internals(), simulator.get_n_externals());
+
+        simulator.reset();
+
+        assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());
+        assert_eq!(0, simulator.get_n_events());
+        assert_eq!(0, simulator.get_n_internals());
+        assert_eq!(0, simulator.get_n_externals());
     }
 }

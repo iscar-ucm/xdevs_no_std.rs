@@ -35,6 +35,10 @@ impl JobGenerator {
             count: val_count,
         }
     }
+
+    pub fn reset(&mut self) {
+        self.sigma = 0.0;
+    }
 }
 
 /// Simple atomic model
@@ -94,6 +98,7 @@ pub trait Devstone {
     fn get_n_externals(&self) -> usize;
     fn get_n_events(&self) -> usize;
     fn get_n_atomics(&self) -> usize;
+    fn reset(&mut self);
 }
 
 impl Devstone for AtomicModel {
@@ -111,6 +116,13 @@ impl Devstone for AtomicModel {
 
     fn get_n_atomics(&self) -> usize {
         1
+    }
+
+    fn reset(&mut self) {
+        self.sigma = f64::INFINITY;
+        self.n_internals = 0;
+        self.n_externals = 0;
+        self.n_events = 0;
     }
 }
 
@@ -148,6 +160,10 @@ impl Devstone for LeafModel {
     fn get_n_atomics(&self) -> usize {
         self.components.atomic.get_n_atomics()
     }
+
+    fn reset(&mut self) {
+        self.components.atomic.reset();
+    }
 }
 
 impl Default for LeafModel {
@@ -180,6 +196,9 @@ macro_rules! impl_devstone_leaf {
         fn get_n_atomics(&self) -> usize {
             self.components.atomic.get_n_atomics()
         }
+        fn reset(&mut self) {
+            self.components.atomic.reset();
+        }
     };
 }
 
@@ -208,6 +227,12 @@ macro_rules! impl_devstone_enum {
             match self {
                 Self::Leaf(leaf) => leaf.get_n_atomics(),
                 Self::Branch(branch) => branch.get_n_atomics(),
+            }
+        }
+        fn reset(&mut self) {
+            match self {
+                Self::Leaf(leaf) => leaf.reset(),
+                Self::Branch(branch) => branch.reset(),
             }
         }
     };
@@ -244,12 +269,18 @@ macro_rules! impl_devstone_coupled {
             }
             sum
         }
+        fn reset(&mut self) {
+            self.components.inner.reset();
+            for a in self.components.atomics.iter_mut() {
+                a.reset();
+            }
+        }
     };
 }
 
 #[macro_export]
 macro_rules! impl_devstone_top {
-    ($child:ident) => {
+    ($child:ident $(, $extra:ident)*) => {
         fn get_n_internals(&self) -> usize {
             self.components.$child.get_n_internals()
         }
@@ -261,6 +292,10 @@ macro_rules! impl_devstone_top {
         }
         fn get_n_atomics(&self) -> usize {
             self.components.$child.get_n_atomics()
+        }
+        fn reset(&mut self) {
+            self.components.$child.reset();
+            $(self.components.$extra.reset();)*
         }
     };
 }
