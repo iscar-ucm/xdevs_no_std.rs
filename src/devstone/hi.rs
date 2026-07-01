@@ -84,6 +84,7 @@ impl<'a, const W: usize> Coupled for TopModel<'a, W> {
 mod test {
     use super::*;
     use crate::prelude::*;
+    use crate::Instant;
 
     fn expected_n_atomic(width: usize, depth: usize) -> usize {
         (width - 1) * (depth - 1) + 1
@@ -104,7 +105,8 @@ mod test {
         let generator = JobGenerator::new(5);
         let top_model: TopModel<'_, W> = TopModel::build(generator, &mut model_hi);
         let mut simulator = top_model.to_simulator();
-        let config = crate::Config::new(0.0, 10.0, 1.0, None);
+        let config =
+            crate::simulation::Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
         simulator.simulate_vt(&config);
 
         assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());

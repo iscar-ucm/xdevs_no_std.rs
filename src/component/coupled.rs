@@ -98,7 +98,9 @@ mod tests {
     use xdevs_no_std_macros::coupled;
 
     use super::{ComponentsInput, ComponentsOutput, Coupled, PartialCoupled};
-    use crate::{bag::Bag, component::CoupledKind, couple, gpt::Processor, Component, Port};
+    use crate::{
+        bag::Bag, component::CoupledKind, couple, gpt::Processor, Component, Duration, Port,
+    };
 
     #[coupled]
     struct ForwardChain {
@@ -182,7 +184,10 @@ mod tests {
         assert_eq!(output.as_slice(), &[99], "eoc delegates through &mut T");
 
         // PartialCoupled: get_components through &mut T blanket
-        let mut model = ForwardChain::build([Processor::new(1.), Processor::new(1.)]);
+        let mut model = ForwardChain::build([
+            Processor::new(Duration::from_secs(1)),
+            Processor::new(Duration::from_secs(1)),
+        ]);
         let mut r: &mut ForwardChain = &mut model;
         let addr_real = &r.components as *const _ as usize;
 
@@ -232,8 +237,8 @@ mod tests {
 
         // PartialCoupled: get_components through Box<T> blanket
         let mut model = Box::new(ForwardChain::build([
-            Processor::new(1.),
-            Processor::new(1.),
+            Processor::new(Duration::from_secs(1)),
+            Processor::new(Duration::from_secs(1)),
         ]));
 
         let comps = <Box<ForwardChain> as PartialCoupled>::get_components(&model);

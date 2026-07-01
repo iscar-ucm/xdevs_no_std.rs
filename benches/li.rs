@@ -4,7 +4,7 @@ use xdevs::{
     devstone::li,
     generate_li,
     prelude::*,
-    Config,
+    Config, Instant,
 };
 #[cfg(feature = "alloc")]
 use xdevs::{devstone::li_box, generate_li_box};
@@ -18,7 +18,7 @@ fn bench_li(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: li::TopModel<'_, W> = li::TopModel::build(generator, &mut model_li);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(0.0, 10.0, 1.0, None);
+    let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
 
     let mut group = c.benchmark_group("li-group");
     group.bench_function("li-sim", |b| {
@@ -42,7 +42,7 @@ fn bench_li_cycles(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: li::TopModel<'_, W> = li::TopModel::build(generator, &mut model_li);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(0.0, 10.0, 1.0, None);
+    let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
 
     let mut group = c.benchmark_group("li-group");
     group.bench_function("li-cycles-sim", |b| {
@@ -70,7 +70,7 @@ fn bench_li_box(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: li_box::TopModel<W> = li_box::TopModel::build(generator, model_li);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(0.0, 10.0, 1.0, None);
+    let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
 
     let mut group = c.benchmark_group("li-group");
     group.bench_function("li-box-sim", |b| {
