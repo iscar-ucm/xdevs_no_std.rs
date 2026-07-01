@@ -4,7 +4,7 @@ pub use crate::export::{RecvError, SubscribeError};
 use crate::{
     port::Bag,
     simulation::{AbstractSimulator, AsyncInput, Simulable},
-    Component, Duration, Instant,
+    Component,
 };
 use sealed::Sealed;
 
@@ -88,7 +88,6 @@ where
     M::Input: InjectInput,
 {
     input_channel: &'a mut <M::Input as InjectInput>::InputChannel,
-    last_rt: Option<crate::Instant>,
 }
 
 impl<'a, K, M> RtEngineInputHandler<'a, K, M>
@@ -97,10 +96,7 @@ where
     M::Input: InjectInput,
 {
     fn new(input_channel: &'a mut <M::Input as InjectInput>::InputChannel) -> Self {
-        Self {
-            input_channel,
-            last_rt: None,
-        }
+        Self { input_channel }
     }
 }
 
@@ -111,41 +107,8 @@ where
 {
     type Input = M::Input;
 
-    async fn handle(
-        &mut self,
-        config: &crate::Config,
-        t_from: f64,
-        t_until: f64,
-        input: &mut Self::Input,
-    ) -> f64 {
-        let last_rt = self.last_rt.unwrap_or_else(Instant::now);
-        let time_duration = (t_until - t_from) * config.time_scale;
-        let time_duration = (time_duration * 1_000_000_000.0) as u64;
-        let next_rt = last_rt + Duration::from_nanos(time_duration);
-
-        let future = async {
-            input.map_input(self.input_channel).await;
-        };
-
-        if embassy_time::with_deadline(next_rt, future).await.is_err() {
-            // Deadline reached (timeout), check for jitter
-            if let Some(max_jitter) = config.max_jitter {
-                let jitter = Instant::now().duration_since(next_rt);
-                let max_jitter_ticks = Duration::from_micros(max_jitter.as_micros() as u64);
-                if jitter > max_jitter_ticks {
-                    panic!("Jitter too high: {:?}", jitter);
-                }
-            }
-            self.last_rt = Some(next_rt);
-            t_until
-        } else {
-            let now = Instant::now();
-            self.last_rt = Some(now);
-            let elapsed_rt = now.duration_since(last_rt).as_micros() as f64 / 1_000_000.0;
-            let elapsed_sim = elapsed_rt / config.time_scale;
-
-            t_from + elapsed_sim
-        }
+    async fn handle(&mut self, input: &mut Self::Input) {
+        input.map_input(self.input_channel).await;
     }
 }
 

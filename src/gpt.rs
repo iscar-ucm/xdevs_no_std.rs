@@ -1,10 +1,11 @@
 use crate::{
-    Atomic, AtomicKind, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port,
+    Atomic, AtomicKind, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind,
+    Duration, Port,
 };
 /// Generator that produces jobs at a fixed period until told to stop.
 pub struct Generator {
-    sigma: f64,
-    period: f64,
+    sigma: Duration,
+    period: Duration,
     count: usize,
 }
 
@@ -26,26 +27,26 @@ impl Atomic for Generator {
         output.add_value(self.count).unwrap();
     }
 
-    fn ta(&self) -> f64 {
+    fn ta(&self) -> Duration {
         self.sigma
     }
 
-    fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+    fn delta_ext(&mut self, elapsed: Duration, input: &Self::Input) {
         self.sigma -= elapsed;
         if let Some(&stop) = input.get_values().last() {
             #[cfg(feature = "std")]
             std::println!("[G] received stop: {}", stop);
             if stop {
-                self.sigma = f64::INFINITY;
+                self.sigma = Duration::MAX;
             }
         }
     }
 }
 
 impl Generator {
-    pub fn new(period: f64) -> Self {
+    pub fn new(period: Duration) -> Self {
         Self {
-            sigma: 0.0,
+            sigma: Duration::from_secs(0),
             period,
             count: 0,
         }
@@ -54,8 +55,8 @@ impl Generator {
 
 /// Processor that receives a job, processes it for a fixed duration, then outputs it.
 pub struct Processor {
-    sigma: f64,
-    time: f64,
+    sigma: Duration,
+    time: Duration,
     job: Option<usize>,
 }
 
@@ -67,7 +68,7 @@ impl Component for Processor {
 
 impl Atomic for Processor {
     fn delta_int(&mut self) {
-        self.sigma = f64::INFINITY;
+        self.sigma = Duration::MAX;
         if self.job.is_some() {
             #[cfg(feature = "std")]
             std::println!("[P] processed job {}", self.job.unwrap());
@@ -81,11 +82,11 @@ impl Atomic for Processor {
         }
     }
 
-    fn ta(&self) -> f64 {
+    fn ta(&self) -> Duration {
         self.sigma
     }
 
-    fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+    fn delta_ext(&mut self, elapsed: Duration, input: &Self::Input) {
         self.sigma -= elapsed;
         if let Some(&job) = input.get_values().last() {
             #[cfg(feature = "std")]
@@ -104,9 +105,9 @@ impl Atomic for Processor {
 }
 
 impl Processor {
-    pub fn new(time: f64) -> Self {
+    pub fn new(time: Duration) -> Self {
         Self {
-            sigma: 0.0,
+            sigma: Duration::from_secs(0),
             time,
             job: None,
         }
@@ -123,8 +124,8 @@ pub struct TransducerInput {
 /// Transducer that observes generated and processed jobs, computes metrics,
 /// and sends a stop signal to the Generator.
 pub struct Transducer {
-    sigma: f64,
-    clock: f64,
+    sigma: Duration,
+    clock: Duration,
     n_generated: usize,
     n_processed: usize,
 }
@@ -144,18 +145,18 @@ impl Atomic for Transducer {
             self.acceptance(),
             self.throughput()
         );
-        self.sigma = f64::INFINITY;
+        self.sigma = Duration::MAX;
     }
 
     fn lambda(&self, output: &mut Self::Output) {
         output.add_value(true).unwrap();
     }
 
-    fn ta(&self) -> f64 {
+    fn ta(&self) -> Duration {
         self.sigma
     }
 
-    fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+    fn delta_ext(&mut self, elapsed: Duration, input: &Self::Input) {
         self.sigma -= elapsed;
         self.clock += elapsed;
         self.n_generated += input.in_generator.get_values().len();
@@ -164,10 +165,10 @@ impl Atomic for Transducer {
 }
 
 impl Transducer {
-    pub fn new(obs_time: f64) -> Self {
+    pub fn new(obs_time: Duration) -> Self {
         Self {
             sigma: obs_time,
-            clock: 0.0,
+            clock: Duration::from_secs(0),
             n_generated: 0,
             n_processed: 0,
         }
@@ -183,7 +184,7 @@ impl Transducer {
 
     pub fn throughput(&self) -> f64 {
         if self.n_processed > 0 {
-            self.n_processed as f64 / self.clock
+            self.n_processed as f64 / self.clock.as_secs() as f64
         } else {
             0.0
         }
@@ -265,37 +266,53 @@ impl Coupled for EFP {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{port::Bag, prelude::*, Atomic, Component, Config};
+    use crate::{port::Bag, prelude::*, Atomic, Component, Config, Instant};
 
     #[test]
     fn generator_emits_sequential_jobs() {
-        let mut gen = Generator::new(1.0);
-        assert_eq!(gen.ta(), 0.0, "generator should fire immediately");
+        let mut gen = Generator::new(Duration::from_secs(1));
+        assert_eq!(
+            gen.ta(),
+            Duration::from_secs(0),
+            "generator should fire immediately"
+        );
 
         let mut out = <Generator as Component>::Output::build();
         gen.lambda(&mut out);
         assert_eq!(out.get_values(), &[0], "first job should be 0");
         gen.delta_int();
-        assert_eq!(gen.ta(), 1.0, "ta should be the period after delta_int");
+        assert_eq!(
+            gen.ta(),
+            Duration::from_secs(1),
+            "ta should be the period after delta_int"
+        );
         out.clear();
 
         gen.lambda(&mut out);
         assert_eq!(out.get_values(), &[1], "second job should be 1");
         gen.delta_int();
-        assert_eq!(gen.ta(), 1.0, "ta should be the period after delta_int");
+        assert_eq!(
+            gen.ta(),
+            Duration::from_secs(1),
+            "ta should be the period after delta_int"
+        );
         out.clear();
 
         gen.lambda(&mut out);
         assert_eq!(out.get_values(), &[2], "third job should be 2");
         gen.delta_int();
-        assert_eq!(gen.ta(), 1.0, "ta should be the period after delta_int");
+        assert_eq!(
+            gen.ta(),
+            Duration::from_secs(1),
+            "ta should be the period after delta_int"
+        );
         out.clear();
     }
 
     #[test]
     fn generator_stops_on_stop_signal() {
-        let mut gen = Generator::new(1.0);
-        assert_eq!(gen.ta(), 0.0);
+        let mut gen = Generator::new(Duration::from_secs(1));
+        assert_eq!(gen.ta(), Duration::from_secs(0));
 
         let mut input = <Generator as Component>::Input::build();
         input.add_value(true).unwrap();
@@ -303,19 +320,20 @@ mod tests {
 
         assert_eq!(
             gen.ta(),
-            f64::INFINITY,
+            Duration::MAX,
             "generator should stop after receiving stop=true"
         );
     }
 
     #[test]
     fn generator_does_not_stop_without_stop_signal() {
-        let mut gen = Generator::new(1.0);
-        assert_eq!(gen.ta(), 0.0);
+        let mut gen = Generator::new(Duration::from_secs(1));
+        assert_eq!(gen.ta(), Duration::from_secs(0));
+        gen.sigma = Duration::from_secs(2);
 
         let mut input = <Generator as Component>::Input::build();
         let mut ta = gen.ta();
-        let elapsed = 0.5;
+        let elapsed = Duration::from_millis(500);
 
         gen.delta_ext(elapsed, &input);
         assert_eq!(
@@ -337,8 +355,12 @@ mod tests {
 
     #[test]
     fn processor_receives_and_processes_job() {
-        let mut proc = Processor::new(2.5);
-        assert_eq!(proc.ta(), 0.0, "processor should fire immediately (idle)");
+        let mut proc = Processor::new(Duration::from_millis(2500));
+        assert_eq!(
+            proc.ta(),
+            Duration::from_secs(0),
+            "processor should fire immediately (idle)"
+        );
 
         let mut out = <Processor as Component>::Output::build();
         proc.lambda(&mut out);
@@ -346,21 +368,25 @@ mod tests {
         proc.delta_int();
         assert_eq!(
             proc.ta(),
-            f64::INFINITY,
+            Duration::MAX,
             "processor should be awaiting a job after delta_int"
         );
 
         let mut input = <Processor as Component>::Input::build();
         input.add_value(99).unwrap();
-        proc.delta_ext(0.0, &input);
-        assert_eq!(proc.ta(), 2.5, "processor should be busy for 2.5 seconds");
+        proc.delta_ext(Duration::from_secs(0), &input);
+        assert_eq!(
+            proc.ta(),
+            Duration::from_millis(2500),
+            "processor should be busy for 2.5 seconds"
+        );
 
         proc.lambda(&mut out);
         assert_eq!(out.get_values(), &[99]);
         proc.delta_int();
         assert_eq!(
             proc.ta(),
-            f64::INFINITY,
+            Duration::MAX,
             "processor should be idle after processing"
         );
         out.clear();
@@ -368,15 +394,15 @@ mod tests {
 
     #[test]
     fn processor_ignores_jobs_while_busy() {
-        let mut proc = Processor::new(2.5);
+        let mut proc = Processor::new(Duration::from_millis(2500));
 
         let mut input = <Processor as Component>::Input::build();
         input.add_value(10).unwrap();
-        proc.delta_ext(0.0, &input);
+        proc.delta_ext(Duration::from_secs(0), &input);
 
         let mut input = <Processor as Component>::Input::build();
         input.add_value(20).unwrap();
-        proc.delta_ext(1.0, &input);
+        proc.delta_ext(Duration::from_secs(1), &input);
 
         let mut out = <Processor as Component>::Output::build();
         proc.lambda(&mut out);
@@ -389,7 +415,7 @@ mod tests {
 
         let mut input = <Processor as Component>::Input::build();
         input.add_value(30).unwrap();
-        proc.delta_ext(0.0, &input);
+        proc.delta_ext(Duration::from_secs(0), &input);
 
         let mut out = <Processor as Component>::Output::build();
         proc.lambda(&mut out);
@@ -398,27 +424,27 @@ mod tests {
 
     #[test]
     fn transducer_counts_and_computes_metrics() {
-        let mut trans = Transducer::new(10.0);
-        assert_eq!(trans.ta(), 10.0);
+        let mut trans = Transducer::new(Duration::from_secs(10));
+        assert_eq!(trans.ta(), Duration::from_secs(10));
         assert_eq!(trans.acceptance(), 0.0);
         assert_eq!(trans.throughput(), 0.0);
 
         let mut input = TransducerInput::build();
         input.in_generator.add_value(0).unwrap();
-        trans.delta_ext(1.0, &input);
+        trans.delta_ext(Duration::from_secs(1), &input);
 
         let mut input = TransducerInput::build();
         input.in_generator.add_value(1).unwrap();
-        trans.delta_ext(1.0, &input);
+        trans.delta_ext(Duration::from_secs(1), &input);
 
         let mut input = TransducerInput::build();
         input.in_generator.add_value(2).unwrap();
         input.in_processor.add_value(0).unwrap();
-        trans.delta_ext(3.0, &input);
+        trans.delta_ext(Duration::from_secs(3), &input);
 
         trans.delta_int();
 
-        assert_eq!(trans.ta(), f64::INFINITY, "transducer stops after obs_time");
+        assert_eq!(trans.ta(), Duration::MAX, "transducer stops after obs_time");
         assert!(
             trans.acceptance() == 1.0 / 3.0,
             "acceptance = n_processed / n_generated = 1/3"
@@ -431,7 +457,7 @@ mod tests {
 
     #[test]
     fn transducer_sends_stop_signal() {
-        let trans = Transducer::new(10.0);
+        let trans = Transducer::new(Duration::from_secs(10));
         let mut output = <Transducer as Component>::Output::build();
         trans.lambda(&mut output);
         assert_eq!(output.get_values(), &[true], "should send stop signal");
@@ -439,29 +465,32 @@ mod tests {
 
     #[test]
     fn gpt_simulation_runs() {
-        let period = 1.0;
-        let processing_time = 2.5;
-        let obs_time = 10.0;
+        let period = Duration::from_secs(1);
+        let processing_time = Duration::from_millis(2500);
+        let obs_time = Duration::from_secs(10);
 
-        // Generator fires at t = 0, period, 2*period, ..., obs_time
-        let n_generated = (obs_time / period) as usize + 1;
-        // Processor handles job 0 immediately, then every k-th job where
-        // k = ceil(processing_time / period) — the next job that arrives
-        // after or exactly when the processor becomes idle.
-        let k = f64::ceil(processing_time / period) as usize;
+        let obs_ticks = obs_time.as_ticks();
+        let period_ticks = period.as_ticks();
+        let proc_ticks = processing_time.as_ticks();
+
+        let n_generated = (obs_ticks / period_ticks) as usize + 1;
+        let k = proc_ticks.div_ceil(period_ticks) as usize;
         let n_processed = 1 + (n_generated - 1) / k;
-        let last_completion = ((n_processed - 1) * k) as f64 * period + processing_time;
-        let clock = last_completion.max(obs_time);
+        let last_completion_ticks = ((n_processed - 1) * k) as u64 * period_ticks + proc_ticks;
+        let clock_ticks = last_completion_ticks.max(obs_ticks);
 
         let expected_acceptance = n_processed as f64 / n_generated as f64;
-        let expected_throughput = n_processed as f64 / clock;
+
+        let clock_secs = (clock_ticks / embassy_time::TICK_HZ) as f64;
+
+        let expected_throughput = n_processed as f64 / clock_secs;
 
         let gen = Generator::new(period);
         let proc = Processor::new(processing_time);
         let trans = Transducer::new(obs_time);
         let model = GPT::build(gen, proc, trans);
         let mut sim = model.to_simulator();
-        let config = Config::new(0.0, 20.0, 1.0, None);
+        let config = Config::new(Instant::from_secs(0), Instant::from_secs(20), 1, None);
         sim.simulate_vt(&config);
 
         let trans = &*sim.components.transducer;
@@ -479,25 +508,32 @@ mod tests {
 
     #[test]
     fn efp_simulation_runs() {
-        let period = 1.0;
-        let processing_time = 2.5;
-        let obs_time = 10.0;
+        let period = Duration::from_secs(1);
+        let processing_time = Duration::from_millis(2500);
+        let obs_time = Duration::from_secs(10);
 
-        let n_generated = (obs_time / period) as usize + 1;
-        let k = f64::ceil(processing_time / period) as usize;
+        let obs_ticks = obs_time.as_ticks();
+        let period_ticks = period.as_ticks();
+        let proc_ticks = processing_time.as_ticks();
+
+        let n_generated = (obs_ticks / period_ticks) as usize + 1;
+        let k = proc_ticks.div_ceil(period_ticks) as usize;
         let n_processed = 1 + (n_generated - 1) / k;
-        let last_completion = ((n_processed - 1) * k) as f64 * period + processing_time;
-        let clock = last_completion.max(obs_time);
+        let last_completion_ticks = ((n_processed - 1) * k) as u64 * period_ticks + proc_ticks;
+        let clock_ticks = last_completion_ticks.max(obs_ticks);
 
         let expected_acceptance = n_processed as f64 / n_generated as f64;
-        let expected_throughput = n_processed as f64 / clock;
+
+        let clock_secs = (clock_ticks / embassy_time::TICK_HZ) as f64;
+
+        let expected_throughput = n_processed as f64 / clock_secs;
 
         let gen = Generator::new(period);
         let proc = Processor::new(processing_time);
         let ef = EF::build(gen, Transducer::new(obs_time));
         let efp = EFP::build(ef, proc);
         let mut sim = efp.to_simulator();
-        let config = Config::new(0.0, 20.0, 1.0, None);
+        let config = Config::new(Instant::from_secs(0), Instant::from_secs(20), 1, None);
         sim.simulate_vt(&config);
 
         let trans = &*sim.components.ef.components.transducer;

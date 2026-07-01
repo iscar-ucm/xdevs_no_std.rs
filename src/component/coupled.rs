@@ -106,7 +106,7 @@ mod tests {
         component::CoupledKind,
         gpt::Processor,
         port::{Bag, Port},
-        Component,
+        Component, Duration,
     };
 
     #[coupled]
@@ -191,7 +191,10 @@ mod tests {
         assert_eq!(output.get_values(), &[99], "eoc delegates through &mut T");
 
         // PartialCoupled: get_components through &mut T blanket
-        let mut model = ForwardChain::build([Processor::new(1.), Processor::new(1.)]);
+        let mut model = ForwardChain::build([
+            Processor::new(Duration::from_secs(1)),
+            Processor::new(Duration::from_secs(1)),
+        ]);
         let mut r: &mut ForwardChain = &mut model;
         let addr_real = &r.components as *const _ as usize;
 
@@ -241,8 +244,8 @@ mod tests {
 
         // PartialCoupled: get_components through Box<T> blanket
         let mut model = Box::new(ForwardChain::build([
-            Processor::new(1.),
-            Processor::new(1.),
+            Processor::new(Duration::from_secs(1)),
+            Processor::new(Duration::from_secs(1)),
         ]));
 
         let comps = <Box<ForwardChain> as PartialCoupled>::get_components(&model);
