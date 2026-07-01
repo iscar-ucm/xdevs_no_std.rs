@@ -1,7 +1,7 @@
 /// This example demonstrates how the rt_engine can be used to simplify the DEVS simulation
 /// interaction with other tasks. An array is used for the input to showcase how the input enum
 /// would look like for an input array.
-use xdevs::{prelude::*, AtomicKind, Config, Port};
+use xdevs::{prelude::*, AtomicKind, Config, Duration, Instant, Port};
 
 #[derive(xdevs::Bag)]
 pub struct TransparentInput {
@@ -16,7 +16,7 @@ pub struct TransparentOutput {
 pub struct Transparent {
     next_processor: usize,
     next_value: usize,
-    sigma: f64,
+    sigma: Duration,
 }
 
 #[xdevs::rt_engine(in_channel_size = 3, out_channel_size = 1)]
@@ -28,7 +28,7 @@ impl xdevs::Component for Transparent {
 
 impl xdevs::Atomic for Transparent {
     fn delta_int(&mut self) {
-        self.sigma = f64::INFINITY; // Passive state (wait for external input)
+        self.sigma = Duration::MAX; // Passive state (wait for external input)
     }
 
     fn lambda(&self, output: &mut Self::Output) {
@@ -39,18 +39,18 @@ impl xdevs::Atomic for Transparent {
         output.out_job.add_value(self.next_value).unwrap();
     }
 
-    fn ta(&self) -> f64 {
+    fn ta(&self) -> Duration {
         self.sigma
     }
 
-    fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+    fn delta_ext(&mut self, elapsed: Duration, input: &Self::Input) {
         self.sigma -= elapsed;
         for i in 0..3 {
             if !input.in_job[i].is_empty() {
                 println!("[Model] received job from processor {}", i);
                 self.next_processor = i;
                 self.next_value = *input.in_job[i].get_values().last().unwrap();
-                self.sigma = 0.0; // Immediate output
+                self.sigma = Duration::from_secs(0); // Immediate output
                 break;
             }
         }
@@ -62,7 +62,7 @@ impl Transparent {
         Self {
             next_processor: 0,
             next_value: 0,
-            sigma: f64::INFINITY,
+            sigma: Duration::MAX,
         }
     }
 }
@@ -104,7 +104,7 @@ async fn receiver(mut receiver: TransparentReceiver) {
 async fn main() {
     let transparent = Transparent::new();
     let mut engine = transparent.into_rt_engine();
-    let config = Config::new(0.0, 15.0, 1.0, None);
+    let config = Config::new(Instant::from_secs(0), Instant::from_secs(15), 1, None);
 
     let send = engine.sender();
     let recv = engine.receiver().unwrap();

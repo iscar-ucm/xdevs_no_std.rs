@@ -4,15 +4,15 @@
 use xdevs::{
     gpt::{Generator, Transducer},
     prelude::*,
-    CoupledKind,
+    CoupledKind, Duration, Instant,
 };
 
 mod processor {
-    use xdevs::{prelude::*, AtomicKind, Port};
+    use xdevs::{prelude::*, AtomicKind, Duration, Port};
 
     pub struct FastProcessor {
-        sigma: f64,
-        time: f64,
+        sigma: Duration,
+        time: Duration,
         job: Option<usize>,
     }
 
@@ -24,7 +24,7 @@ mod processor {
 
     impl xdevs::Atomic for FastProcessor {
         fn delta_int(&mut self) {
-            self.sigma = f64::INFINITY;
+            self.sigma = Duration::MAX;
             if let Some(job) = self.job {
                 println!("[P-fast] processed job {}", job);
             }
@@ -35,10 +35,10 @@ mod processor {
                 output.add_value(job).unwrap();
             }
         }
-        fn ta(&self) -> f64 {
+        fn ta(&self) -> Duration {
             self.sigma
         }
-        fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+        fn delta_ext(&mut self, elapsed: Duration, input: &Self::Input) {
             self.sigma -= elapsed;
             if let Some(&job) = input.get_values().last() {
                 if self.job.is_none() {
@@ -51,9 +51,9 @@ mod processor {
     }
 
     impl FastProcessor {
-        pub fn new(time: f64) -> Self {
+        pub fn new(time: Duration) -> Self {
             Self {
-                sigma: 0.0,
+                sigma: Duration::from_secs(0),
                 time,
                 job: None,
             }
@@ -61,8 +61,8 @@ mod processor {
     }
 
     pub struct SlowProcessor {
-        sigma: f64,
-        time: f64,
+        sigma: Duration,
+        time: Duration,
         job: Option<usize>,
     }
 
@@ -74,7 +74,7 @@ mod processor {
 
     impl xdevs::Atomic for SlowProcessor {
         fn delta_int(&mut self) {
-            self.sigma = f64::INFINITY;
+            self.sigma = Duration::MAX;
             if let Some(job) = self.job {
                 println!("[P-slow] processed job {}", job);
             }
@@ -85,25 +85,25 @@ mod processor {
                 output.add_value(job).unwrap();
             }
         }
-        fn ta(&self) -> f64 {
+        fn ta(&self) -> Duration {
             self.sigma
         }
-        fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+        fn delta_ext(&mut self, elapsed: Duration, input: &Self::Input) {
             self.sigma -= elapsed;
             if let Some(&job) = input.get_values().last() {
                 if self.job.is_none() {
                     println!("[P-slow] received job {}", job);
                     self.job = Some(job);
-                    self.sigma = self.time * 2.0;
+                    self.sigma = self.time * 2;
                 }
             }
         }
     }
 
     impl SlowProcessor {
-        pub fn new(time: f64) -> Self {
+        pub fn new(time: Duration) -> Self {
             Self {
-                sigma: 0.0,
+                sigma: Duration::from_secs(0),
                 time,
                 job: None,
             }
@@ -144,25 +144,25 @@ impl xdevs::Coupled for GPT {
 }
 
 fn run_gpt(processor: processor::Processor) {
-    const PERIOD: f64 = 1.;
-    const OBS_TIME: f64 = 10.;
+    let period = Duration::from_secs(1);
+    let obs_time = Duration::from_secs(10);
 
     let label = match &processor {
         processor::Processor::Fast(_) => "fast",
         processor::Processor::Slow(_) => "slow",
     };
     println!("\n--- GPT with {} processor ---", label);
-    let gpt = GPT::build(Generator::new(PERIOD), processor, Transducer::new(OBS_TIME));
+    let gpt = GPT::build(Generator::new(period), processor, Transducer::new(obs_time));
     let mut simulator = gpt.to_simulator();
-    let config = xdevs::Config::new(0.0, 14.0, 1.0, None);
+    let config = xdevs::Config::new(Instant::from_secs(0), Instant::from_secs(14), 1, None);
     simulator.simulate_rt(&config, xdevs::simulation::std::sleep(&config), |_| {});
 }
 
 fn main() {
-    const PROC_TIME: f64 = 1.1;
-    let fast = processor::Processor::Fast(processor::FastProcessor::new(PROC_TIME).to_simulator());
+    let proc_time = Duration::from_millis(1100);
+    let fast = processor::Processor::Fast(processor::FastProcessor::new(proc_time).to_simulator());
     run_gpt(fast);
 
-    let slow = processor::Processor::Slow(processor::SlowProcessor::new(PROC_TIME).to_simulator());
+    let slow = processor::Processor::Slow(processor::SlowProcessor::new(proc_time).to_simulator());
     run_gpt(slow);
 }

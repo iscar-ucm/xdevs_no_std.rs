@@ -2,7 +2,7 @@
 use xdevs::{
     gpt::{Generator, Processor, Transducer},
     prelude::*,
-    ComponentsInput, ComponentsOutput, CoupledKind,
+    ComponentsInput, ComponentsOutput, CoupledKind, Duration, Instant,
 };
 
 /// Coupled model with an optional processor, demonstrates
@@ -37,20 +37,20 @@ impl xdevs::Coupled for GPTOptional {
 }
 
 fn run_gpt(some_processor: bool) {
-    const PERIOD: f64 = 1.;
-    const PROC_TIME: f64 = 1.1;
-    const OBS_TIME: f64 = 10.;
+    let period = Duration::from_secs(1);
+    let proc_time = Duration::from_millis(1100);
+    let obs_time = Duration::from_secs(10);
 
     let processor = if some_processor {
-        Some(Processor::new(PROC_TIME))
+        Some(Processor::new(proc_time))
     } else {
         None
     };
     let label = if some_processor { "some" } else { "no" };
     println!("\n--- GPT with {} processor ---", label);
-    let gpt = GPTOptional::build(Generator::new(PERIOD), processor, Transducer::new(OBS_TIME));
+    let gpt = GPTOptional::build(Generator::new(period), processor, Transducer::new(obs_time));
     let mut simulator = gpt.to_simulator();
-    let config = xdevs::Config::new(0.0, 14.0, 1.0, None);
+    let config = xdevs::Config::new(Instant::from_secs(0), Instant::from_secs(14), 1, None);
     simulator.simulate_rt(&config, xdevs::simulation::std::sleep(&config), |_| {});
 }
 

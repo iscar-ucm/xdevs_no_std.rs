@@ -1,16 +1,16 @@
 use crate::{
     port::Bag,
     simulation::{AsyncInput, Config},
+    Duration as eDuration, Instant as eInstant,
 };
-use std::{
-    thread,
-    time::{Duration, Instant, SystemTime},
-};
+use std::{thread, time::SystemTime};
 
 /// Closure for RT simulation on targets with `std`.
 /// It sleeps until the next state transition.
-pub fn sleep<T: Bag>(config: &Config) -> impl FnMut(f64, f64, &mut T) -> f64 {
-    wait_event(config, |waiting_period, _| thread::sleep(waiting_period))
+pub fn sleep<T: Bag>(config: &Config) -> impl FnMut(eInstant, &mut T) -> eInstant {
+    wait_event(config, |waiting_period, _| {
+        thread::sleep(std::time::Duration::from_millis(waiting_period.as_millis()))
+    })
 }
 
 /// It computes the next wall-clock time corresponding to the next state transition of the model.
@@ -29,46 +29,49 @@ pub fn sleep<T: Bag>(config: &Config) -> impl FnMut(f64, f64, &mut T) -> f64 {
 ///    
 ///  # Returns
 ///
-///  A closure that takes the current and next virtual time and a mutable reference to the bag and returns the next virtual time.
+///  A closure that takes the deadline and a mutable reference to the bag and returns the next virtual time.
 ///
 /// # Example
 ///
 /// ```ignore
-/// xdevs::simulator::std::wait_event(0., 1., Some(Duration::from_millis(50)), some_input_handler);
+/// xdevs::simulator::std::wait_event(config, |duration, input| { /* ... */ });
 /// ```
 pub fn wait_event<T: Bag>(
     config: &Config,
-    mut input_handler: impl FnMut(Duration, &mut T),
-) -> impl FnMut(f64, f64, &mut T) -> f64 {
-    let (time_scale, max_jitter) = (config.time_scale, config.max_jitter);
+    mut input_handler: impl FnMut(eInstant, &mut T),
+) -> impl FnMut(eInstant, &mut T) -> eInstant {
+    let (mult, max_jitter) = (config.mult, config.max_jitter);
     let mut last_rt = SystemTime::now();
-    let start_rt = last_rt;
 
-    move |t_from, t_until, binput: &mut T| -> f64 {
-        let next_rt = last_rt + Duration::from_secs_f64((t_until - t_from) * time_scale);
+    move |t_until, binput: &mut T| -> eInstant {
+        let duration_embassy = t_until.saturating_duration_since(eInstant::now());
+        let duration_std = std::time::Duration::from_millis(duration_embassy.as_millis());
+        let wait_time = duration_std * (mult as u32);
+        let next_rt = last_rt + wait_time;
 
         if let Ok(duration) = next_rt.duration_since(SystemTime::now()) {
-            input_handler(duration, binput);
+            input_handler(
+                eInstant::now().saturating_add(eDuration::from_millis(duration.as_millis() as u64)),
+                binput,
+            );
         }
 
         let t = SystemTime::now();
 
         match t.duration_since(next_rt) {
-            Ok(duration) => {
-                // t >= next_rt, check for the jitter
+            Ok(overrun) => {
                 if let Some(max_jitter) = max_jitter {
-                    if duration > max_jitter {
-                        panic!("[WE]>> Jitter too high: {:?}", duration);
+                    let jitter = eDuration::from_millis(overrun.as_millis() as u64);
+                    if jitter > max_jitter {
+                        panic!("[WE]>> Jitter too high: {:?}", overrun);
                     }
                 }
                 last_rt = next_rt;
                 t_until
             }
             Err(_) => {
-                // t < next_rt
                 last_rt = t;
-                let duration = last_rt.duration_since(start_rt).unwrap();
-                duration.as_secs_f64() / time_scale
+                eInstant::now()
             }
         }
     }
@@ -77,8 +80,6 @@ pub fn wait_event<T: Bag>(
 /// A simple asynchronous input handler that sleeps until the next state transition of the model.
 #[derive(Default)]
 pub struct SleepAsync<T: Bag> {
-    /// The last recorded real time instant.
-    last_rt: Option<Instant>,
     /// Phantom data to associate with the input bag type.
     input: core::marker::PhantomData<T>,
 }
@@ -87,7 +88,6 @@ impl<T: Bag> SleepAsync<T> {
     /// Creates a new `SleepAsync` instance.
     pub fn new() -> Self {
         Self {
-            last_rt: None,
             input: core::marker::PhantomData,
         }
     }
@@ -96,17 +96,7 @@ impl<T: Bag> SleepAsync<T> {
 impl<T: Bag> AsyncInput for SleepAsync<T> {
     type Input = T;
 
-    async fn handle(
-        &mut self,
-        config: &Config,
-        t_from: f64,
-        t_until: f64,
-        _input: &mut Self::Input,
-    ) -> f64 {
-        let last_rt = self.last_rt.unwrap_or_else(Instant::now);
-        let next_rt = last_rt + Duration::from_secs_f64((t_until - t_from) * config.time_scale);
-        tokio::time::sleep_until(next_rt.into()).await;
-        self.last_rt = Some(next_rt);
-        t_until
+    async fn handle(&mut self, _input: &mut Self::Input) {
+        core::future::pending::<()>().await
     }
 }

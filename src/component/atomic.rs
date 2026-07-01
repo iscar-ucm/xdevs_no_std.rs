@@ -1,4 +1,4 @@
-use crate::{AtomicKind, Component};
+use crate::{AtomicKind, Component, Duration};
 
 /// Interface for DEVS atomic models. All DEVS atomic models must implement this trait.
 pub trait Atomic: Component<Kind = AtomicKind> {
@@ -17,21 +17,21 @@ pub trait Atomic: Component<Kind = AtomicKind> {
 
     /// External transition function. It modifies the state of the model when an external event happens.
     /// The time elapsed since the last state transition is `elapsed`.
-    fn delta_ext(&mut self, elapsed: f64, input: &Self::Input);
+    fn delta_ext(&mut self, elapsed: Duration, input: &Self::Input);
 
     /// Confluent transition function. It modifies the state of the model when an external and an internal event occur simultaneously.
     /// By default, it calls [`Atomic::delta_int`] and [`Atomic::delta_ext`] with `elapsed = 0`, in that order.
     #[inline(always)]
     fn delta_conf(&mut self, input: &Self::Input) {
         Self::delta_int(self);
-        Self::delta_ext(self, 0., input);
+        Self::delta_ext(self, Duration::from_secs(0), input);
     }
 
     /// Output function. It triggers output events when an internal event is about to happen.
     fn lambda(&self, output: &mut Self::Output);
 
     /// Time advance function. It returns the time until the next internal event happens.
-    fn ta(&self) -> f64;
+    fn ta(&self) -> Duration;
 }
 
 impl<T: Atomic> Atomic for &mut T {
@@ -51,7 +51,7 @@ impl<T: Atomic> Atomic for &mut T {
     }
 
     #[inline(always)]
-    fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+    fn delta_ext(&mut self, elapsed: Duration, input: &Self::Input) {
         T::delta_ext(self, elapsed, input)
     }
 
@@ -66,7 +66,7 @@ impl<T: Atomic> Atomic for &mut T {
     }
 
     #[inline(always)]
-    fn ta(&self) -> f64 {
+    fn ta(&self) -> Duration {
         T::ta(self)
     }
 }
@@ -89,7 +89,7 @@ impl<T: Atomic> Atomic for alloc::boxed::Box<T> {
     }
 
     #[inline(always)]
-    fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
+    fn delta_ext(&mut self, elapsed: Duration, input: &Self::Input) {
         T::delta_ext(self, elapsed, input)
     }
 
@@ -104,21 +104,21 @@ impl<T: Atomic> Atomic for alloc::boxed::Box<T> {
     }
 
     #[inline(always)]
-    fn ta(&self) -> f64 {
+    fn ta(&self) -> Duration {
         T::ta(self)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Atomic, AtomicKind, Bag, Component, Port};
+    use crate::{Atomic, AtomicKind, Bag, Component, Duration, Port};
 
     struct CallTracker {
         start: bool,
         stop: bool,
         delta_int: bool,
-        delta_ext_elapsed: f64,
-        ta_val: f64,
+        delta_ext_elapsed: Duration,
+        ta_val: Duration,
     }
 
     impl Component for CallTracker {
@@ -137,13 +137,13 @@ mod tests {
         fn delta_int(&mut self) {
             self.delta_int = true;
         }
-        fn delta_ext(&mut self, elapsed: f64, _input: &Self::Input) {
+        fn delta_ext(&mut self, elapsed: Duration, _input: &Self::Input) {
             self.delta_ext_elapsed = elapsed;
         }
         fn lambda(&self, output: &mut Self::Output) {
             let _ = output.add_value(99);
         }
-        fn ta(&self) -> f64 {
+        fn ta(&self) -> Duration {
             self.ta_val
         }
     }
@@ -154,8 +154,8 @@ mod tests {
             start: false,
             stop: false,
             delta_int: false,
-            delta_ext_elapsed: -1.0,
-            ta_val: 7.0,
+            delta_ext_elapsed: Duration::MAX,
+            ta_val: Duration::from_secs(7),
         };
         let mut output = Port::<usize, 1>::new();
 
@@ -168,13 +168,14 @@ mod tests {
         model.delta_int();
         assert!(model.delta_int, "delta_int happened");
 
-        model.delta_ext(2.5, &());
+        model.delta_ext(Duration::from_millis(2500), &());
         assert_eq!(
-            model.delta_ext_elapsed, 2.5,
+            model.delta_ext_elapsed,
+            Duration::from_millis(2500),
             "Correct elapsed after delta_ext"
         );
 
-        assert_eq!(model.ta(), 7.0, "ta with correct value");
+        assert_eq!(model.ta(), Duration::from_secs(7), "ta with correct value");
 
         model.lambda(&mut output);
         assert_eq!(output.get_values(), &[99], "lambda happened (2nd call)");
@@ -183,7 +184,8 @@ mod tests {
         model.delta_conf(&());
         assert!(model.delta_int, "delta_conf default calls delta_int");
         assert_eq!(
-            model.delta_ext_elapsed, 0.0,
+            model.delta_ext_elapsed,
+            Duration::from_secs(0),
             "delta_conf default calls delta_ext(elapsed=0)"
         );
 
@@ -197,8 +199,8 @@ mod tests {
             start: false,
             stop: false,
             delta_int: false,
-            delta_ext_elapsed: -1.0,
-            ta_val: 7.0,
+            delta_ext_elapsed: Duration::MAX,
+            ta_val: Duration::from_secs(7),
         };
 
         let mut output = Port::<usize, 1>::new();
@@ -216,15 +218,16 @@ mod tests {
         <&mut CallTracker as Atomic>::delta_int(&mut &mut raw);
         assert!(raw.delta_int, "delta_int delegates through &mut T blanket");
 
-        <&mut CallTracker as Atomic>::delta_ext(&mut &mut raw, 2.5, &());
+        <&mut CallTracker as Atomic>::delta_ext(&mut &mut raw, Duration::from_millis(2500), &());
         assert_eq!(
-            raw.delta_ext_elapsed, 2.5,
+            raw.delta_ext_elapsed,
+            Duration::from_millis(2500),
             "delta_ext delegates through &mut T blanket with correct elapsed"
         );
 
         assert_eq!(
             <&mut CallTracker as Atomic>::ta(&&mut raw),
-            7.0,
+            Duration::from_secs(7),
             "ta delegates through &mut T blanket"
         );
 
@@ -242,7 +245,8 @@ mod tests {
             "delta_conf default calls delta_int through &mut T blanket"
         );
         assert_eq!(
-            raw.delta_ext_elapsed, 0.0,
+            raw.delta_ext_elapsed,
+            Duration::from_secs(0),
             "delta_conf default calls delta_ext(elapsed=0) through &mut T blanket"
         );
 
@@ -257,8 +261,8 @@ mod tests {
             start: false,
             stop: false,
             delta_int: false,
-            delta_ext_elapsed: -1.0,
-            ta_val: 7.0,
+            delta_ext_elapsed: Duration::MAX,
+            ta_val: Duration::from_secs(7),
         });
 
         let mut output = Port::<usize, 1>::new();
@@ -276,15 +280,20 @@ mod tests {
         <alloc::boxed::Box<CallTracker> as Atomic>::delta_int(&mut raw);
         assert!(raw.delta_int, "delta_int delegates through Box<T>");
 
-        <alloc::boxed::Box<CallTracker> as Atomic>::delta_ext(&mut raw, 2.5, &());
+        <alloc::boxed::Box<CallTracker> as Atomic>::delta_ext(
+            &mut raw,
+            Duration::from_millis(2500),
+            &(),
+        );
         assert_eq!(
-            raw.delta_ext_elapsed, 2.5,
+            raw.delta_ext_elapsed,
+            Duration::from_millis(2500),
             "delta_ext delegates through Box<T> with correct elapsed"
         );
 
         assert_eq!(
             <alloc::boxed::Box<CallTracker> as Atomic>::ta(&raw),
-            7.0,
+            Duration::from_secs(7),
             "ta delegates through Box<T>"
         );
 
@@ -302,7 +311,8 @@ mod tests {
             "delta_conf default calls delta_int through Box<T>"
         );
         assert_eq!(
-            raw.delta_ext_elapsed, 0.0,
+            raw.delta_ext_elapsed,
+            Duration::from_secs(0),
             "delta_conf default calls delta_ext(elapsed=0) through Box<T> delegation"
         );
 

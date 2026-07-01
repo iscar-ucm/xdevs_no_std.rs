@@ -4,7 +4,7 @@ use xdevs::{
     devstone::hi,
     generate_hi,
     prelude::*,
-    Config,
+    Config, Instant,
 };
 #[cfg(feature = "alloc")]
 use xdevs::{devstone::hi_box, generate_hi_box};
@@ -19,7 +19,7 @@ fn bench_hi(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: hi::TopModel<'_, W> = hi::TopModel::build(generator, &mut model_hi);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(0.0, 10.0, 1.0, None);
+    let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
 
     let mut group = c.benchmark_group("hi-group");
     group.bench_function("hi-sim", |b| {
@@ -44,7 +44,7 @@ fn bench_hi_cycles(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: hi::TopModel<'_, W> = hi::TopModel::build(generator, &mut model_hi);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(0.0, 10.0, 1.0, None);
+    let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
 
     let mut group = c.benchmark_group("hi-group");
     group.bench_function("hi-cycles-sim", |b| {
@@ -73,7 +73,7 @@ fn bench_hi_box(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: hi_box::TopModel<W> = hi_box::TopModel::build(generator, model_hi);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(0.0, 10.0, 1.0, None);
+    let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
 
     let mut group = c.benchmark_group("hi-group");
     group.bench_function("hi-box-sim", |b| {

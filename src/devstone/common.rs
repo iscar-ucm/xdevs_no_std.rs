@@ -9,7 +9,7 @@ use cpu_time::ThreadTime;
 
 /// Simple atomic model that generates jobs and sends them to the input port of the model
 pub struct JobGenerator {
-    sigma: f64,
+    sigma: Duration,
     count: usize,
 }
 
@@ -21,38 +21,38 @@ impl Component for JobGenerator {
 
 impl Atomic for JobGenerator {
     fn delta_int(&mut self) {
-        self.sigma = f64::INFINITY;
+        self.sigma = Duration::MAX;
     }
 
     fn lambda(&self, output: &mut Self::Output) {
         let _ = output.add_value(self.count);
     }
 
-    fn ta(&self) -> f64 {
+    fn ta(&self) -> Duration {
         self.sigma
     }
 
-    fn delta_ext(&mut self, _elapsed: f64, _input: &Self::Input) {
-        self.sigma = f64::INFINITY;
+    fn delta_ext(&mut self, _elapsed: Duration, _input: &Self::Input) {
+        self.sigma = Duration::MAX;
     }
 }
 
 impl JobGenerator {
     pub fn new(val_count: usize) -> Self {
         Self {
-            sigma: 0.0,
+            sigma: Duration::from_secs(0),
             count: val_count,
         }
     }
 
     pub fn reset(&mut self) {
-        self.sigma = 0.0;
+        self.sigma = Duration::from_secs(0);
     }
 }
 
 /// Simple atomic model
 pub struct AtomicModel {
-    sigma: f64,
+    sigma: Duration,
     n_internals: usize,
     n_externals: usize,
     n_events: usize,
@@ -86,7 +86,7 @@ impl Component for AtomicModel {
 
 impl Atomic for AtomicModel {
     fn delta_int(&mut self) {
-        self.sigma = f64::INFINITY;
+        self.sigma = Duration::MAX;
         self.n_internals += 1;
         if self.int_delay > Duration::MIN {
             burn_cycles(self.int_delay);
@@ -97,12 +97,12 @@ impl Atomic for AtomicModel {
         let _ = output.add_value(self.n_events);
     }
 
-    fn ta(&self) -> f64 {
+    fn ta(&self) -> Duration {
         self.sigma
     }
 
-    fn delta_ext(&mut self, _elapsed: f64, input: &Self::Input) {
-        self.sigma = 0.0;
+    fn delta_ext(&mut self, _elapsed: Duration, input: &Self::Input) {
+        self.sigma = Duration::from_secs(0);
         self.n_externals += 1;
         self.n_events += input.get_values().len();
         if self.ext_delay > Duration::MIN {
@@ -120,7 +120,7 @@ impl Default for AtomicModel {
 impl AtomicModel {
     pub fn new(int_delay: u64, ext_delay: u64) -> Self {
         Self {
-            sigma: f64::INFINITY,
+            sigma: Duration::MAX,
             n_internals: 0,
             n_externals: 0,
             n_events: 0,
@@ -156,7 +156,7 @@ impl Devstone for AtomicModel {
     }
 
     fn reset(&mut self) {
-        self.sigma = f64::INFINITY;
+        self.sigma = Duration::MAX;
         self.n_internals = 0;
         self.n_externals = 0;
         self.n_events = 0;
@@ -358,12 +358,12 @@ mod test {
     #[test]
     fn generator_sets_sigma_to_infinity_on_external_event() {
         let mut gen = JobGenerator::new(5);
-        assert_eq!(gen.sigma, 0.0, "delta_ext should set sigma to infinity");
-        gen.delta_ext(1.0, &());
+        assert_eq!(gen.sigma, Duration::from_secs(0), "sigma starts at 0");
+        gen.delta_ext(Duration::from_secs(1), &());
         assert_eq!(
             gen.sigma,
-            f64::INFINITY,
-            "delta_ext should set sigma to infinity"
+            Duration::MAX,
+            "delta_ext should set sigma to MAX"
         );
     }
 

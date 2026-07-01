@@ -1,5 +1,5 @@
-use crate::{port::Bag, Component, ComponentsKind};
-use core::{future::Future, time::Duration};
+use crate::{port::Bag, Component, ComponentsKind, Duration, Instant};
+use core::future::Future;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
 
@@ -31,16 +31,15 @@ pub mod std;
 #[derive(Debug, Clone, Copy)]
 pub struct Config {
     /// The start time of the simulation.
-    pub t_start: f64,
+    pub t_start: Instant,
 
     /// The stop time of the simulation.
-    pub t_stop: f64,
+    pub t_stop: Instant,
 
-    /// The time scale factor for the simulation.
+    /// The time multiplier for the simulation.
     ///
-    /// If `time_scale` is greater than 1.0, the simulation runs faster than real time.
-    /// If `time_scale` is less than 1.0, the simulation runs slower than real time.
-    pub time_scale: f64,
+    /// If `mult` is greater than 1, the simulation runs faster than real time.
+    pub mult: u64,
 
     /// The maximum jitter duration allowed in the simulation.
     ///
@@ -52,22 +51,22 @@ pub struct Config {
 impl Config {
     /// Creates a new `SimulatorConfig` with the specified parameters.
     #[inline]
-    pub fn new(t_start: f64, t_stop: f64, time_scale: f64, max_jitter: Option<Duration>) -> Self {
+    pub fn new(t_start: Instant, t_stop: Instant, mult: u64, max_jitter: Option<Duration>) -> Self {
         Self {
             t_start,
             t_stop,
-            time_scale,
+            mult,
             max_jitter,
         }
     }
 }
 
 impl Default for Config {
-    /// Default configuration runs from time 0.0 to infinity, with a
-    /// time scale of 1.0 (real-time simulation) and no maximum jitter.
+    /// Default configuration runs from time 0 to infinity, with a
+    /// time scale of 1 (real-time simulation) and no maximum jitter.
     #[inline]
     fn default() -> Self {
-        Self::new(0.0, f64::INFINITY, 1.0, None)
+        Self::new(Instant::from_secs(0), Instant::MAX, 1, None)
     }
 }
 
@@ -85,20 +84,20 @@ pub unsafe trait AbstractSimulator {
 
     type Output: Bag;
 
-    fn start(&mut self, t_start: f64) -> f64;
+    fn start(&mut self, t_start: Instant) -> Instant;
 
     fn stop(&mut self);
 
-    fn lambda(&mut self, output: &mut Self::Output, t: f64);
+    fn lambda(&mut self, output: &mut Self::Output, t: Instant);
 
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64;
+    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: Instant) -> Instant;
 
     /// Executes simulation from `t_start` to `t_stop` using an external wait/input strategy.
     #[inline]
     fn simulate_rt(
         &mut self,
         config: &Config,
-        mut wait_until: impl FnMut(f64, f64, &mut Self::Input) -> f64,
+        mut wait_until: impl FnMut(Instant, &mut Self::Input) -> Instant,
         mut propagate_output: impl FnMut(&Self::Output),
     ) {
         let t_start = config.t_start;
@@ -108,9 +107,10 @@ pub unsafe trait AbstractSimulator {
         let mut component_input = <Self::Input>::build();
         let mut component_output = <Self::Output>::build();
         while t < t_stop {
-            let t_until = f64::min(t_next_internal, t_stop);
-            t = wait_until(t, t_until, &mut component_input);
+            let t_until = Instant::min(t_next_internal, t_stop);
+            t = wait_until(t_until, &mut component_input);
             if t >= t_next_internal {
+                t = t_next_internal;
                 self.lambda(&mut component_output, t);
                 propagate_output(&component_output);
             } else if component_input.is_empty() {
@@ -124,7 +124,24 @@ pub unsafe trait AbstractSimulator {
     /// Executes simulation from `t_start` to `t_stop` with a virtual clock.
     #[inline]
     fn simulate_vt(&mut self, config: &Config) {
-        self.simulate_rt(config, |_, t_until, _| t_until, |_| {});
+        let mut t = config.t_start;
+        let mut t_next_internal = self.start(t);
+        let mut component_input = <Self::Input>::build();
+        let mut component_output = <Self::Output>::build();
+        while t < config.t_stop {
+            let t_until = Instant::min(t_next_internal, config.t_stop);
+            t = t_until;
+            if t >= t_next_internal {
+                t = t_next_internal;
+                self.lambda(&mut component_output, t);
+            } else if component_input.is_empty() {
+                continue; // avoid spurious external transitions
+            }
+            component_input.clear();
+            component_output.clear();
+            t_next_internal = self.delta(&mut component_input, &mut component_output, t);
+        }
+        self.stop();
     }
 
     /// Asynchronous version of [`AbstractSimulator::simulate_rt`].
@@ -140,11 +157,18 @@ pub unsafe trait AbstractSimulator {
             let mut component_input = <Self::Input>::build();
             let mut component_output = <Self::Output>::build();
             while t < config.t_stop {
-                let t_until = f64::min(t_next_internal, config.t_stop);
-                t = input_handler
-                    .handle(config, t, t_until, &mut component_input)
-                    .await;
+                let t_until = Instant::min(t_next_internal, config.t_stop);
+                let future = input_handler.handle(&mut component_input);
+                let _ = embassy_time::with_deadline(t_until, future).await;
+                t = Instant::now();
                 if t >= t_next_internal {
+                    if let Some(max_jitter) = config.max_jitter {
+                        let jitter = t.duration_since(t_next_internal);
+                        if jitter > max_jitter {
+                            panic!("Jitter too high: {:?} > {:?}", jitter, max_jitter);
+                        }
+                    }
+                    t = t_next_internal;
                     self.lambda(&mut component_output, t);
                     propagate_output(&component_output);
                 } else if component_input.is_empty() {
@@ -195,16 +219,10 @@ pub trait AsyncInput {
 
     /// Handles input events asynchronously.
     ///
-    /// It receives the time interval `[t_from, t_until]` and a mutable reference to the input event bag.
-    /// It returns the time of the next event, which is usually the time of the next state transition.
-    /// If an external event occurs, it should inject the event to the input and return the time at which the event happened.
-    fn handle(
-        &mut self,
-        config: &Config,
-        t_from: f64,
-        t_until: f64,
-        input: &mut Self::Input,
-    ) -> impl Future<Output = f64>;
+    /// It receives a mutable reference to the input event bag.
+    /// The deadline is managed externally by the simulator via `embassy_time::with_deadline`.
+    /// When called, it should wait for external input events.
+    fn handle(&mut self, input: &mut Self::Input) -> impl Future<Output = ()>;
 }
 
 unsafe impl<T: AbstractSimulator> AbstractSimulator for &mut T {
@@ -212,7 +230,7 @@ unsafe impl<T: AbstractSimulator> AbstractSimulator for &mut T {
     type Output = T::Output;
 
     #[inline(always)]
-    fn start(&mut self, t_start: f64) -> f64 {
+    fn start(&mut self, t_start: Instant) -> Instant {
         T::start(self, t_start)
     }
 
@@ -222,12 +240,12 @@ unsafe impl<T: AbstractSimulator> AbstractSimulator for &mut T {
     }
 
     #[inline(always)]
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+    fn lambda(&mut self, output: &mut Self::Output, t: Instant) {
         T::lambda(self, output, t)
     }
 
     #[inline(always)]
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: Instant) -> Instant {
         T::delta(self, input, output, t)
     }
 }
@@ -238,7 +256,7 @@ unsafe impl<T: AbstractSimulator> AbstractSimulator for alloc::boxed::Box<T> {
     type Output = T::Output;
 
     #[inline(always)]
-    fn start(&mut self, t_start: f64) -> f64 {
+    fn start(&mut self, t_start: Instant) -> Instant {
         T::start(self, t_start)
     }
 
@@ -248,12 +266,12 @@ unsafe impl<T: AbstractSimulator> AbstractSimulator for alloc::boxed::Box<T> {
     }
 
     #[inline(always)]
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+    fn lambda(&mut self, output: &mut Self::Output, t: Instant) {
         T::lambda(self, output, t)
     }
 
     #[inline(always)]
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: Instant) -> Instant {
         T::delta(self, input, output, t)
     }
 }
@@ -267,18 +285,18 @@ where
     type Output = [T::Output; N];
 
     #[inline(always)]
-    fn start(&mut self, t_start: f64) -> f64 {
+    fn start(&mut self, t_start: Instant) -> Instant {
         #[cfg(feature = "rayon")]
         {
             self.par_iter_mut()
                 .map(|processor| T::start(processor, t_start))
-                .reduce(|| f64::INFINITY, f64::min)
+                .reduce(|| Instant::MAX, Instant::min)
         }
         #[cfg(not(feature = "rayon"))]
         {
             self.iter_mut()
                 .map(|processor| T::start(processor, t_start))
-                .fold(f64::INFINITY, f64::min)
+                .fold(Instant::MAX, Instant::min)
         }
     }
 
@@ -295,7 +313,7 @@ where
     }
 
     #[inline(always)]
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+    fn lambda(&mut self, output: &mut Self::Output, t: Instant) {
         #[cfg(feature = "rayon")]
         {
             self.par_iter_mut()
@@ -311,14 +329,14 @@ where
     }
 
     #[inline(always)]
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: Instant) -> Instant {
         #[cfg(feature = "rayon")]
         {
             self.par_iter_mut()
                 .zip(input.par_iter_mut())
                 .zip(output.par_iter_mut())
                 .map(|((processor, input), output)| T::delta(processor, input, output, t))
-                .reduce(|| f64::INFINITY, f64::min)
+                .reduce(|| Instant::MAX, Instant::min)
         }
         #[cfg(not(feature = "rayon"))]
         {
@@ -326,7 +344,7 @@ where
                 .zip(input.iter_mut())
                 .zip(output.iter_mut())
                 .map(|((processor, input), output)| T::delta(processor, input, output, t))
-                .fold(f64::INFINITY, f64::min)
+                .fold(Instant::MAX, Instant::min)
         }
     }
 }
@@ -336,10 +354,10 @@ unsafe impl<T: AbstractSimulator> AbstractSimulator for Option<T> {
     type Output = T::Output;
 
     #[inline(always)]
-    fn start(&mut self, t_start: f64) -> f64 {
+    fn start(&mut self, t_start: Instant) -> Instant {
         match self {
             Some(processor) => T::start(processor, t_start),
-            None => f64::INFINITY,
+            None => Instant::MAX,
         }
     }
 
@@ -351,19 +369,19 @@ unsafe impl<T: AbstractSimulator> AbstractSimulator for Option<T> {
     }
 
     #[inline(always)]
-    fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+    fn lambda(&mut self, output: &mut Self::Output, t: Instant) {
         if let Some(processor) = self {
             T::lambda(processor, output, t);
         }
     }
 
     #[inline(always)]
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: Instant) -> Instant {
         match self {
             Some(processor) => T::delta(processor, input, output, t),
             None => {
                 input.clear();
-                f64::INFINITY
+                Instant::MAX
             }
         }
     }
@@ -384,7 +402,7 @@ mod tuple_macros {
     };
 }
 
-    // Balanced rayon::join tree for tuple start (returns f64::min).
+    // Balanced rayon::join tree for tuple start (returns Instant::min).
     macro_rules! par_start {
     ($self:expr, $t:expr, [$idx:tt]) => {
         $crate::simulation::AbstractSimulator::start(&mut $self.$idx, $t)
@@ -400,7 +418,7 @@ mod tuple_macros {
             || tuple_macros::par_start!($self, $t, [$($even)*]),
             || tuple_macros::par_start!($self, $t, [$($odd)*]),
         );
-        f64::min(a, b)
+        Instant::min(a, b)
     }};
 }
 
@@ -442,7 +460,7 @@ mod tuple_macros {
     }};
 }
 
-    // Balanced rayon::join tree for tuple delta (returns f64::min).
+    // Balanced rayon::join tree for tuple delta (returns Instant::min).
     macro_rules! par_delta {
     ($self:expr, $input:expr, $output:expr, $t:expr, [$idx:tt]) => {
         $crate::simulation::AbstractSimulator::delta(
@@ -459,7 +477,7 @@ mod tuple_macros {
             || tuple_macros::par_delta!($self, $input, $output, $t, [$($even)*]),
             || tuple_macros::par_delta!($self, $input, $output, $t, [$($odd)*]),
         );
-        f64::min(a, b)
+        Instant::min(a, b)
     }};
 }
 
@@ -473,7 +491,7 @@ mod tuple_macros {
             type Output = ($($T::Output,)+);
 
             #[inline(always)]
-            fn start(&mut self, t_start: f64) -> f64 {
+            fn start(&mut self, t_start: Instant) -> Instant {
                 tuple_macros::par_start!(self, t_start, [$($idx)+])
             }
 
@@ -483,12 +501,12 @@ mod tuple_macros {
             }
 
             #[inline(always)]
-            fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+            fn lambda(&mut self, output: &mut Self::Output, t: Instant) {
                 tuple_macros::par_lambda!(self, output, t, [$($idx)+])
             }
 
             #[inline(always)]
-            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: Instant) -> Instant {
                 tuple_macros::par_delta!(self, input, output, t, [$($idx)+])
             }
         }
@@ -518,9 +536,9 @@ mod tuple_macros {
             type Output = ($($T::Output,)+);
 
             #[inline(always)]
-            fn start(&mut self, t_start: f64) -> f64 {
-                let mut min_t = f64::INFINITY;
-                $(min_t = min_t.min(self.$idx.start(t_start));)+
+            fn start(&mut self, t_start: Instant) -> Instant {
+                let mut min_t = Instant::MAX;
+                $(min_t = Instant::min(min_t, self.$idx.start(t_start));)+
                 min_t
 
             }
@@ -532,14 +550,14 @@ mod tuple_macros {
             }
 
             #[inline(always)]
-            fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+            fn lambda(&mut self, output: &mut Self::Output, t: Instant) {
                 $(self.$idx.lambda(&mut output.$idx, t);)+
             }
 
             #[inline(always)]
-            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-                let mut min_t = f64::INFINITY;
-                $(min_t = min_t.min(self.$idx.delta(&mut input.$idx, &mut output.$idx, t));)+
+            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: Instant) -> Instant {
+                let mut min_t = Instant::MAX;
+                $(min_t = Instant::min(min_t, self.$idx.delta(&mut input.$idx, &mut output.$idx, t));)+
                 min_t
             }
         }
@@ -641,15 +659,15 @@ where
 pub(crate) mod test_utils {
     use crate::{
         port::Port, Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
-        CoupledKind,
+        CoupledKind, Duration,
     };
 
     pub(crate) struct TestAtomic {
-        pub sigma: f64,
-        pub period: f64,
+        pub sigma: Duration,
+        pub period: Duration,
         pub int_calls: usize,
         pub ext_calls: usize,
-        pub last_elapsed: f64,
+        pub last_elapsed: Duration,
         pub out_val: usize,
     }
 
@@ -664,32 +682,32 @@ pub(crate) mod test_utils {
             self.int_calls += 1;
             self.sigma = self.period;
         }
-        fn delta_ext(&mut self, elapsed: f64, _input: &Self::Input) {
+        fn delta_ext(&mut self, elapsed: Duration, _input: &Self::Input) {
             self.ext_calls += 1;
             self.last_elapsed = elapsed;
-            self.sigma = 0.0;
+            self.sigma = Duration::from_secs(0);
         }
         fn lambda(&self, output: &mut Self::Output) {
             let _ = output.add_value(self.out_val);
         }
-        fn ta(&self) -> f64 {
+        fn ta(&self) -> Duration {
             self.sigma
         }
     }
 
     impl TestAtomic {
-        pub(crate) fn periodic(sigma: f64, period: f64) -> Self {
+        pub(crate) fn periodic(sigma: Duration, period: Duration) -> Self {
             Self {
                 sigma,
                 period,
                 int_calls: 0,
                 ext_calls: 0,
-                last_elapsed: 0.0,
+                last_elapsed: Duration::from_secs(0),
                 out_val: 99,
             }
         }
-        pub(crate) fn oneshot(sigma: f64) -> Self {
-            Self::periodic(sigma, f64::INFINITY)
+        pub(crate) fn oneshot(sigma: Duration) -> Self {
+            Self::periodic(sigma, Duration::MAX)
         }
     }
 
@@ -744,12 +762,12 @@ mod tests {
         port::Port,
         prelude::*,
         simulation::{simulator::Simulator, Config},
-        Component,
+        Component, Duration, Instant,
     };
     #[test]
     fn simulate_vt_single_event() {
-        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 20.0, 1.0, None);
+        let mut sim = TestAtomic::oneshot(Duration::from_secs(5)).to_simulator();
+        let config = Config::new(Instant::from_secs(0), Instant::from_secs(20), 1, None);
         sim.simulate_vt(&config);
 
         assert_eq!(sim.int_calls, 1, "one internal transition");
@@ -758,8 +776,9 @@ mod tests {
 
     #[test]
     fn simulate_vt_multiple_events() {
-        let mut sim = TestAtomic::periodic(0.0, 2.0).to_simulator();
-        let config = Config::new(0.0, 9.0, 1.0, None);
+        let mut sim =
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(2)).to_simulator();
+        let config = Config::new(Instant::from_secs(0), Instant::from_secs(9), 1, None);
         sim.simulate_vt(&config);
 
         assert_eq!(sim.int_calls, 5, "expected 5 internal transitions in 9s");
@@ -768,8 +787,8 @@ mod tests {
 
     #[test]
     fn simulate_vt_no_spurious_transitions() {
-        let mut sim = TestAtomic::oneshot(f64::INFINITY).to_simulator();
-        let config = Config::new(0.0, 10.0, 1.0, None);
+        let mut sim = TestAtomic::oneshot(Duration::MAX).to_simulator();
+        let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
         sim.simulate_vt(&config);
 
         assert_eq!(sim.int_calls, 0, "no internal events");
@@ -778,9 +797,9 @@ mod tests {
 
     #[test]
     fn simulate_rt_single_event() {
-        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 1.0, None);
-        sim.simulate_rt(&config, |_, t_until, _| t_until, |_| {});
+        let mut sim = TestAtomic::oneshot(Duration::from_secs(5)).to_simulator();
+        let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
+        sim.simulate_rt(&config, |t_until, _| t_until, |_| {});
         assert_eq!(sim.int_calls, 1, "rt single event");
         assert_eq!(sim.ext_calls, 0, "no external transitions");
     }
@@ -790,17 +809,17 @@ mod tests {
         // wait_until injects input at t=0 before the first internal (t=5)
         // external transition triggers. external transition sets sigma=0,
         // so an immediate internal transition follows.
-        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 1.0, None);
+        let mut sim = TestAtomic::oneshot(Duration::from_secs(5)).to_simulator();
+        let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
 
         let mut injected = false;
         sim.simulate_rt(
             &config,
-            |t, t_until, input| {
+            |t_until, input| {
                 if !injected {
                     injected = true;
                     input.add_value(99).unwrap();
-                    t // inject at current time, return same t to process
+                    Instant::from_secs(0) // inject at current time, return same t to process
                 } else {
                     t_until // proceed normally afterwards
                 }
@@ -813,13 +832,13 @@ mod tests {
 
     #[test]
     fn simulate_rt_propagate_output() {
-        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 1.0, None);
+        let mut sim = TestAtomic::oneshot(Duration::from_secs(5)).to_simulator();
+        let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
         let mut captured = Port::<usize, 1>::new();
 
         sim.simulate_rt(
             &config,
-            |_, t_until, _| t_until,
+            |t_until, _| t_until,
             |output| {
                 for v in output.get_values() {
                     captured.add_value(*v).unwrap();
@@ -838,21 +857,15 @@ mod tests {
 
     impl crate::simulation::AsyncInput for IdentityAsyncInput {
         type Input = Port<usize, 1>;
-        async fn handle(
-            &mut self,
-            _config: &Config,
-            _t_from: f64,
-            t_until: f64,
-            _input: &mut Self::Input,
-        ) -> f64 {
-            t_until
+        async fn handle(&mut self, _input: &mut Self::Input) {
+            core::future::pending::<()>().await
         }
     }
 
     #[tokio::test]
     async fn simulate_rt_async_single_event() {
-        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 1.0, None);
+        let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
+        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
         sim.simulate_rt_async(&config, IdentityAsyncInput, |_| {})
             .await;
         assert_eq!(sim.int_calls, 1, "async single event");
@@ -861,27 +874,20 @@ mod tests {
 
     #[tokio::test]
     async fn simulate_rt_async_external_input() {
-        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 1.0, None);
+        let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
+        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
 
         struct InjectInput {
             injected: bool,
         }
         impl crate::simulation::AsyncInput for InjectInput {
             type Input = Port<usize, 1>;
-            async fn handle(
-                &mut self,
-                _config: &Config,
-                t_from: f64,
-                t_until: f64,
-                input: &mut Self::Input,
-            ) -> f64 {
+            async fn handle(&mut self, input: &mut Self::Input) {
                 if !self.injected {
                     self.injected = true;
                     input.add_value(99).unwrap();
-                    t_from
                 } else {
-                    t_until
+                    core::future::pending::<()>().await
                 }
             }
         }
@@ -893,8 +899,8 @@ mod tests {
 
     #[tokio::test]
     async fn simulate_rt_async_propagate_output() {
-        let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 1.0, None);
+        let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
+        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
         let mut captured = Port::<usize, 1>::new();
 
         sim.simulate_rt_async(&config, IdentityAsyncInput, |output| {
@@ -909,26 +915,26 @@ mod tests {
 
     #[test]
     fn array_start_returns_min() {
-        let a0 = TestAtomic::oneshot(3.0);
-        let a1 = TestAtomic::oneshot(1.0);
-        let a2 = TestAtomic::oneshot(5.0);
+        let a0 = TestAtomic::oneshot(Duration::from_secs(3));
+        let a1 = TestAtomic::oneshot(Duration::from_secs(1));
+        let a2 = TestAtomic::oneshot(Duration::from_secs(5));
         let mut arr = [a0, a1, a2].to_simulator();
 
-        let t = arr.start(0.0);
-        assert_eq!(t, 1.0, "min of 3, 1, 5 is 1.0");
+        let t = arr.start(Instant::from_secs(0));
+        assert_eq!(t, Instant::from_secs(1), "min of 3, 1, 5 is 1");
     }
 
     #[test]
     fn array_lambda_iterates_all() {
         let mut arr = [
-            TestAtomic::periodic(0.0, 1.0),
-            TestAtomic::periodic(0.0, 1.0),
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(1)),
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(1)),
         ]
         .to_simulator();
-        arr.start(0.0);
+        arr.start(Instant::from_secs(0));
 
         let mut output = [Port::<usize, 1>::new(), Port::<usize, 1>::new()];
-        arr.lambda(&mut output, 0.0);
+        arr.lambda(&mut output, Instant::from_secs(0));
 
         assert_eq!(output[0].get_values(), &[99], "first atomic lambda ran");
         assert_eq!(output[1].get_values(), &[99], "second atomic lambda ran");
@@ -937,29 +943,29 @@ mod tests {
     #[test]
     fn array_delta_iterates_all() {
         let mut arr = [
-            TestAtomic::periodic(0.0, 1.0),
-            TestAtomic::periodic(0.0, 1.0),
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(1)),
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(1)),
         ]
         .to_simulator();
-        arr.start(0.0);
+        arr.start(Instant::from_secs(0));
 
         let mut input = [Port::<usize, 1>::new(), Port::<usize, 1>::new()];
         let mut output = [Port::<usize, 1>::new(), Port::<usize, 1>::new()];
-        let t = arr.delta(&mut input, &mut output, 0.0);
+        let t = arr.delta(&mut input, &mut output, Instant::from_secs(0));
 
         assert_eq!(arr[0].int_calls, 1, "first atomic delta_int");
         assert_eq!(arr[1].int_calls, 1, "second atomic delta_int");
-        assert!(t > 0.0, "t_next should be > 0");
+        assert!(t > Instant::from_secs(0), "t_next should be > 0");
     }
 
     #[test]
     fn array_stop_iterates_all() {
         let mut arr = [
-            TestAtomic::periodic(0.0, 1.0),
-            TestAtomic::periodic(0.0, 1.0),
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(1)),
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(1)),
         ]
         .to_simulator();
-        arr.start(0.0);
+        arr.start(Instant::from_secs(0));
         arr.stop();
 
         assert_eq!(arr[0].ext_calls, 0, "stop on first array element");
@@ -968,10 +974,14 @@ mod tests {
 
     #[test]
     fn option_some_delegates() {
-        let mut opt = Some(TestAtomic::periodic(0.0, 1.0)).to_simulator();
+        let mut opt = Some(TestAtomic::periodic(
+            Duration::from_secs(0),
+            Duration::from_secs(1),
+        ))
+        .to_simulator();
 
-        let t = opt.start(0.0);
-        assert_eq!(t, 0.0, "Some start returns t_next");
+        let t = opt.start(Instant::from_secs(0));
+        assert_eq!(t, Instant::from_secs(0), "Some start returns t_next");
         assert_eq!(
             opt.as_ref().unwrap().int_calls,
             0,
@@ -979,16 +989,16 @@ mod tests {
         );
 
         let mut output = Port::<usize, 1>::new();
-        opt.lambda(&mut output, 0.0);
+        opt.lambda(&mut output, Instant::from_secs(0));
         assert_eq!(output.get_values(), &[99], "Some lambda produces output");
 
-        let t = opt.delta(&mut Port::new(), &mut Port::new(), 0.0);
+        let t = opt.delta(&mut Port::new(), &mut Port::new(), Instant::from_secs(0));
         assert_eq!(
             opt.as_ref().unwrap().int_calls,
             1,
             "Some delta triggers transition"
         );
-        assert!(t > 0.0, "Some delta returns next time");
+        assert!(t > Instant::from_secs(0), "Some delta returns next time");
 
         opt.stop();
     }
@@ -996,15 +1006,15 @@ mod tests {
     #[test]
     fn option_none_start_infinity() {
         let mut opt: Option<Simulator<TestAtomic>> = None;
-        let t = opt.start(0.0);
-        assert_eq!(t, f64::INFINITY, "None start returns INFINITY");
+        let t = opt.start(Instant::from_secs(0));
+        assert_eq!(t, Instant::MAX, "None start returns Instant::MAX");
     }
 
     #[test]
     fn option_none_lambda_noop() {
         let mut opt: Option<Simulator<TestAtomic>> = None;
         let mut output = Port::<usize, 1>::new();
-        opt.lambda(&mut output, 0.0);
+        opt.lambda(&mut output, Instant::from_secs(0));
         assert!(output.is_empty(), "None lambda leaves output unchanged");
     }
 
@@ -1014,9 +1024,9 @@ mod tests {
         let mut input = Port::<usize, 1>::new();
         input.add_value(99).unwrap();
         let mut output = Port::<usize, 1>::new();
-        let t = opt.delta(&mut input, &mut output, 0.0);
+        let t = opt.delta(&mut input, &mut output, Instant::from_secs(0));
         assert!(input.is_empty(), "None delta clears input");
-        assert_eq!(t, f64::INFINITY, "None delta returns INFINITY");
+        assert_eq!(t, Instant::MAX, "None delta returns Instant::MAX");
     }
 
     #[test]
@@ -1028,20 +1038,28 @@ mod tests {
 
     #[test]
     fn tuple_start_returns_min() {
-        let mut tup = (TestAtomic::oneshot(3.0), TestAtomic::oneshot(1.0)).to_simulator();
-        assert_eq!(tup.start(0.0), 1.0, "min of 3, 1 is 1.0");
+        let mut tup = (
+            TestAtomic::oneshot(Duration::from_secs(3)),
+            TestAtomic::oneshot(Duration::from_secs(1)),
+        )
+            .to_simulator();
+        assert_eq!(
+            tup.start(Instant::from_secs(0)),
+            Instant::from_secs(1),
+            "min of 3, 1 is 1"
+        );
     }
 
     #[test]
     fn tuple_lambda_iterates_all() {
         let mut tup = (
-            TestAtomic::periodic(0.0, 1.0),
-            TestAtomic::periodic(0.0, 1.0),
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(1)),
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(1)),
         )
             .to_simulator();
-        tup.start(0.0);
+        tup.start(Instant::from_secs(0));
         let mut out = (Port::<usize, 1>::new(), Port::<usize, 1>::new());
-        tup.lambda(&mut out, 0.0);
+        tup.lambda(&mut out, Instant::from_secs(0));
         assert_eq!(out.0.get_values(), &[99], "lambda on tuple[0]");
         assert_eq!(out.1.get_values(), &[99], "lambda on tuple[1]");
     }
@@ -1049,56 +1067,62 @@ mod tests {
     #[test]
     fn tuple_delta_iterates_all() {
         let mut tup = (
-            TestAtomic::periodic(0.0, 1.0),
-            TestAtomic::periodic(0.0, 1.0),
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(1)),
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(1)),
         )
             .to_simulator();
-        tup.start(0.0);
+        tup.start(Instant::from_secs(0));
         let t = tup.delta(
             &mut (Port::new(), Port::new()),
             &mut (Port::new(), Port::new()),
-            0.0,
+            Instant::from_secs(0),
         );
-        assert!(t > 0.0, "delta on tuple returns t_next");
+        assert!(t > Instant::from_secs(0), "delta on tuple returns t_next");
     }
 
     #[test]
     fn tuple_stop_iterates_all() {
         let mut tup = (
-            TestAtomic::periodic(0.0, 1.0),
-            TestAtomic::periodic(0.0, 1.0),
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(1)),
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(1)),
         )
             .to_simulator();
-        tup.start(0.0);
+        tup.start(Instant::from_secs(0));
         tup.stop();
         // No panic = pass
     }
 
     #[test]
     fn ref_mut_delegates_abstract_simulator() {
-        let mut raw = TestAtomic::oneshot(5.0).to_simulator();
-        let t = <&mut Simulator<TestAtomic> as AbstractSimulator>::start(&mut &mut raw, 0.0);
-        assert_eq!(t, 5.0, "start delegates through &mut T");
+        let mut raw = TestAtomic::oneshot(Duration::from_secs(5)).to_simulator();
+        let t = <&mut Simulator<TestAtomic> as AbstractSimulator>::start(
+            &mut &mut raw,
+            Instant::from_secs(0),
+        );
+        assert_eq!(t, Instant::from_secs(5), "start delegates through &mut T");
         <&mut Simulator<TestAtomic> as AbstractSimulator>::stop(&mut &mut raw);
     }
 
     #[cfg(feature = "alloc")]
     #[test]
     fn box_delegates_abstract_simulator() {
-        let mut raw = alloc::boxed::Box::new(TestAtomic::oneshot(3.0).to_simulator());
-        let t =
-            <alloc::boxed::Box<Simulator<TestAtomic>> as AbstractSimulator>::start(&mut raw, 0.0);
-        assert_eq!(t, 3.0, "start delegates through Box<T>");
+        let mut raw =
+            alloc::boxed::Box::new(TestAtomic::oneshot(Duration::from_secs(3)).to_simulator());
+        let t = <alloc::boxed::Box<Simulator<TestAtomic>> as AbstractSimulator>::start(
+            &mut raw,
+            Instant::from_secs(0),
+        );
+        assert_eq!(t, Instant::from_secs(3), "start delegates through Box<T>");
         <alloc::boxed::Box<Simulator<TestAtomic>> as AbstractSimulator>::stop(&mut raw);
     }
 
     #[test]
     fn simulate_vt_coupled() {
-        let a0 = TestAtomic::oneshot(1.0);
-        let a1 = TestAtomic::oneshot(f64::INFINITY); // passive, expects external
+        let a0 = TestAtomic::oneshot(Duration::from_secs(1));
+        let a1 = TestAtomic::oneshot(Duration::MAX); // passive, expects external
         let model = TestCoupled::build(a0, a1);
         let mut coord = model.to_simulator();
-        let config = Config::new(0.0, 5.0, 1.0, None);
+        let config = Config::new(Instant::from_secs(0), Instant::from_secs(5), 1, None);
         coord.simulate_vt(&config);
 
         let comps = <TestCoupled as PartialCoupled>::get_components(&coord);
@@ -1111,10 +1135,10 @@ mod tests {
 
     #[test]
     fn simulate_vt_with_option_none() {
-        let a0 = TestAtomic::oneshot(1.0);
+        let a0 = TestAtomic::oneshot(Duration::from_secs(1));
         let model = TestCoupledWithOption::build(a0, None);
         let mut coord = model.to_simulator();
-        let config = Config::new(0.0, 3.0, 1.0, None);
+        let config = Config::new(Instant::from_secs(0), Instant::from_secs(3), 1, None);
         coord.simulate_vt(&config);
 
         let comps = <TestCoupledWithOption as PartialCoupled>::get_components(&coord);
@@ -1162,9 +1186,9 @@ mod tests {
             }
         }
 
-        let a0 = TestAtomic::periodic(0.0, 2.0);
-        let a1 = TestAtomic::oneshot(f64::INFINITY);
-        let a2 = TestAtomic::oneshot(f64::INFINITY);
+        let a0 = TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(2));
+        let a1 = TestAtomic::oneshot(Duration::MAX);
+        let a2 = TestAtomic::oneshot(Duration::MAX);
         let model = ArrayCoupled {
             components: ArrayCoupledComponents {
                 inner: [a0.to_simulator(), a1.to_simulator(), a2.to_simulator()],
@@ -1179,7 +1203,7 @@ mod tests {
         );
 
         let mut coord = model.to_simulator();
-        let config = Config::new(0.0, 5.0, 1.0, None);
+        let config = Config::new(Instant::from_secs(0), Instant::from_secs(5), 1, None);
         coord.simulate_vt(&config);
 
         let arr = &coord.components.inner;
@@ -1197,18 +1221,23 @@ mod tests {
     #[test]
     fn config_default() {
         let c = Config::default();
-        assert_eq!(c.t_start, 0.0);
-        assert_eq!(c.t_stop, f64::INFINITY);
-        assert_eq!(c.time_scale, 1.0);
+        assert_eq!(c.t_start, Instant::from_secs(0));
+        assert_eq!(c.t_stop, Instant::MAX);
+        assert_eq!(c.mult, 1);
         assert!(c.max_jitter.is_none());
     }
 
     #[test]
     fn config_custom() {
-        let c = Config::new(1.0, 10.0, 2.0, Some(core::time::Duration::from_millis(100)));
-        assert_eq!(c.t_start, 1.0);
-        assert_eq!(c.t_stop, 10.0);
-        assert_eq!(c.time_scale, 2.0);
-        assert_eq!(c.max_jitter, Some(core::time::Duration::from_millis(100)));
+        let c = Config::new(
+            Instant::from_secs(1),
+            Instant::from_secs(10),
+            2,
+            Some(Duration::from_millis(100)),
+        );
+        assert_eq!(c.t_start, Instant::from_secs(1));
+        assert_eq!(c.t_stop, Instant::from_secs(10));
+        assert_eq!(c.mult, 2);
+        assert_eq!(c.max_jitter, Some(Duration::from_millis(100)));
     }
 }
