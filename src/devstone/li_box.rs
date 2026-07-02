@@ -63,7 +63,7 @@ impl<const W: usize> Component for TopModel<W> {
 }
 
 impl<const W: usize> Devstone for TopModel<W> {
-    crate::impl_devstone_top!(li_model);
+    crate::impl_devstone_top!(li_model, generator);
 }
 
 impl<const W: usize> xdevs::Coupled for TopModel<W> {
@@ -84,7 +84,7 @@ mod test {
     }
 
     #[test]
-    fn simulation_matches_expected_counts() {
+    fn simulation_matches_expected_counts_and_resets() {
         use xdevs::{AbstractSimulator, Simulable};
 
         const WIDTH: usize = 10;
@@ -102,5 +102,12 @@ mod test {
         assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());
         assert_eq!(expected_n_events(WIDTH, DEPTH), simulator.get_n_events());
         assert_eq!(simulator.get_n_internals(), simulator.get_n_externals());
+
+        simulator.reset();
+
+        assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());
+        assert_eq!(0, simulator.get_n_events());
+        assert_eq!(0, simulator.get_n_internals());
+        assert_eq!(0, simulator.get_n_externals());
     }
 }
