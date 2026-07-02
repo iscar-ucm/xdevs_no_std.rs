@@ -635,7 +635,10 @@ mod tests {
     use crate::{
         component::coupled::PartialCoupled,
         port::Port,
-        simulation::{simulator::Simulator, AbstractSimulator, Config, Simulable},
+        simulation::{
+            busy_sleep, busy_wait_event, simulator::Simulator, AbstractSimulator, Config,
+            Simulable, SleepAsync,
+        },
         Component, Duration,
     };
     #[test]
@@ -671,8 +674,8 @@ mod tests {
     #[test]
     fn simulate_rt_single_event() {
         let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 1.0, None);
-        sim.simulate_rt(&config, |_, t_until, _| t_until, |_| {});
+        let config = Config::new(0.0, 10.0, 0.001, None);
+        sim.simulate_rt(&config, busy_sleep(&config), |_| {});
         assert_eq!(sim.int_calls, 1, "rt single event");
         assert_eq!(sim.ext_calls, 0, "no external transitions");
     }
@@ -683,22 +686,19 @@ mod tests {
         // external transition triggers. external transition sets sigma=0,
         // so an immediate internal transition follows.
         let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 1.0, None);
+        let config = Config::new(0.0, 10.0, 0.001, None);
 
         let mut injected = false;
-        sim.simulate_rt(
-            &config,
-            |t, t_until, input| {
-                if !injected {
-                    injected = true;
-                    input.add_value(99).unwrap();
-                    t // inject at current time, return same t to process
-                } else {
-                    t_until // proceed normally afterwards
-                }
-            },
-            |_| {},
-        );
+        let input_closure = |input: &mut Port<usize, 1>| {
+            if !injected {
+                injected = true;
+                input.add_value(99).unwrap();
+                true
+            } else {
+                false
+            }
+        };
+        sim.simulate_rt(&config, busy_wait_event(&config, input_closure), |_| {});
 
         assert_eq!(sim.ext_calls, 1, "external transition via wait_until");
     }
@@ -726,27 +726,12 @@ mod tests {
         );
     }
 
-    struct IdentityAsyncInput;
-
-    impl crate::simulation::AsyncInput for IdentityAsyncInput {
-        type Input = Port<usize, 1>;
-        async fn handle(
-            &mut self,
-            _config: &Config,
-            _t_from: f64,
-            t_until: f64,
-            _input: &mut Self::Input,
-        ) -> f64 {
-            t_until
-        }
-    }
-
     #[tokio::test]
     async fn simulate_rt_async_single_event() {
         let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 1.0, None);
-        sim.simulate_rt_async(&config, IdentityAsyncInput, |_| {})
-            .await;
+        let config = Config::new(0.0, 10.0, 0.001, None);
+        let sleep_async = SleepAsync::new();
+        sim.simulate_rt_async(&config, sleep_async, |_| {}).await;
         assert_eq!(sim.int_calls, 1, "async single event");
         assert_eq!(sim.ext_calls, 0, "no external transitions");
     }
@@ -786,10 +771,11 @@ mod tests {
     #[tokio::test]
     async fn simulate_rt_async_propagate_output() {
         let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 1.0, None);
+        let config = Config::new(0.0, 10.0, 0.001, None);
         let mut captured = Port::<usize, 1>::new();
 
-        sim.simulate_rt_async(&config, IdentityAsyncInput, |output| {
+        let sleep_async = SleepAsync::new();
+        sim.simulate_rt_async(&config, sleep_async, |output| {
             for v in output.get_values() {
                 let _ = captured.add_value(*v);
             }
