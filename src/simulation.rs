@@ -192,7 +192,7 @@ pub trait AsyncInput {
 pub fn busy_sleep<T: Bag>(config: &Config) -> impl FnMut(f64, f64, &mut T) -> f64 {
     let time_scale = config.time_scale;
     move |t_from, t_until, _| {
-        let micros_dur = ((t_until - t_from) * time_scale) * 1_000_000.0;
+        let micros_dur = ((t_until - t_from) / time_scale) * 1_000_000.0;
         let core_dur = Duration::from_micros(micros_dur as u64);
         let dur: Duration = core_dur;
         let deadline = Instant::now() + dur;
@@ -219,7 +219,7 @@ pub fn busy_wait_event<T: Bag>(
     let mut last_rt = start_rt;
 
     move |t_from, t_until, binput| -> f64 {
-        let micros_dur = ((t_until - t_from) * time_scale) * 1_000_000.0;
+        let micros_dur = ((t_until - t_from) / time_scale) * 1_000_000.0;
         let core_dur = Duration::from_micros(micros_dur as u64);
         let dur: Duration = core_dur;
         let deadline = last_rt + dur;
@@ -242,7 +242,7 @@ pub fn busy_wait_event<T: Bag>(
                 let elapsed = now.checked_duration_since(start_rt).unwrap_or_default();
                 let core_elapsed: Duration = elapsed;
                 last_rt = now;
-                return core_elapsed.as_secs() as f64 / time_scale;
+                return core_elapsed.as_secs() as f64 * time_scale;
             }
             spin_loop();
         }
@@ -279,7 +279,7 @@ impl<T: Bag> AsyncInput for SleepAsync<T> {
         _input: &mut Self::Input,
     ) -> f64 {
         let last_rt = self.last_rt.unwrap_or_else(Instant::now);
-        let micros_dur = ((t_until - t_from) * config.time_scale) * 1_000_000.0;
+        let micros_dur = ((t_until - t_from) / config.time_scale) * 1_000_000.0;
         let duration = Duration::from_micros(micros_dur as u64);
         let next_rt = last_rt + duration;
         Timer::at(next_rt).await;
@@ -674,7 +674,7 @@ mod tests {
     #[test]
     fn simulate_rt_single_event() {
         let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 0.001, None);
+        let config = Config::new(0.0, 10.0, 1000.0, None);
         sim.simulate_rt(&config, busy_sleep(&config), |_| {});
         assert_eq!(sim.int_calls, 1, "rt single event");
         assert_eq!(sim.ext_calls, 0, "no external transitions");
@@ -686,7 +686,7 @@ mod tests {
         // external transition triggers. external transition sets sigma=0,
         // so an immediate internal transition follows.
         let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 0.001, None);
+        let config = Config::new(0.0, 10.0, 1000.0, None);
 
         let mut injected = false;
         let input_closure = |input: &mut Port<usize, 1>| {
@@ -729,7 +729,7 @@ mod tests {
     #[tokio::test]
     async fn simulate_rt_async_single_event() {
         let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 0.001, None);
+        let config = Config::new(0.0, 10.0, 1000.0, None);
         let sleep_async = SleepAsync::new();
         sim.simulate_rt_async(&config, sleep_async, |_| {}).await;
         assert_eq!(sim.int_calls, 1, "async single event");
@@ -771,7 +771,7 @@ mod tests {
     #[tokio::test]
     async fn simulate_rt_async_propagate_output() {
         let mut sim = TestAtomic::oneshot(5.0).to_simulator();
-        let config = Config::new(0.0, 10.0, 0.001, None);
+        let config = Config::new(0.0, 10.0, 1000.0, None);
         let mut captured = Port::<usize, 1>::new();
 
         let sleep_async = SleepAsync::new();

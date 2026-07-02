@@ -119,7 +119,7 @@ where
         input: &mut Self::Input,
     ) -> f64 {
         let last_rt = self.last_rt.unwrap_or_else(Instant::now);
-        let time_duration = (t_until - t_from) * config.time_scale;
+        let time_duration = (t_until - t_from) / config.time_scale;
         let time_duration = (time_duration * 1_000_000_000.0) as u64;
         let next_rt = last_rt + Duration::from_nanos(time_duration);
 
@@ -142,7 +142,7 @@ where
             let now = Instant::now();
             self.last_rt = Some(now);
             let elapsed_rt = now.duration_since(last_rt).as_micros() as f64 / 1_000_000.0;
-            let elapsed_sim = elapsed_rt / config.time_scale;
+            let elapsed_sim = elapsed_rt * config.time_scale;
 
             t_from + elapsed_sim
         }
