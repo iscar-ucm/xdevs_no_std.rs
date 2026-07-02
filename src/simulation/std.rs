@@ -1,8 +1,4 @@
-use crate::{
-    port::Bag,
-    simulation::{AsyncInput, Config},
-    Duration as eDuration, Instant as eInstant,
-};
+use crate::{port::Bag, simulation::Config, Duration as eDuration, Instant as eInstant};
 use std::{thread, time::SystemTime};
 
 /// Closure for RT simulation on targets with `std`.
@@ -74,29 +70,5 @@ pub fn wait_event<T: Bag>(
                 eInstant::now()
             }
         }
-    }
-}
-
-/// A simple asynchronous input handler that sleeps until the next state transition of the model.
-#[derive(Default)]
-pub struct SleepAsync<T: Bag> {
-    /// Phantom data to associate with the input bag type.
-    input: core::marker::PhantomData<T>,
-}
-
-impl<T: Bag> SleepAsync<T> {
-    /// Creates a new `SleepAsync` instance.
-    pub fn new() -> Self {
-        Self {
-            input: core::marker::PhantomData,
-        }
-    }
-}
-
-impl<T: Bag> AsyncInput for SleepAsync<T> {
-    type Input = T;
-
-    async fn handle(&mut self, _input: &mut Self::Input) {
-        core::future::pending::<()>().await
     }
 }
