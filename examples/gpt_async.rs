@@ -2,7 +2,7 @@
 use xdevs::{
     gpt::{Generator, Processor, Transducer, GPT},
     prelude::*,
-    simulation::std::SleepAsync,
+    simulation::SleepAsync,
     Config, Duration, Instant,
 };
 
