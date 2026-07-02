@@ -154,7 +154,7 @@ fn run_gpt(processor: processor::Processor) {
     let gpt = GPT::build(Generator::new(PERIOD), processor, Transducer::new(OBS_TIME));
     let mut simulator = gpt.to_simulator();
     let config = xdevs::Config::new(0.0, 14.0, 1.0, None);
-    simulator.simulate_rt(&config, xdevs::simulation::std::sleep(&config), |_| {});
+    simulator.simulate_vt(&config);
 }
 
 fn main() {

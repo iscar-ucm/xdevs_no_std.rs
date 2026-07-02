@@ -131,7 +131,7 @@ where
             // Deadline reached (timeout), check for jitter
             if let Some(max_jitter) = config.max_jitter {
                 let jitter = Instant::now().duration_since(next_rt);
-                let max_jitter_ticks = Duration::from_micros(max_jitter.as_micros() as u64);
+                let max_jitter_ticks = Duration::from_micros(max_jitter.as_micros());
                 if jitter > max_jitter_ticks {
                     panic!("Jitter too high: {:?}", jitter);
                 }

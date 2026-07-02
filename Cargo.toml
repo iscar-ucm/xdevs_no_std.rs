@@ -32,7 +32,7 @@ alloc = []
 embassy = ["embassy-sync", "xdevs-no-std-macros/embassy-backend"]
 std = [
     "alloc",
-    "tokio/time",
+    "tokio",
     "xdevs-no-std-macros/std-backend",
     "embassy-time/std",
     "embassy-time/generic-queue-8",

@@ -1,12 +1,9 @@
-use crate::{component::Component, port::Bag, ComponentsKind};
-use core::{future::Future, time::Duration};
+use crate::{component::Component, port::Bag, ComponentsKind, Instant};
+use core::{future::Future, hint::spin_loop};
+use embassy_time::{Duration, Timer};
 
 pub mod coordinator;
-#[cfg(feature = "embassy")]
-pub mod embassy;
 pub mod simulator;
-#[cfg(feature = "std")]
-pub mod std;
 
 /// Configuration for the DEVS simulator.
 #[derive(Debug, Clone, Copy)]
@@ -186,6 +183,109 @@ pub trait AsyncInput {
         t_until: f64,
         input: &mut Self::Input,
     ) -> impl Future<Output = f64>;
+}
+
+/// Busy-wait sleep closure for RT simulation without `std`.
+///
+/// This does **not** support external input injection — it purely advances
+/// virtual time in sync with wall-clock time.
+pub fn busy_sleep<T: Bag>(config: &Config) -> impl FnMut(f64, f64, &mut T) -> f64 {
+    let time_scale = config.time_scale;
+    move |t_from, t_until, _| {
+        let micros_dur = ((t_until - t_from) * time_scale) * 1_000_000.0;
+        let core_dur = Duration::from_micros(micros_dur as u64);
+        let dur: Duration = core_dur;
+        let deadline = Instant::now() + dur;
+        while Instant::now() < deadline {
+            spin_loop();
+        }
+        t_until
+    }
+}
+
+/// Busy-wait event handler for RT simulation without `std`, with external input support.
+///
+/// The `poll_input` closure is called at each spin-loop
+/// iteration; when it injects an external event (returns `true`), the wait
+/// stops early and returns the corresponding virtual time.
+///
+/// Jitter is checked against `config.max_jitter` when the deadline is reached.
+pub fn busy_wait_event<T: Bag>(
+    config: &Config,
+    mut poll_input: impl FnMut(&mut T) -> bool,
+) -> impl FnMut(f64, f64, &mut T) -> f64 {
+    let (time_scale, max_jitter) = (config.time_scale, config.max_jitter);
+    let start_rt = Instant::now();
+    let mut last_rt = start_rt;
+
+    move |t_from, t_until, binput| -> f64 {
+        let micros_dur = ((t_until - t_from) * time_scale) * 1_000_000.0;
+        let core_dur = Duration::from_micros(micros_dur as u64);
+        let dur: Duration = core_dur;
+        let deadline = last_rt + dur;
+
+        loop {
+            let now = Instant::now();
+            if now >= deadline {
+                if let Some(max_jitter) = max_jitter {
+                    if let Some(drift) = now.checked_duration_since(deadline) {
+                        let max: Duration = max_jitter;
+                        if drift > max {
+                            panic!("[WE]>> Jitter too high: {:?}", drift);
+                        }
+                    }
+                }
+                last_rt = deadline;
+                return t_until;
+            }
+            if poll_input(binput) {
+                let elapsed = now.checked_duration_since(start_rt).unwrap_or_default();
+                let core_elapsed: Duration = elapsed;
+                last_rt = now;
+                return core_elapsed.as_secs() as f64 / time_scale;
+            }
+            spin_loop();
+        }
+    }
+}
+
+/// A simple asynchronous input handler that sleeps until the next state transition of the model.
+#[derive(Default)]
+pub struct SleepAsync<T: Bag> {
+    /// The last recorded real time instant.
+    last_rt: Option<Instant>,
+    /// Phantom data to associate with the input bag type.
+    input: core::marker::PhantomData<T>,
+}
+
+impl<T: Bag> SleepAsync<T> {
+    /// Creates a new `SleepAsync` instance.
+    pub fn new() -> Self {
+        Self {
+            last_rt: None,
+            input: core::marker::PhantomData,
+        }
+    }
+}
+
+impl<T: Bag> AsyncInput for SleepAsync<T> {
+    type Input = T;
+
+    async fn handle(
+        &mut self,
+        config: &Config,
+        t_from: f64,
+        t_until: f64,
+        _input: &mut Self::Input,
+    ) -> f64 {
+        let last_rt = self.last_rt.unwrap_or_else(Instant::now);
+        let micros_dur = ((t_until - t_from) * config.time_scale) * 1_000_000.0;
+        let duration = Duration::from_micros(micros_dur as u64);
+        let next_rt = last_rt + duration;
+        Timer::at(next_rt).await;
+        self.last_rt = Some(next_rt);
+        t_until
+    }
 }
 
 unsafe impl<T: AbstractSimulator> AbstractSimulator for &mut T {
@@ -536,7 +636,7 @@ mod tests {
         component::coupled::PartialCoupled,
         port::Port,
         simulation::{simulator::Simulator, AbstractSimulator, Config, Simulable},
-        Component,
+        Component, Duration,
     };
     #[test]
     fn simulate_vt_single_event() {
@@ -1000,10 +1100,10 @@ mod tests {
 
     #[test]
     fn config_custom() {
-        let c = Config::new(1.0, 10.0, 2.0, Some(core::time::Duration::from_millis(100)));
+        let c = Config::new(1.0, 10.0, 2.0, Some(Duration::from_millis(100)));
         assert_eq!(c.t_start, 1.0);
         assert_eq!(c.t_stop, 10.0);
         assert_eq!(c.time_scale, 2.0);
-        assert_eq!(c.max_jitter, Some(core::time::Duration::from_millis(100)));
+        assert_eq!(c.max_jitter, Some(Duration::from_millis(100)));
     }
 }
