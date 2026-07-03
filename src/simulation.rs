@@ -1,5 +1,24 @@
 use crate::{component::Component, port::Bag, ComponentsKind};
 use core::{future::Future, time::Duration};
+#[cfg(feature = "rayon")]
+use rayon::prelude::*;
+
+/// Helper trait for avoiding verbose trait constraints.
+#[cfg(feature = "rayon")]
+pub trait SimSend: Send {}
+#[cfg(feature = "rayon")]
+impl<T: Send> SimSend for T {}
+
+/// Helper trait for avoiding verbose trait constraints.
+#[cfg(not(feature = "rayon"))]
+pub trait SimSend {}
+#[cfg(not(feature = "rayon"))]
+impl<T> SimSend for T {}
+
+/// Re-export of `rayon::join` so proc-macro-generated code can reference it
+/// through xdevs without requiring the consumer crate to depend on rayon directly.
+#[cfg(feature = "rayon")]
+pub use rayon::join as parallel_join;
 
 pub mod coordinator;
 #[cfg(feature = "embassy")]
@@ -61,6 +80,16 @@ impl Default for Config {
 /// # Safety
 ///
 /// This trait must be implemented internally or via the [`coupled`](crate::coupled) macro. Do not implement it manually.
+///
+/// # Rayon safety
+///
+/// When the `rayon` feature is enabled, collections of `AbstractSimulator` types
+/// (arrays, tuples, structs) are parallelized via `rayon::join` / `par_iter_mut`.
+/// This is sound because each element/field operates on its own disjoint
+/// input/output slots — coupling (EIC/IC/EOC) runs outside the parallel section.
+/// User-defined transition methods (`start`, `stop`, `delta_int`, `delta_ext`,
+/// `delta_conf`, `lambda`, `ta`) must not touch shared mutable globals.
+/// The component types (`Self`, `Input`, `Output`) must be `Send`.
 pub unsafe trait AbstractSimulator {
     type Input: Bag;
 
@@ -239,36 +268,76 @@ unsafe impl<T: AbstractSimulator> AbstractSimulator for alloc::boxed::Box<T> {
     }
 }
 
-unsafe impl<T: AbstractSimulator, const N: usize> AbstractSimulator for [T; N] {
+unsafe impl<T: AbstractSimulator + SimSend, const N: usize> AbstractSimulator for [T; N]
+where
+    T::Input: SimSend,
+    T::Output: SimSend,
+{
     type Input = [T::Input; N];
     type Output = [T::Output; N];
 
     #[inline(always)]
     fn start(&mut self, t_start: f64) -> f64 {
-        self.iter_mut()
-            .map(|processor| T::start(processor, t_start))
-            .fold(f64::INFINITY, f64::min)
+        #[cfg(feature = "rayon")]
+        {
+            self.par_iter_mut()
+                .map(|processor| T::start(processor, t_start))
+                .reduce(|| f64::INFINITY, f64::min)
+        }
+        #[cfg(not(feature = "rayon"))]
+        {
+            self.iter_mut()
+                .map(|processor| T::start(processor, t_start))
+                .fold(f64::INFINITY, f64::min)
+        }
     }
 
     #[inline(always)]
     fn stop(&mut self) {
-        self.iter_mut().for_each(|processor| T::stop(processor));
+        #[cfg(feature = "rayon")]
+        {
+            self.par_iter_mut().for_each(|processor| T::stop(processor));
+        }
+        #[cfg(not(feature = "rayon"))]
+        {
+            self.iter_mut().for_each(|processor| T::stop(processor));
+        }
     }
 
     #[inline(always)]
     fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-        for (processor, output) in self.iter_mut().zip(output.iter_mut()) {
-            T::lambda(processor, output, t);
+        #[cfg(feature = "rayon")]
+        {
+            self.par_iter_mut()
+                .zip(output.par_iter_mut())
+                .for_each(|(processor, output)| T::lambda(processor, output, t));
+        }
+        #[cfg(not(feature = "rayon"))]
+        {
+            for (processor, output) in self.iter_mut().zip(output.iter_mut()) {
+                T::lambda(processor, output, t);
+            }
         }
     }
 
     #[inline(always)]
     fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        self.iter_mut()
-            .zip(input.iter_mut())
-            .zip(output.iter_mut())
-            .map(|((processor, input), output)| T::delta(processor, input, output, t))
-            .fold(f64::INFINITY, f64::min)
+        #[cfg(feature = "rayon")]
+        {
+            self.par_iter_mut()
+                .zip(input.par_iter_mut())
+                .zip(output.par_iter_mut())
+                .map(|((processor, input), output)| T::delta(processor, input, output, t))
+                .reduce(|| f64::INFINITY, f64::min)
+        }
+        #[cfg(not(feature = "rayon"))]
+        {
+            self.iter_mut()
+                .zip(input.iter_mut())
+                .zip(output.iter_mut())
+                .map(|((processor, input), output)| T::delta(processor, input, output, t))
+                .fold(f64::INFINITY, f64::min)
+        }
     }
 }
 
@@ -310,34 +379,122 @@ unsafe impl<T: AbstractSimulator> AbstractSimulator for Option<T> {
     }
 }
 
+// Recursive helper macros for right-nested rayon::join trees over tuple elements.
+#[cfg(feature = "rayon")]
+macro_rules! tuple_parallel_start {
+    ($self:expr, $t:expr, $idx:tt) => {
+        $crate::simulation::AbstractSimulator::start(&mut $self.$idx, $t)
+    };
+    ($self:expr, $t:expr, $idx:tt $(, $rest:tt)+) => {{
+        let (a, b) = ::rayon::join(
+            || $crate::simulation::AbstractSimulator::start(&mut $self.$idx, $t),
+            || tuple_parallel_start!($self, $t, $($rest),+),
+        );
+        f64::min(a, b)
+    }};
+}
+
+#[cfg(feature = "rayon")]
+macro_rules! tuple_parallel_stop {
+    ($self:expr, $idx:tt) => {
+        $crate::simulation::AbstractSimulator::stop(&mut $self.$idx)
+    };
+    ($self:expr, $idx:tt $(, $rest:tt)+) => {{
+        ::rayon::join(
+            || $crate::simulation::AbstractSimulator::stop(&mut $self.$idx),
+            || tuple_parallel_stop!($self, $($rest),+),
+        );
+    }};
+}
+
+#[cfg(feature = "rayon")]
+macro_rules! tuple_parallel_lambda {
+    ($self:expr, $output:expr, $t:expr, $idx:tt) => {
+        $crate::simulation::AbstractSimulator::lambda(&mut $self.$idx, &mut $output.$idx, $t)
+    };
+    ($self:expr, $output:expr, $t:expr, $idx:tt $(, $rest:tt)+) => {{
+        ::rayon::join(
+            || $crate::simulation::AbstractSimulator::lambda(&mut $self.$idx, &mut $output.$idx, $t),
+            || tuple_parallel_lambda!($self, $output, $t, $($rest),+),
+        );
+    }};
+}
+
+#[cfg(feature = "rayon")]
+macro_rules! tuple_parallel_delta {
+    ($self:expr, $input:expr, $output:expr, $t:expr, $idx:tt) => {
+        $crate::simulation::AbstractSimulator::delta(
+            &mut $self.$idx, &mut $input.$idx, &mut $output.$idx, $t)
+    };
+    ($self:expr, $input:expr, $output:expr, $t:expr, $idx:tt $(, $rest:tt)+) => {{
+        let (a, b) = ::rayon::join(
+            || $crate::simulation::AbstractSimulator::delta(
+                &mut $self.$idx, &mut $input.$idx, &mut $output.$idx, $t),
+            || tuple_parallel_delta!($self, $input, $output, $t, $($rest),+),
+        );
+        f64::min(a, b)
+    }};
+}
+
 macro_rules! impl_abstract_simulator_for_tuple {
     ($($idx:tt => $T:ident),+) => {
-        unsafe impl<$($T: AbstractSimulator),+> AbstractSimulator for ($($T,)+) {
+        unsafe impl<$($T: AbstractSimulator + SimSend),+> AbstractSimulator for ($($T,)+)
+        where
+            $($T::Input: SimSend, $T::Output: SimSend),+
+        {
             type Input = ($($T::Input,)+);
             type Output = ($($T::Output,)+);
 
             #[inline(always)]
             fn start(&mut self, t_start: f64) -> f64 {
-                let mut min_t = f64::INFINITY;
-                $(min_t = min_t.min(self.$idx.start(t_start));)+
-                min_t
+                #[cfg(feature = "rayon")]
+                {
+                    tuple_parallel_start!(self, t_start, $($idx),+)
+                }
+                #[cfg(not(feature = "rayon"))]
+                {
+                    let mut min_t = f64::INFINITY;
+                    $(min_t = min_t.min(self.$idx.start(t_start));)+
+                    min_t
+                }
             }
 
             #[inline(always)]
             fn stop(&mut self) {
-                $(self.$idx.stop();)+
+                #[cfg(feature = "rayon")]
+                {
+                    tuple_parallel_stop!(self, $($idx),+)
+                }
+                #[cfg(not(feature = "rayon"))]
+                {
+                    $(self.$idx.stop();)+
+                }
             }
 
             #[inline(always)]
             fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-                $(self.$idx.lambda(&mut output.$idx, t);)+
+                #[cfg(feature = "rayon")]
+                {
+                    tuple_parallel_lambda!(self, output, t, $($idx),+)
+                }
+                #[cfg(not(feature = "rayon"))]
+                {
+                    $(self.$idx.lambda(&mut output.$idx, t);)+
+                }
             }
 
             #[inline(always)]
             fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-                let mut min_t = f64::INFINITY;
-                $(min_t = min_t.min(self.$idx.delta(&mut input.$idx, &mut output.$idx, t));)+
-                min_t
+                #[cfg(feature = "rayon")]
+                {
+                    tuple_parallel_delta!(self, input, output, t, $($idx),+)
+                }
+                #[cfg(not(feature = "rayon"))]
+                {
+                    let mut min_t = f64::INFINITY;
+                    $(min_t = min_t.min(self.$idx.delta(&mut input.$idx, &mut output.$idx, t));)+
+                    min_t
+                }
             }
         }
     }
@@ -361,7 +518,8 @@ macro_rules! impl_simulable_for_tuple {
         impl<$($T, $K),+> Simulable<($($K,)+)> for ($($T,)+)
         where
             $($T: Component<Kind = $K> + Simulable<$K>),+,
-            $($K: crate::component::sealed::Sealed),+
+            $($K: crate::component::sealed::Sealed),+,
+            $($T::Simulator: SimSend, $T::Input: SimSend, $T::Output: SimSend),+
         {
             type Simulator = ($($T::Simulator,)+);
 
@@ -404,6 +562,9 @@ where
     T: Component<Kind = K>,
     T: Simulable<K>,
     K: crate::component::sealed::Sealed,
+    T::Simulator: SimSend,
+    T::Input: SimSend,
+    T::Output: SimSend,
 {
     type Simulator = [T::Simulator; N];
 

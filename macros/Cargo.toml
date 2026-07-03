@@ -20,4 +20,5 @@ heck = "0.5"
 
 [features]
 embassy-backend = []
+rayon-backend = []
 std-backend = []

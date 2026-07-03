@@ -26,6 +26,7 @@ This allows a robust Model-Based design approach, from a mathematical model to a
 | `std` | Tokio-based async backend. Enables heap-allocated (`alloc`) variants. |
 | `embassy` | Embassy-based async backend for bare-metal targets. |
 | `alloc` | Enables `Box` of DEVS models and `Box`-based DEVStone models. |
+| `rayon` | Parallel simulation of independent components (arrays/tuples/struct fields). Implies `std`; components must be `Send`. |
 
 Both `std` and `embassy` enable executor-dependent tools. They are mutually exclusive and interchangeable.
 
