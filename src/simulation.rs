@@ -22,8 +22,6 @@ pub use rayon::join as parallel_join;
 
 pub mod coordinator;
 pub mod simulator;
-#[cfg(feature = "std")]
-pub mod std;
 
 /// Configuration for the DEVS simulator.
 #[derive(Debug, Clone, Copy)]
@@ -71,8 +69,7 @@ impl Default for Config {
 /// Public simulation API for DEVS processors and processor collections.
 ///
 /// This trait provides transition-level methods (`start`, `stop`, `lambda`, `delta`)
-/// and high-level default simulation loops (`simulate_vt`, `simulate_rt`,
-/// `simulate_rt_async`).
+/// and high-level default simulation loops (`simulate_vt`, `simulate_rt`).
 ///
 /// # Safety
 ///
@@ -89,35 +86,6 @@ pub unsafe trait AbstractSimulator {
     fn lambda(&mut self, output: &mut Self::Output, t: Instant);
 
     fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: Instant) -> Instant;
-
-    /// Executes simulation from `t_start` to `t_stop` using an external wait/input strategy.
-    #[inline]
-    fn simulate_rt(
-        &mut self,
-        config: &Config,
-        mut wait_until: impl FnMut(Instant, &mut Self::Input) -> Instant,
-        mut propagate_output: impl FnMut(&Self::Output),
-    ) {
-        let t_start = config.t_start;
-        let t_stop = config.t_stop;
-        let mut t = t_start;
-        let mut t_next_internal = self.start(t);
-        let mut component_input = <Self::Input>::build();
-        let mut component_output = <Self::Output>::build();
-        while t < t_stop {
-            let t_until = Instant::min(t_next_internal, t_stop);
-            t = wait_until(t_until, &mut component_input);
-            if t >= t_next_internal {
-                t = t_next_internal;
-                self.lambda(&mut component_output, t);
-                propagate_output(&component_output);
-            } else if component_input.is_empty() {
-                continue; // avoid spurious external transitions
-            }
-            t_next_internal = self.delta(&mut component_input, &mut component_output, t);
-        }
-        self.stop();
-    }
 
     /// Executes simulation from `t_start` to `t_stop` with a virtual clock.
     #[inline]
@@ -142,8 +110,9 @@ pub unsafe trait AbstractSimulator {
         self.stop();
     }
 
-    /// Asynchronous version of [`AbstractSimulator::simulate_rt`].
-    fn simulate_rt_async(
+    /// Executes simulation from `t_start` to `t_stop` with a virtual clock and
+    /// asynchronous input handling.
+    fn simulate_rt(
         &mut self,
         config: &Config,
         mut input_handler: impl AsyncInput<Input = Self::Input>,
@@ -817,85 +786,17 @@ mod tests {
         assert_eq!(sim.ext_calls, 0, "no external events");
     }
 
-    #[test]
-    fn simulate_rt_single_event() {
-        let mut sim = TestAtomic::oneshot(Duration::from_secs(5)).to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
-        sim.simulate_rt(&config, |t_until, _| t_until, |_| {});
+    #[tokio::test]
+    async fn simulate_rt_single_event() {
+        let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
+        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
+        sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
         assert_eq!(sim.int_calls, 1, "rt single event");
         assert_eq!(sim.ext_calls, 0, "no external transitions");
     }
 
-    #[test]
-    fn simulate_rt_injects_external_input() {
-        // wait_until injects input at t=0 before the first internal (t=5)
-        // external transition triggers. external transition sets sigma=0,
-        // so an immediate internal transition follows.
-        let mut sim = TestAtomic::oneshot(Duration::from_secs(5)).to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
-
-        let mut injected = false;
-        sim.simulate_rt(
-            &config,
-            |t_until, input| {
-                if !injected {
-                    injected = true;
-                    input.add_value(99).unwrap();
-                    Instant::from_secs(0) // inject at current time, return same t to process
-                } else {
-                    t_until // proceed normally afterwards
-                }
-            },
-            |_| {},
-        );
-
-        assert_eq!(sim.ext_calls, 1, "external transition via wait_until");
-    }
-
-    #[test]
-    fn simulate_rt_propagate_output() {
-        let mut sim = TestAtomic::oneshot(Duration::from_secs(5)).to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
-        let mut captured = Port::<usize, 1>::new();
-
-        sim.simulate_rt(
-            &config,
-            |t_until, _| t_until,
-            |output| {
-                for v in output.get_values() {
-                    captured.add_value(*v).unwrap();
-                }
-            },
-        );
-
-        assert_eq!(
-            captured.get_values(),
-            &[99],
-            "propagate_output captures lambda output"
-        );
-    }
-
-    struct IdentityAsyncInput;
-
-    impl crate::simulation::AsyncInput for IdentityAsyncInput {
-        type Input = Port<usize, 1>;
-        async fn handle(&mut self, _input: &mut Self::Input) {
-            core::future::pending::<()>().await
-        }
-    }
-
     #[tokio::test]
-    async fn simulate_rt_async_single_event() {
-        let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
-        sim.simulate_rt_async(&config, IdentityAsyncInput, |_| {})
-            .await;
-        assert_eq!(sim.int_calls, 1, "async single event");
-        assert_eq!(sim.ext_calls, 0, "no external transitions");
-    }
-
-    #[tokio::test]
-    async fn simulate_rt_async_external_input() {
+    async fn simulate_rt_injects_external_input() {
         let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
         let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
 
@@ -914,18 +815,82 @@ mod tests {
             }
         }
 
-        sim.simulate_rt_async(&config, InjectInput { injected: false }, |_| {})
+        sim.simulate_rt(&config, InjectInput { injected: false }, |_| {})
+            .await;
+
+        assert_eq!(sim.ext_calls, 1, "external transition via input_handler");
+    }
+
+    #[tokio::test]
+    async fn simulate_rt_propagate_output() {
+        let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
+        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
+        let mut captured = Port::<usize, 1>::new();
+
+        sim.simulate_rt(&config, IdentityAsyncInput, |output| {
+            for v in output.get_values() {
+                let _ = captured.add_value(*v);
+            }
+        })
+        .await;
+
+        assert_eq!(
+            captured.get_values(),
+            &[99],
+            "propagate_output captures lambda output"
+        );
+    }
+
+    struct IdentityAsyncInput;
+
+    impl crate::simulation::AsyncInput for IdentityAsyncInput {
+        type Input = Port<usize, 1>;
+        async fn handle(&mut self, _input: &mut Self::Input) {
+            core::future::pending::<()>().await
+        }
+    }
+
+    #[tokio::test]
+    async fn simulate_rt_single_event_async() {
+        let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
+        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
+        sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
+        assert_eq!(sim.int_calls, 1, "async single event");
+        assert_eq!(sim.ext_calls, 0, "no external transitions");
+    }
+
+    #[tokio::test]
+    async fn simulate_rt_external_input_async() {
+        let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
+        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
+
+        struct InjectInput {
+            injected: bool,
+        }
+        impl crate::simulation::AsyncInput for InjectInput {
+            type Input = Port<usize, 1>;
+            async fn handle(&mut self, input: &mut Self::Input) {
+                if !self.injected {
+                    self.injected = true;
+                    input.add_value(99).unwrap();
+                } else {
+                    core::future::pending::<()>().await
+                }
+            }
+        }
+
+        sim.simulate_rt(&config, InjectInput { injected: false }, |_| {})
             .await;
         assert_eq!(sim.ext_calls, 1, "async external input");
     }
 
     #[tokio::test]
-    async fn simulate_rt_async_propagate_output() {
+    async fn simulate_rt_propagate_output_async() {
         let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
         let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
         let mut captured = Port::<usize, 1>::new();
 
-        sim.simulate_rt_async(&config, IdentityAsyncInput, |output| {
+        sim.simulate_rt(&config, IdentityAsyncInput, |output| {
             for v in output.get_values() {
                 let _ = captured.add_value(*v);
             }

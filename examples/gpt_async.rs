@@ -22,7 +22,5 @@ async fn main() {
     let config = Config::new(Instant::from_secs(0), Instant::from_secs(14), 1, None);
     let input_handler = SleepAsync::new();
 
-    simulator
-        .simulate_rt_async(&config, input_handler, |_| {})
-        .await;
+    simulator.simulate_rt(&config, input_handler, |_| {}).await;
 }
