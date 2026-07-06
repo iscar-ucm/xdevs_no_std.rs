@@ -10,7 +10,7 @@ fn bench_li(c: &mut Criterion) {
     const DEPTH: usize = 400;
     const W: usize = WIDTH - 1;
     const N: usize = (WIDTH - 1) * (DEPTH - 1) + 1;
-    generate_li!(400, 400);
+    generate_li!(400, 400, 0, 0);
     let generator = JobGenerator::new(5);
     let top_model: TopModel<'_, W> = TopModel::build(generator, &mut model_li);
     let mut simulator = top_model.to_simulator();

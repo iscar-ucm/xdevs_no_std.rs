@@ -11,7 +11,7 @@ fn bench_hi(c: &mut Criterion) {
     const W: usize = WIDTH - 1;
     const N: usize = (WIDTH - 1) * (DEPTH - 1) + 1;
     const E: usize = 1 + (DEPTH - 1) * ((WIDTH - 1) * WIDTH) / 2;
-    generate_hi!(400, 400);
+    generate_hi!(400, 400, 0, 0);
     let generator = JobGenerator::new(5);
     let top_model: TopModel<'_, W> = TopModel::build(generator, &mut model_hi);
     let mut simulator = top_model.to_simulator();

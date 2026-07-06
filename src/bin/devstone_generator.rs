@@ -81,8 +81,8 @@ fn run() -> Result<(), String> {
         return Ok(());
     }
 
-    if args.len() != 3 {
-        return Err(format!("Expected 3 arguments.\n\n{}", usage()));
+    if args.len() != 5 {
+        return Err(format!("Expected 5 arguments.\n\n{}", usage()));
     }
 
     let model = ModelType::parse(&args[0]).ok_or_else(|| {
@@ -93,8 +93,10 @@ fn run() -> Result<(), String> {
         )
     })?;
 
-    let width = parse_positive_usize(&args[1], "width")?;
-    let depth = parse_positive_usize(&args[2], "depth")?;
+    let width = parse_usize(&args[1], "width")?;
+    let depth = parse_usize(&args[2], "depth")?;
+    let int_cycles = parse_usize(&args[3], "int_cycles")?;
+    let ext_cycles = parse_usize(&args[4], "ext_cycles")?;
 
     let output_path = output_path();
     if let Some(parent) = output_path.parent() {
@@ -102,7 +104,7 @@ fn run() -> Result<(), String> {
             .map_err(|err| format!("Failed to create output directory: {err}"))?;
     }
 
-    let contents = render_example(model, width, depth);
+    let contents = render_example(model, width, depth, int_cycles, ext_cycles);
     fs::write(&output_path, contents)
         .map_err(|err| format!("Failed to write example file: {err}"))?;
 
@@ -110,14 +112,9 @@ fn run() -> Result<(), String> {
     Ok(())
 }
 
-fn parse_positive_usize(raw: &str, label: &str) -> Result<usize, String> {
-    let value: usize = raw
-        .parse()
-        .map_err(|_| format!("Invalid {label} '{raw}'. Expected a positive integer."))?;
-    if value < 1 {
-        return Err(format!("{label} must be at least 1."));
-    }
-    Ok(value)
+fn parse_usize(raw: &str, label: &str) -> Result<usize, String> {
+    raw.parse()
+        .map_err(|_| format!("Invalid {label} '{raw}'. Expected a non-negative integer."))
 }
 
 fn output_path() -> PathBuf {
@@ -126,13 +123,14 @@ fn output_path() -> PathBuf {
 
 fn usage() -> String {
     let mut message = String::new();
-    message.push_str("Usage: devstone_generator <MODEL_TYPE> <WIDTH> <DEPTH>\n\n");
+    message.push_str("Usage: devstone_generator <MODEL_TYPE> <WIDTH> <DEPTH> <INT_CYCLES> <EXT_CYCLES>\n\n");
     message.push_str("MODEL_TYPE: LI | LI_BOX | HI | HI_BOX | HO | HO_BOX\n");
     message.push_str("WIDTH and DEPTH must be positive integers.\n");
+    message.push_str("INT_CYCLES and EXT_CYCLES must be non-negative integers (0 = no workload).\n");
     message
 }
 
-fn render_example(model: ModelType, width: usize, depth: usize) -> String {
+fn render_example(model: ModelType, width: usize, depth: usize, int_cycles: usize, ext_cycles: usize) -> String {
     let module = model.module();
     let macro_name = model.macro_name();
     let model_var = model.model_var();
@@ -166,7 +164,7 @@ fn render_example(model: ModelType, width: usize, depth: usize) -> String {
 
         let start = Instant::now();
 
-        xdevs::{macro_name}!({width}, {depth});
+        xdevs::{macro_name}!({width}, {depth}, {int_cycles}, {ext_cycles});
 
         let generator = xdevs::devstone::common::JobGenerator::new(5);
 

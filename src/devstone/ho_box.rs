@@ -32,13 +32,13 @@ impl<const W: usize> xdevs::Coupled for LeafModel<W> {
 
 impl<const W: usize> Default for LeafModel<W> {
     fn default() -> Self {
-        Self::new()
+        Self::new(0, 0)
     }
 }
 
 impl<const W: usize> LeafModel<W> {
-    pub fn new() -> Self {
-        Self::build(AtomicModel::default())
+    pub fn new(int_delay: u64, ext_delay: u64) -> Self {
+        Self::build(AtomicModel::new(int_delay, ext_delay))
     }
 }
 
@@ -64,8 +64,11 @@ pub struct HOModel<const W: usize> {
     inner: Box<HOEnum<W>>,
 }
 impl<const W: usize> HOModel<W> {
-    pub fn new(inner: Box<HOEnum<W>>) -> Self {
-        Self::build(core::array::from_fn(|_| AtomicModel::default()), inner)
+    pub fn new(int_delay: u64, ext_delay: u64, inner: Box<HOEnum<W>>) -> Self {
+        Self::build(
+            core::array::from_fn(|_| AtomicModel::new(int_delay, ext_delay)),
+            inner,
+        )
     }
 }
 
@@ -143,7 +146,7 @@ mod test {
         const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;
 
-        xdevs::generate_ho_box!(10, 10);
+        xdevs::generate_ho_box!(10, 10, 0, 0);
 
         let generator = JobGenerator::new(5);
         let top_model: TopModel<W> = TopModel::build(generator, model_ho);
