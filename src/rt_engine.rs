@@ -39,10 +39,10 @@ where
         }
     }
 
-    pub async fn simulate_rt_async(&mut self, config: &crate::Config) {
+    pub async fn simulate_rt(&mut self, config: &crate::Config) {
         let input_handler = RtEngineInputHandler::<K, M>::new(&mut self.input_channel);
         self.simulator
-            .simulate_rt_async(config, input_handler, |output| {
+            .simulate_rt(config, input_handler, |output| {
                 output.map_output(&self.output_channel);
             })
             .await;
