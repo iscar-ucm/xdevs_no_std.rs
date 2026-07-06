@@ -28,7 +28,7 @@ pub use xdevs_no_std_macros::*;
 pub type Port<T, const N: usize> = heapless::Vec<T, N>;
 
 /// Prelude with the traits needed to call the high-level simulation methods
-/// (`.to_simulator()`, `.simulate_vt()`, `.simulate_rt()`, `.simulate_rt_async()`)
+/// (`.to_simulator()`, `.simulate_vt()`, `.simulate_rt()`
 /// directly on components and simulators.
 ///
 /// Intended to be imported with `use xdevs::prelude::*;`.

@@ -112,5 +112,5 @@ async fn main() {
     tokio::spawn(sender(send));
     tokio::spawn(receiver(recv));
 
-    engine.simulate_rt_async(&config).await;
+    engine.simulate_rt(&config).await;
 }
