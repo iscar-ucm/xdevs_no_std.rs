@@ -51,7 +51,7 @@ fn run_gpt(some_processor: bool) {
     let gpt = GPTOptional::build(Generator::new(period), processor, Transducer::new(obs_time));
     let mut simulator = gpt.to_simulator();
     let config = xdevs::Config::new(Instant::from_secs(0), Instant::from_secs(14), 1, None);
-    simulator.simulate_rt(&config, xdevs::simulation::std::sleep(&config), |_| {});
+    simulator.simulate_vt(&config);
 }
 
 fn main() {
