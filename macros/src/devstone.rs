@@ -24,7 +24,9 @@ impl Parse for GenerateArgs {
         let ext_cycles: syn::LitInt = input.parse()?;
 
         if !input.is_empty() {
-            return Err(input.error("expected four arguments: width, depth, int_cycles, ext_cycles"));
+            return Err(
+                input.error("expected four arguments: width, depth, int_cycles, ext_cycles")
+            );
         }
 
         Ok(Self {
@@ -36,7 +38,12 @@ impl Parse for GenerateArgs {
     }
 }
 
-fn validation_check(width_val: usize, depth_val: usize, width: &syn::LitInt, depth: &syn::LitInt) -> Result<()> {
+fn validation_check(
+    width_val: usize,
+    depth_val: usize,
+    width: &syn::LitInt,
+    depth: &syn::LitInt,
+) -> Result<()> {
     if width_val < 1 {
         return Err(syn::Error::new(width.span(), "width must be at least 1"));
     }

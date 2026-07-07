@@ -123,14 +123,23 @@ fn output_path() -> PathBuf {
 
 fn usage() -> String {
     let mut message = String::new();
-    message.push_str("Usage: devstone_generator <MODEL_TYPE> <WIDTH> <DEPTH> <INT_CYCLES> <EXT_CYCLES>\n\n");
+    message.push_str(
+        "Usage: devstone_generator <MODEL_TYPE> <WIDTH> <DEPTH> <INT_CYCLES> <EXT_CYCLES>\n\n",
+    );
     message.push_str("MODEL_TYPE: LI | LI_BOX | HI | HI_BOX | HO | HO_BOX\n");
     message.push_str("WIDTH and DEPTH must be positive integers.\n");
-    message.push_str("INT_CYCLES and EXT_CYCLES must be non-negative integers (0 = no workload).\n");
+    message
+        .push_str("INT_CYCLES and EXT_CYCLES must be non-negative integers (0 = no workload).\n");
     message
 }
 
-fn render_example(model: ModelType, width: usize, depth: usize, int_cycles: usize, ext_cycles: usize) -> String {
+fn render_example(
+    model: ModelType,
+    width: usize,
+    depth: usize,
+    int_cycles: usize,
+    ext_cycles: usize,
+) -> String {
     let module = model.module();
     let macro_name = model.macro_name();
     let model_var = model.model_var();

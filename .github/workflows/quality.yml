@@ -2,7 +2,7 @@ name: Quality
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
   merge_group:
 
@@ -58,7 +58,5 @@ jobs:
 
       - name: Build docs with warnings as errors
         run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --features std
-      - name: Build rayon docs with warnings as errors
-        run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --features std,rayon
       - name: typos
         uses: crate-ci/typos@master

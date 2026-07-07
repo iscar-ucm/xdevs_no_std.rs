@@ -80,16 +80,6 @@ impl Default for Config {
 /// # Safety
 ///
 /// This trait must be implemented internally or via the [`coupled`](crate::coupled) macro. Do not implement it manually.
-///
-/// # Rayon safety
-///
-/// When the `rayon` feature is enabled, collections of `AbstractSimulator` types
-/// (arrays, tuples, structs) are parallelized via `rayon::join` / `par_iter_mut`.
-/// This is sound because each element/field operates on its own disjoint
-/// input/output slots — coupling (EIC/IC/EOC) runs outside the parallel section.
-/// User-defined transition methods (`start`, `stop`, `delta_int`, `delta_ext`,
-/// `delta_conf`, `lambda`, `ta`) must not touch shared mutable globals.
-/// The component types (`Self`, `Input`, `Output`) must be `Send`.
 pub unsafe trait AbstractSimulator {
     type Input: Bag;
 
@@ -314,9 +304,9 @@ where
         }
         #[cfg(not(feature = "rayon"))]
         {
-            for (processor, output) in self.iter_mut().zip(output.iter_mut()) {
-                T::lambda(processor, output, t);
-            }
+            self.iter_mut()
+                .zip(output.iter_mut())
+                .for_each(|(processor, output)| T::lambda(processor, output, t));
         }
     }
 

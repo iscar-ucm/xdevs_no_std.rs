@@ -57,22 +57,19 @@ pub struct AtomicModel {
     ext_delay: Duration,
 }
 
-fn burn_cycles(duration: &Duration) {
-    let now;
-    let dur;
-    #[cfg(not(feature = "std"))]
-    {
-        now = Instant::now();
-        dur = *duration;
-    }
-    #[cfg(feature = "std")]
-    {
-        now = ThreadTime::now();
-        dur = core::time::Duration::from_millis(Duration::as_millis(duration));
-    }
+fn burn_cycles(duration: Duration) {
+    let (now, during) = match () {
+        #[cfg(not(feature = "std"))]
+        () => (Instant::now(), duration),
+        #[cfg(feature = "std")]
+        () => (
+            ThreadTime::now(),
+            core::time::Duration::from_millis(Duration::as_millis(&duration)),
+        ),
+    };
 
     let mut x: usize = 0;
-    while now.elapsed() < dur {
+    while now.elapsed() < during {
         core::hint::black_box(x);
         x = x.wrapping_add(1);
     }
@@ -88,8 +85,8 @@ impl xdevs::Atomic for AtomicModel {
     fn delta_int(&mut self) {
         self.sigma = f64::INFINITY;
         self.n_internals += 1;
-        if self.int_delay > Duration::from_millis(0) {
-            burn_cycles(&self.int_delay);
+        if self.int_delay > Duration::MIN {
+            burn_cycles(self.int_delay);
         }
     }
 
@@ -105,8 +102,8 @@ impl xdevs::Atomic for AtomicModel {
         self.sigma = 0.0;
         self.n_externals += 1;
         self.n_events += input.get_values().len();
-        if self.ext_delay > Duration::from_millis(0) {
-            burn_cycles(&self.ext_delay);
+        if self.ext_delay > Duration::MIN {
+            burn_cycles(self.ext_delay);
         }
     }
 }
