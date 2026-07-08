@@ -369,58 +369,102 @@ unsafe impl<T: AbstractSimulator> AbstractSimulator for Option<T> {
     }
 }
 
-// Recursive helper macros for right-nested rayon::join trees over tuple elements.
+// Splitter that deinterleaves a list of tts into even-indexed and odd-indexed halves.
 #[cfg(feature = "rayon")]
-macro_rules! tuple_parallel_start {
-    ($self:expr, $t:expr, $idx:tt) => {
+macro_rules! split_even_odd {
+    ([$($even:tt)*] [$($odd:tt)*] [] $cont:ident $ctx:tt) => {
+        $cont!([$($even)*] [$($odd)*] $ctx)
+    };
+    ([$($even:tt)*] [$($odd:tt)*] [$a:tt] $cont:ident $ctx:tt) => {
+        $cont!([$($even)* $a] [$($odd)*] $ctx)
+    };
+    ([$($even:tt)*] [$($odd:tt)*] [$a:tt $b:tt $($rest:tt)*] $cont:ident $ctx:tt) => {
+        split_even_odd!([$($even)* $a] [$($odd)* $b] [$($rest)*] $cont $ctx)
+    };
+}
+
+// Balanced rayon::join tree for tuple start (returns f64::min).
+#[cfg(feature = "rayon")]
+macro_rules! par_start {
+    ($self:expr, $t:expr, [$idx:tt]) => {
         $crate::simulation::AbstractSimulator::start(&mut $self.$idx, $t)
     };
-    ($self:expr, $t:expr, $idx:tt $(, $rest:tt)+) => {{
+    ($self:expr, $t:expr, [$idx:tt $($rest:tt)+]) => {
+        split_even_odd!([] [] [$idx $($rest)+] par_start_node [$self, $t])
+    };
+}
+
+#[cfg(feature = "rayon")]
+macro_rules! par_start_node {
+    ([$($even:tt)*] [$($odd:tt)*] [$self:expr, $t:expr]) => {{
         let (a, b) = ::rayon::join(
-            || $crate::simulation::AbstractSimulator::start(&mut $self.$idx, $t),
-            || tuple_parallel_start!($self, $t, $($rest),+),
+            || par_start!($self, $t, [$($even)*]),
+            || par_start!($self, $t, [$($odd)*]),
         );
         f64::min(a, b)
     }};
 }
 
+// Balanced rayon::join tree for tuple stop (returns ()).
 #[cfg(feature = "rayon")]
-macro_rules! tuple_parallel_stop {
-    ($self:expr, $idx:tt) => {
+macro_rules! par_stop {
+    ($self:expr, [$idx:tt]) => {
         $crate::simulation::AbstractSimulator::stop(&mut $self.$idx)
     };
-    ($self:expr, $idx:tt $(, $rest:tt)+) => {{
+    ($self:expr, [$idx:tt $($rest:tt)+]) => {
+        split_even_odd!([] [] [$idx $($rest)+] par_stop_node [$self])
+    };
+}
+
+#[cfg(feature = "rayon")]
+macro_rules! par_stop_node {
+    ([$($even:tt)*] [$($odd:tt)*] [$self:expr]) => {{
         ::rayon::join(
-            || $crate::simulation::AbstractSimulator::stop(&mut $self.$idx),
-            || tuple_parallel_stop!($self, $($rest),+),
+            || par_stop!($self, [$($even)*]),
+            || par_stop!($self, [$($odd)*]),
         );
     }};
 }
 
+// Balanced rayon::join tree for tuple lambda (returns ()).
 #[cfg(feature = "rayon")]
-macro_rules! tuple_parallel_lambda {
-    ($self:expr, $output:expr, $t:expr, $idx:tt) => {
+macro_rules! par_lambda {
+    ($self:expr, $output:expr, $t:expr, [$idx:tt]) => {
         $crate::simulation::AbstractSimulator::lambda(&mut $self.$idx, &mut $output.$idx, $t)
     };
-    ($self:expr, $output:expr, $t:expr, $idx:tt $(, $rest:tt)+) => {{
+    ($self:expr, $output:expr, $t:expr, [$idx:tt $($rest:tt)+]) => {
+        split_even_odd!([] [] [$idx $($rest)+] par_lambda_node [$self, $output, $t])
+    };
+}
+
+#[cfg(feature = "rayon")]
+macro_rules! par_lambda_node {
+    ([$($even:tt)*] [$($odd:tt)*] [$self:expr, $output:expr, $t:expr]) => {{
         ::rayon::join(
-            || $crate::simulation::AbstractSimulator::lambda(&mut $self.$idx, &mut $output.$idx, $t),
-            || tuple_parallel_lambda!($self, $output, $t, $($rest),+),
+            || par_lambda!($self, $output, $t, [$($even)*]),
+            || par_lambda!($self, $output, $t, [$($odd)*]),
         );
     }};
 }
 
+// Balanced rayon::join tree for tuple delta (returns f64::min).
 #[cfg(feature = "rayon")]
-macro_rules! tuple_parallel_delta {
-    ($self:expr, $input:expr, $output:expr, $t:expr, $idx:tt) => {
+macro_rules! par_delta {
+    ($self:expr, $input:expr, $output:expr, $t:expr, [$idx:tt]) => {
         $crate::simulation::AbstractSimulator::delta(
             &mut $self.$idx, &mut $input.$idx, &mut $output.$idx, $t)
     };
-    ($self:expr, $input:expr, $output:expr, $t:expr, $idx:tt $(, $rest:tt)+) => {{
+    ($self:expr, $input:expr, $output:expr, $t:expr, [$idx:tt $($rest:tt)+]) => {
+        split_even_odd!([] [] [$idx $($rest)+] par_delta_node [$self, $input, $output, $t])
+    };
+}
+
+#[cfg(feature = "rayon")]
+macro_rules! par_delta_node {
+    ([$($even:tt)*] [$($odd:tt)*] [$self:expr, $input:expr, $output:expr, $t:expr]) => {{
         let (a, b) = ::rayon::join(
-            || $crate::simulation::AbstractSimulator::delta(
-                &mut $self.$idx, &mut $input.$idx, &mut $output.$idx, $t),
-            || tuple_parallel_delta!($self, $input, $output, $t, $($rest),+),
+            || par_delta!($self, $input, $output, $t, [$($even)*]),
+            || par_delta!($self, $input, $output, $t, [$($odd)*]),
         );
         f64::min(a, b)
     }};
@@ -439,7 +483,7 @@ macro_rules! impl_abstract_simulator_for_tuple {
             fn start(&mut self, t_start: f64) -> f64 {
                 #[cfg(feature = "rayon")]
                 {
-                    tuple_parallel_start!(self, t_start, $($idx),+)
+                    par_start!(self, t_start, [$($idx)+])
                 }
                 #[cfg(not(feature = "rayon"))]
                 {
@@ -453,7 +497,7 @@ macro_rules! impl_abstract_simulator_for_tuple {
             fn stop(&mut self) {
                 #[cfg(feature = "rayon")]
                 {
-                    tuple_parallel_stop!(self, $($idx),+)
+                    par_stop!(self, [$($idx)+])
                 }
                 #[cfg(not(feature = "rayon"))]
                 {
@@ -465,7 +509,7 @@ macro_rules! impl_abstract_simulator_for_tuple {
             fn lambda(&mut self, output: &mut Self::Output, t: f64) {
                 #[cfg(feature = "rayon")]
                 {
-                    tuple_parallel_lambda!(self, output, t, $($idx),+)
+                    par_lambda!(self, output, t, [$($idx)+])
                 }
                 #[cfg(not(feature = "rayon"))]
                 {
@@ -477,7 +521,7 @@ macro_rules! impl_abstract_simulator_for_tuple {
             fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
                 #[cfg(feature = "rayon")]
                 {
-                    tuple_parallel_delta!(self, input, output, t, $($idx),+)
+                    par_delta!(self, input, output, t, [$($idx)+])
                 }
                 #[cfg(not(feature = "rayon"))]
                 {
