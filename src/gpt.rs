@@ -5,13 +5,13 @@ pub struct Generator {
     count: usize,
 }
 
-impl xdevs::Component for Generator {
-    type Kind = xdevs::AtomicKind;
-    type Input = xdevs::Port<bool, 1>;
-    type Output = xdevs::Port<usize, 1>;
+impl crate::Component for Generator {
+    type Kind = crate::AtomicKind;
+    type Input = crate::Port<bool, 1>;
+    type Output = crate::Port<usize, 1>;
 }
 
-impl xdevs::Atomic for Generator {
+impl crate::Atomic for Generator {
     fn delta_int(&mut self) {
         self.count += 1;
         self.sigma = self.period;
@@ -56,13 +56,13 @@ pub struct Processor {
     job: Option<usize>,
 }
 
-impl xdevs::Component for Processor {
-    type Kind = xdevs::AtomicKind;
-    type Input = xdevs::Port<usize, 1>;
-    type Output = xdevs::Port<usize, 1>;
+impl crate::Component for Processor {
+    type Kind = crate::AtomicKind;
+    type Input = crate::Port<usize, 1>;
+    type Output = crate::Port<usize, 1>;
 }
 
-impl xdevs::Atomic for Processor {
+impl crate::Atomic for Processor {
     fn delta_int(&mut self) {
         self.sigma = f64::INFINITY;
         if self.job.is_some() {
@@ -111,10 +111,10 @@ impl Processor {
 }
 
 /// Input bag for the Transducer.
-#[derive(xdevs::Bag)]
+#[derive(crate::Bag)]
 pub struct TransducerInput {
-    pub in_generator: xdevs::Port<usize, 1>,
-    pub in_processor: xdevs::Port<usize, 1>,
+    pub in_generator: crate::Port<usize, 1>,
+    pub in_processor: crate::Port<usize, 1>,
 }
 
 /// Transducer that observes generated and processed jobs, computes metrics,
@@ -126,13 +126,13 @@ pub struct Transducer {
     n_processed: usize,
 }
 
-impl xdevs::Component for Transducer {
-    type Kind = xdevs::AtomicKind;
+impl crate::Component for Transducer {
+    type Kind = crate::AtomicKind;
     type Input = TransducerInput;
-    type Output = xdevs::Port<bool, 1>;
+    type Output = crate::Port<bool, 1>;
 }
 
-impl xdevs::Atomic for Transducer {
+impl crate::Atomic for Transducer {
     fn delta_int(&mut self) {
         self.clock += self.sigma;
         #[cfg(feature = "std")]
@@ -187,21 +187,21 @@ impl Transducer {
     }
 }
 
-#[xdevs::coupled]
+#[crate::coupled]
 pub struct GPT {
     generator: Generator,
     processor: Processor,
     transducer: Transducer,
 }
 
-impl xdevs::Component for GPT {
-    type Kind = xdevs::CoupledKind;
+impl crate::Component for GPT {
+    type Kind = crate::CoupledKind;
     type Input = ();
     type Output = ();
 }
 
-impl xdevs::Coupled for GPT {
-    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
+impl crate::Coupled for GPT {
+    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
         from.generator.couple(&mut to.processor).unwrap();
         from.processor
             .couple(&mut to.transducer.in_processor)
@@ -213,47 +213,47 @@ impl xdevs::Coupled for GPT {
     }
 }
 
-#[xdevs::coupled]
+#[crate::coupled]
 pub struct EF {
     generator: Generator,
     transducer: Transducer,
 }
 
-impl xdevs::Component for EF {
-    type Kind = xdevs::CoupledKind;
-    type Input = xdevs::Port<usize, 1>;
-    type Output = xdevs::Port<usize, 1>;
+impl crate::Component for EF {
+    type Kind = crate::CoupledKind;
+    type Input = crate::Port<usize, 1>;
+    type Output = crate::Port<usize, 1>;
 }
 
-impl xdevs::Coupled for EF {
-    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
+impl crate::Coupled for EF {
+    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
         from.generator
             .couple(&mut to.transducer.in_generator)
             .unwrap();
         from.transducer.couple(&mut to.generator).unwrap();
     }
-    fn eic(from: &Self::Input, to: &mut xdevs::ComponentsInput<Self>) {
+    fn eic(from: &Self::Input, to: &mut crate::ComponentsInput<Self>) {
         from.couple(&mut to.transducer.in_processor).unwrap();
     }
-    fn eoc(from: &xdevs::ComponentsOutput<Self>, to: &mut Self::Output) {
+    fn eoc(from: &crate::ComponentsOutput<Self>, to: &mut Self::Output) {
         from.generator.couple(to).unwrap();
     }
 }
 
-#[xdevs::coupled]
+#[crate::coupled]
 pub struct EFP {
     ef: EF,
     processor: Processor,
 }
 
-impl xdevs::Component for EFP {
-    type Kind = xdevs::CoupledKind;
+impl crate::Component for EFP {
+    type Kind = crate::CoupledKind;
     type Input = ();
     type Output = ();
 }
 
-impl xdevs::Coupled for EFP {
-    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
+impl crate::Coupled for EFP {
+    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
         from.ef.couple(&mut to.processor).unwrap();
         from.processor.couple(&mut to.ef).unwrap();
     }

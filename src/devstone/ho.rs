@@ -5,8 +5,8 @@ use super::common::{AtomicModel, Devstone, JobGenerator};
 /// Output struct for HO models (ref version)
 #[derive(Debug, Default, crate::Bag)]
 pub struct HOModelOutput<const W: usize> {
-    output_port_1: xdevs::Port<usize, 1>,
-    output_port_2: xdevs::Port<usize, W>,
+    output_port_1: crate::Port<usize, 1>,
+    output_port_2: crate::Port<usize, W>,
 }
 
 /// Leaf coupled model with only one atomic in HO models (ref version)

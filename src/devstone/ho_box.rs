@@ -1,31 +1,31 @@
 use super::common::{AtomicModel, Devstone, JobGenerator};
+use crate::Component;
 use alloc::boxed::Box;
-use xdevs::Component;
 
 /// Output struct for HO models
-#[derive(Debug, Default, xdevs::Bag)]
+#[derive(Debug, Default, crate::Bag)]
 pub struct HOModelOutput<const W: usize> {
-    pub output_port_1: xdevs::Port<usize, 1>,
-    pub output_port_2: xdevs::Port<usize, W>,
+    pub output_port_1: crate::Port<usize, 1>,
+    pub output_port_2: crate::Port<usize, W>,
 }
 
 /// Leaf coupled model with only one atomic in HO models
-#[xdevs::coupled]
+#[crate::coupled]
 pub struct LeafModel<const W: usize> {
     atomic: AtomicModel,
 }
 
-impl<const W: usize> xdevs::Component for LeafModel<W> {
-    type Kind = xdevs::CoupledKind;
-    type Input = xdevs::Port<usize, 1>;
+impl<const W: usize> crate::Component for LeafModel<W> {
+    type Kind = crate::CoupledKind;
+    type Input = crate::Port<usize, 1>;
     type Output = HOModelOutput<W>;
 }
 
-impl<const W: usize> xdevs::Coupled for LeafModel<W> {
-    fn eic(from: &Self::Input, to: &mut xdevs::ComponentsInput<Self>) {
+impl<const W: usize> crate::Coupled for LeafModel<W> {
+    fn eic(from: &Self::Input, to: &mut crate::ComponentsInput<Self>) {
         let _ = from.couple(&mut to.atomic);
     }
-    fn eoc(from: &xdevs::ComponentsOutput<Self>, to: &mut Self::Output) {
+    fn eoc(from: &crate::ComponentsOutput<Self>, to: &mut Self::Output) {
         let _ = from.atomic.couple(&mut to.output_port_1);
     }
 }
@@ -47,7 +47,7 @@ impl<const W: usize> Devstone for LeafModel<W> {
 }
 
 /// HO model enum
-#[xdevs::to_component]
+#[crate::to_component]
 pub enum HOEnum<const W: usize> {
     Leaf(LeafModel<W>),
     Branch(HOModel<W>),
@@ -58,7 +58,7 @@ impl<const W: usize> Devstone for HOEnum<W> {
 }
 
 /// HO coupled model
-#[xdevs::coupled]
+#[crate::coupled]
 pub struct HOModel<const W: usize> {
     atomics: [AtomicModel; W],
     inner: Box<HOEnum<W>>,
@@ -75,28 +75,28 @@ impl<const W: usize> HOModel<W> {
 impl<const W: usize> Devstone for HOModel<W> {
     crate::impl_devstone_coupled!();
 }
-impl<const W: usize> xdevs::Component for HOModel<W> {
-    type Kind = xdevs::CoupledKind;
-    type Input = xdevs::Port<usize, 1>;
+impl<const W: usize> crate::Component for HOModel<W> {
+    type Kind = crate::CoupledKind;
+    type Input = crate::Port<usize, 1>;
     type Output = HOModelOutput<W>;
 }
 
-impl<const W: usize> xdevs::Coupled for HOModel<W> {
-    fn eic(from: &Self::Input, to: &mut xdevs::ComponentsInput<Self>) {
+impl<const W: usize> crate::Coupled for HOModel<W> {
+    fn eic(from: &Self::Input, to: &mut crate::ComponentsInput<Self>) {
         let _ = from.couple(&mut to.inner);
         for atom_ports in to.atomics.iter_mut() {
             let _ = from.couple(atom_ports);
         }
     }
 
-    fn eoc(from: &xdevs::ComponentsOutput<Self>, to: &mut Self::Output) {
+    fn eoc(from: &crate::ComponentsOutput<Self>, to: &mut Self::Output) {
         let _ = from.inner.output_port_1.couple(&mut to.output_port_1);
         for atom_output_ports in from.atomics.iter() {
             let _ = atom_output_ports.couple(&mut to.output_port_2);
         }
     }
 
-    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
+    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
         for i in 0..(W.saturating_sub(1)) {
             let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
         }
@@ -104,24 +104,24 @@ impl<const W: usize> xdevs::Coupled for HOModel<W> {
 }
 
 /// End model with Generator and HO model coupled together
-#[xdevs::coupled]
+#[crate::coupled]
 pub struct TopModel<const W: usize> {
     generator: JobGenerator,
     ho_model: HOEnum<W>,
 }
 
 impl<const W: usize> Component for TopModel<W> {
-    type Kind = xdevs::CoupledKind;
-    type Input = xdevs::Port<usize, 1>;
-    type Output = xdevs::Port<usize, 1>;
+    type Kind = crate::CoupledKind;
+    type Input = crate::Port<usize, 1>;
+    type Output = crate::Port<usize, 1>;
 }
 
 impl<const W: usize> Devstone for TopModel<W> {
     crate::impl_devstone_top!(ho_model, generator);
 }
 
-impl<const W: usize> xdevs::Coupled for TopModel<W> {
-    fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
+impl<const W: usize> crate::Coupled for TopModel<W> {
+    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
         let _ = from.generator.couple(&mut to.ho_model);
     }
 }
@@ -129,7 +129,7 @@ impl<const W: usize> xdevs::Coupled for TopModel<W> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use xdevs::prelude::*;
+    use crate::prelude::*;
 
     fn expected_n_atomic(width: usize, depth: usize) -> usize {
         (width - 1) * (depth - 1) + 1
@@ -145,12 +145,12 @@ mod test {
         const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;
 
-        xdevs::generate_ho_box!(10, 10, 0, 0);
+        crate::generate_ho_box!(10, 10, 0, 0);
 
         let generator = JobGenerator::new(5);
         let top_model: TopModel<W> = TopModel::build(generator, model_ho);
         let mut simulator = top_model.to_simulator();
-        let config = xdevs::Config::new(0.0, 10.0, 1.0, None);
+        let config = crate::Config::new(0.0, 10.0, 1.0, None);
         simulator.simulate_vt(&config);
 
         assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());
