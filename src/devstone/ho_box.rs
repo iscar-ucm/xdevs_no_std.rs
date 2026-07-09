@@ -129,6 +129,7 @@ impl<const W: usize> xdevs::Coupled for TopModel<W> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use xdevs::prelude::*;
 
     fn expected_n_atomic(width: usize, depth: usize) -> usize {
         (width - 1) * (depth - 1) + 1
@@ -140,8 +141,6 @@ mod test {
 
     #[test]
     fn simulation_matches_expected_counts_and_resets() {
-        use xdevs::{AbstractSimulator, Simulable};
-
         const WIDTH: usize = 10;
         const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;

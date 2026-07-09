@@ -166,7 +166,7 @@ fn render_example(
     use std::time::Instant;
 {alloc_line}
     fn main() {{
-        use xdevs::{{AbstractSimulator, Simulable}};
+        use xdevs::prelude::*;
 
         const WIDTH: usize = {width};
         const W: usize = WIDTH - 1;

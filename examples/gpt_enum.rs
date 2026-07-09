@@ -3,7 +3,8 @@
 /// conditional logic in the coupled model.
 use xdevs::{
     gpt::{Generator, Transducer},
-    AbstractSimulator, CoupledKind, Simulable,
+    prelude::*,
+    CoupledKind,
 };
 
 mod processor {

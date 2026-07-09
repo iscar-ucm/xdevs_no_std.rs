@@ -2,7 +2,9 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use xdevs::{
     devstone::common::{Devstone, JobGenerator},
     devstone::ho,
-    generate_ho, AbstractSimulator, Config, Simulable,
+    generate_ho,
+    prelude::*,
+    Config,
 };
 #[cfg(feature = "alloc")]
 use xdevs::{devstone::ho_box, generate_ho_box};

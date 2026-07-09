@@ -263,7 +263,8 @@ impl xdevs::Coupled for EFP {
 mod tests {
     use super::*;
     use crate::port::Bag;
-    use crate::simulation::{AbstractSimulator, Config, Simulable};
+    use crate::prelude::*;
+    use crate::simulation::Config;
     use crate::{Atomic, Component};
 
     #[test]

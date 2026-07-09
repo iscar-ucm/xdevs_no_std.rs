@@ -730,7 +730,8 @@ mod tests {
     use crate::{
         component::coupled::PartialCoupled,
         port::Port,
-        simulation::{simulator::Simulator, AbstractSimulator, Config, Simulable},
+        prelude::*,
+        simulation::{simulator::Simulator, Config},
         Component,
     };
     #[test]
