@@ -46,8 +46,11 @@ impl<'a, const W: usize> crate::Coupled for HIModel<'a, W> {
 }
 
 impl<'a, const W: usize> HIModel<'a, W> {
-    pub fn new(inner: &'a mut HIEnum<'a, W>) -> Self {
-        Self::build(core::array::from_fn(|_| AtomicModel::default()), inner)
+    pub fn new(int_delay: u64, ext_delay: u64, inner: &'a mut HIEnum<'a, W>) -> Self {
+        Self::build(
+            core::array::from_fn(|_| AtomicModel::new(int_delay, ext_delay)),
+            inner,
+        )
     }
 }
 
@@ -98,7 +101,7 @@ mod test {
         const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;
 
-        crate::generate_hi!(10, 10);
+        crate::generate_hi!(10, 10, 0, 0);
 
         let generator = JobGenerator::new(5);
         let top_model: TopModel<'_, W> = TopModel::build(generator, &mut model_hi);

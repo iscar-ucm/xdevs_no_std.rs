@@ -1,3 +1,9 @@
+use crate::Duration;
+#[cfg(not(feature = "std"))]
+use crate::Instant;
+#[cfg(feature = "std")]
+use cpu_time::ThreadTime;
+
 /// Simple atomic model that generates jobs and sends them to the input port of the model
 pub struct JobGenerator {
     sigma: f64,
@@ -47,6 +53,26 @@ pub struct AtomicModel {
     n_internals: usize,
     n_externals: usize,
     n_events: usize,
+    int_delay: Duration,
+    ext_delay: Duration,
+}
+
+fn burn_cycles(duration: Duration) {
+    let (now, during) = match () {
+        #[cfg(not(feature = "std"))]
+        () => (Instant::now(), duration),
+        #[cfg(feature = "std")]
+        () => (
+            ThreadTime::now(),
+            core::time::Duration::from_micros(Duration::as_micros(&duration)),
+        ),
+    };
+
+    let mut x: usize = 0;
+    while now.elapsed() < during {
+        core::hint::black_box(x);
+        x = x.wrapping_add(1);
+    }
 }
 
 impl xdevs::Component for AtomicModel {
@@ -59,6 +85,9 @@ impl xdevs::Atomic for AtomicModel {
     fn delta_int(&mut self) {
         self.sigma = f64::INFINITY;
         self.n_internals += 1;
+        if self.int_delay > Duration::MIN {
+            burn_cycles(self.int_delay);
+        }
     }
 
     fn lambda(&self, output: &mut Self::Output) {
@@ -73,22 +102,27 @@ impl xdevs::Atomic for AtomicModel {
         self.sigma = 0.0;
         self.n_externals += 1;
         self.n_events += input.get_values().len();
+        if self.ext_delay > Duration::MIN {
+            burn_cycles(self.ext_delay);
+        }
     }
 }
 
 impl Default for AtomicModel {
     fn default() -> Self {
-        Self::new()
+        Self::new(0, 0)
     }
 }
 
 impl AtomicModel {
-    pub fn new() -> Self {
+    pub fn new(int_delay: u64, ext_delay: u64) -> Self {
         Self {
             sigma: f64::INFINITY,
             n_internals: 0,
             n_externals: 0,
             n_events: 0,
+            int_delay: Duration::from_micros(int_delay),
+            ext_delay: Duration::from_micros(ext_delay),
         }
     }
 }
@@ -139,8 +173,8 @@ impl xdevs::Component for LeafModel {
 }
 
 impl LeafModel {
-    pub fn new() -> Self {
-        Self::build(AtomicModel::new())
+    pub fn new(int_delay: u64, ext_delay: u64) -> Self {
+        Self::build(AtomicModel::new(int_delay, ext_delay))
     }
 }
 
@@ -168,7 +202,7 @@ impl Devstone for LeafModel {
 
 impl Default for LeafModel {
     fn default() -> Self {
-        Self::new()
+        Self::new(0, 0)
     }
 }
 

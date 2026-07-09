@@ -2,7 +2,7 @@ name: Test
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
   merge_group:
 
@@ -33,22 +33,22 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
-      
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.toolchain }}
-      
+
       - name: Build
         run: cargo build --all ${{ matrix.cargo_flags }}
 
       - name: Test
         run: cargo test --all ${{ matrix.cargo_flags }}
-  
+
   # Job to check that all the tests succeeded
   test-check:
     needs:
-    - test
+      - test
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -57,7 +57,7 @@ jobs:
   coverage:
     name: coverage
     needs:
-    - test-check
+      - test-check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source code

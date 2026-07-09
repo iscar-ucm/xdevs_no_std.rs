@@ -24,26 +24,33 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Run benchmarks
+      - name: Run benchmarks (alloc)
         run: cargo bench --features alloc | tee bench_output.txt
+
+      - name: Run benchmarks (rayon)
+        run: cargo bench --features std,rayon | tee bench_output_rayon.txt
 
       - name: Upload Criterion reports
         uses: actions/upload-artifact@v4
         with:
           name: criterion-report
           path: target/criterion
-          
+
       - name: Extract benchmark summary
         id: summary
         run: |
           echo "### Benchmark Summary" > summary.md
           echo "" >> summary.md
+          echo "#### no_std (alloc)" >> summary.md
           grep -E "time:|change:" bench_output.txt | head -n 20 >> summary.md || true
+          echo "" >> summary.md
+          echo "#### rayon" >> summary.md
+          grep -E "time:|change:" bench_output_rayon.txt | head -n 20 >> summary.md || true
           echo "" >> summary.md
           echo "----" >> summary.md
           echo "**Full Criterion report available as artifact**" >> summary.md
           echo 'Go to the **Actions tab -> this run -> Artifacts -> download `criterion-report`**' >> summary.md
-        
+
       - name: Create PR comment
         if: github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2

@@ -2,14 +2,14 @@ name: Lint
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
   merge_group:
 
 permissions:
   contents: read
   pull-requests: write
-  id-token: write 
+  id-token: write
 
 defaults:
   run:
@@ -43,6 +43,7 @@ jobs:
         cargo_flags:
           - "--no-default-features"
           - "--features std"
+          - "--features std,rayon"
           - "--features embassy"
           - "--features embassy,alloc"
     steps:
@@ -61,8 +62,8 @@ jobs:
   # Job to check that all the tests succeeded
   lint-check:
     needs:
-    - rustfmt
-    - clippy
+      - rustfmt
+      - clippy
     runs-on: ubuntu-latest
     if: always()
     steps:

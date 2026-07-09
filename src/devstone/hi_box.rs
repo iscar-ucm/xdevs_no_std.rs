@@ -47,8 +47,11 @@ impl<const W: usize> xdevs::Coupled for HIModel<W> {
 }
 
 impl<const W: usize> HIModel<W> {
-    pub fn new(inner: Box<HIEnum<W>>) -> Self {
-        Self::build(core::array::from_fn(|_| AtomicModel::default()), inner)
+    pub fn new(int_delay: u64, ext_delay: u64, inner: Box<HIEnum<W>>) -> Self {
+        Self::build(
+            core::array::from_fn(|_| AtomicModel::new(int_delay, ext_delay)),
+            inner,
+        )
     }
 }
 
@@ -98,7 +101,7 @@ mod test {
         const DEPTH: usize = 10;
         const W: usize = WIDTH - 1;
 
-        xdevs::generate_hi_box!(10, 10);
+        xdevs::generate_hi_box!(10, 10, 0, 0);
 
         let generator = JobGenerator::new(5);
         let top_model: TopModel<W> = TopModel::build(generator, model_hi);
