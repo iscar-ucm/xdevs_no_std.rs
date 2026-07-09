@@ -36,7 +36,7 @@ fn bench_li_cycles(c: &mut Criterion) {
     const DEPTH: usize = 10;
     const W: usize = WIDTH - 1;
     const N: usize = (WIDTH - 1) * (DEPTH - 1) + 1;
-    generate_li!(10, 10, 1, 1);
+    generate_li!(10, 10, 1000, 1000);
     let generator = JobGenerator::new(5);
     let top_model: li::TopModel<'_, W> = li::TopModel::build(generator, &mut model_li);
     let mut simulator = top_model.to_simulator();

@@ -64,7 +64,7 @@ fn burn_cycles(duration: Duration) {
         #[cfg(feature = "std")]
         () => (
             ThreadTime::now(),
-            core::time::Duration::from_millis(Duration::as_millis(&duration)),
+            core::time::Duration::from_micros(Duration::as_micros(&duration)),
         ),
     };
 
@@ -121,8 +121,8 @@ impl AtomicModel {
             n_internals: 0,
             n_externals: 0,
             n_events: 0,
-            int_delay: Duration::from_millis(int_delay),
-            ext_delay: Duration::from_millis(ext_delay),
+            int_delay: Duration::from_micros(int_delay),
+            ext_delay: Duration::from_micros(ext_delay),
         }
     }
 }

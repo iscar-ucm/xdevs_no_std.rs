@@ -38,7 +38,7 @@ fn bench_hi_cycles(c: &mut Criterion) {
     const W: usize = WIDTH - 1;
     const N: usize = (WIDTH - 1) * (DEPTH - 1) + 1;
     const E: usize = 1 + (DEPTH - 1) * ((WIDTH - 1) * WIDTH) / 2;
-    generate_hi!(10, 10, 1, 1);
+    generate_hi!(10, 10, 1000, 1000);
     let generator = JobGenerator::new(5);
     let top_model: hi::TopModel<'_, W> = hi::TopModel::build(generator, &mut model_hi);
     let mut simulator = top_model.to_simulator();

@@ -38,7 +38,7 @@ fn bench_ho_cycles(c: &mut Criterion) {
     const W: usize = WIDTH - 1;
     const N: usize = (WIDTH - 1) * (DEPTH - 1) + 1;
     const E: usize = 1 + (DEPTH - 1) * ((WIDTH - 1) * WIDTH) / 2;
-    generate_ho!(10, 10, 1, 1);
+    generate_ho!(10, 10, 1000, 1000);
     let generator = JobGenerator::new(5);
     let top_model: ho::TopModel<'_, W> = ho::TopModel::build(generator, &mut model_ho);
     let mut simulator = top_model.to_simulator();
