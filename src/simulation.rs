@@ -1,4 +1,4 @@
-use crate::{component::Component, port::Bag, ComponentsKind};
+use crate::{port::Bag, Component, ComponentsKind};
 use core::{future::Future, time::Duration};
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
@@ -640,10 +640,8 @@ where
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::{
-        component::coupled::{ComponentsInput, ComponentsOutput, Coupled},
-        component::CoupledKind,
-        port::Port,
-        Atomic, AtomicKind, Component,
+        port::Port, Atomic, AtomicKind, Component, ComponentsInput, ComponentsOutput, Coupled,
+        CoupledKind,
     };
 
     pub(crate) struct TestAtomic {
@@ -1127,10 +1125,7 @@ mod tests {
     #[test]
     fn simulate_vt_with_array() {
         // Coupled model with array of atomics
-        use crate::component::{
-            coupled::{ComponentsInput, ComponentsOutput, Coupled},
-            CoupledKind,
-        };
+        use crate::{ComponentsInput, ComponentsOutput, Coupled, CoupledKind};
 
         #[crate::to_component]
         struct ArrayCoupledComponents {

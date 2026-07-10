@@ -1,7 +1,4 @@
-use crate::{
-    component::{Component, CoupledKind},
-    simulation::AbstractSimulator,
-};
+use crate::{simulation::AbstractSimulator, Component, CoupledKind};
 
 /// Partial interface for DEVS coupled models. All DEVS coupled models must implement this trait.
 pub trait PartialCoupled: Component<Kind = CoupledKind> {

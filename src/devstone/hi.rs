@@ -1,6 +1,5 @@
 use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
-use crate::Component;
-
+use crate::{Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
 /// HI model enum (ref version)
 #[crate::to_component]
 pub enum HIEnum<'a, const W: usize> {
@@ -19,14 +18,14 @@ pub struct HIModel<'a, const W: usize> {
     inner: &'a mut HIEnum<'a, W>,
 }
 
-impl<'a, const W: usize> crate::Component for HIModel<'a, W> {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+impl<'a, const W: usize> Component for HIModel<'a, W> {
+    type Kind = CoupledKind;
+    type Input = Port<usize, 1>;
+    type Output = Port<usize, 1>;
 }
 
-impl<'a, const W: usize> crate::Coupled for HIModel<'a, W> {
-    fn eic(from: &Self::Input, to: &mut crate::ComponentsInput<Self>) {
+impl<'a, const W: usize> Coupled for HIModel<'a, W> {
+    fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
         for atom_ports in to.atomics.iter_mut() {
             let _ = from.couple(atom_ports);
         }
@@ -34,11 +33,11 @@ impl<'a, const W: usize> crate::Coupled for HIModel<'a, W> {
         let _ = from.couple(&mut to.inner);
     }
 
-    fn eoc(from: &crate::ComponentsOutput<Self>, to: &mut Self::Output) {
+    fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
         let _ = from.inner.couple(to);
     }
 
-    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
+    fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
         for i in 0..(W.saturating_sub(1)) {
             let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
         }
@@ -66,17 +65,17 @@ pub struct TopModel<'a, const W: usize> {
 }
 
 impl<'a, const W: usize> Component for TopModel<'a, W> {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+    type Kind = CoupledKind;
+    type Input = Port<usize, 1>;
+    type Output = Port<usize, 1>;
 }
 
 impl<'a, const W: usize> Devstone for TopModel<'a, W> {
     crate::impl_devstone_top!(hi_model, generator);
 }
 
-impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
-    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
+impl<'a, const W: usize> Coupled for TopModel<'a, W> {
+    fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
         let _ = from.generator.couple(&mut to.hi_model);
     }
 }
@@ -105,7 +104,7 @@ mod test {
         let generator = JobGenerator::new(5);
         let top_model: TopModel<'_, W> = TopModel::build(generator, &mut model_hi);
         let mut simulator = top_model.to_simulator();
-        let config = crate::simulation::Config::new(0.0, 10.0, 1.0, None);
+        let config = crate::Config::new(0.0, 10.0, 1.0, None);
         simulator.simulate_vt(&config);
 
         assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());

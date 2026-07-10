@@ -1,5 +1,5 @@
 use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
-use crate::Component;
+use crate::{Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
 use alloc::boxed::Box;
 
 #[crate::to_component]
@@ -20,13 +20,13 @@ pub struct LIModel<const W: usize> {
 }
 
 impl<const W: usize> Component for LIModel<W> {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+    type Kind = CoupledKind;
+    type Input = Port<usize, 1>;
+    type Output = Port<usize, 1>;
 }
 
-impl<const W: usize> crate::Coupled for LIModel<W> {
-    fn eic(from: &Self::Input, to: &mut crate::ComponentsInput<Self>) {
+impl<const W: usize> Coupled for LIModel<W> {
+    fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
         for atom_ports in to.atomics.iter_mut() {
             let _ = from.couple(atom_ports);
         }
@@ -34,7 +34,7 @@ impl<const W: usize> crate::Coupled for LIModel<W> {
         let _ = from.couple(&mut to.inner);
     }
 
-    fn eoc(from: &crate::ComponentsOutput<Self>, to: &mut Self::Output) {
+    fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
         let _ = from.inner.couple(to);
     }
 }
@@ -60,7 +60,7 @@ pub struct TopModel<const W: usize> {
 }
 
 impl<const W: usize> Component for TopModel<W> {
-    type Kind = crate::CoupledKind;
+    type Kind = CoupledKind;
     type Input = ();
     type Output = ();
 }
@@ -69,8 +69,8 @@ impl<const W: usize> Devstone for TopModel<W> {
     crate::impl_devstone_top!(li_model, generator);
 }
 
-impl<const W: usize> crate::Coupled for TopModel<W> {
-    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
+impl<const W: usize> Coupled for TopModel<W> {
+    fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
         let _ = from.generator.couple(&mut to.li_model);
     }
 }

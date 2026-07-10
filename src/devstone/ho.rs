@@ -1,12 +1,11 @@
-use crate::Component;
-
 use super::common::{AtomicModel, Devstone, JobGenerator};
+use crate::{Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
 
 /// Output struct for HO models (ref version)
 #[derive(Debug, Default, crate::Bag)]
 pub struct HOModelOutput<const W: usize> {
-    output_port_1: crate::Port<usize, 1>,
-    output_port_2: crate::Port<usize, W>,
+    output_port_1: Port<usize, 1>,
+    output_port_2: Port<usize, W>,
 }
 
 /// Leaf coupled model with only one atomic in HO models (ref version)
@@ -15,17 +14,17 @@ pub struct LeafModel<const W: usize> {
     atomic: AtomicModel,
 }
 
-impl<const W: usize> crate::Component for LeafModel<W> {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
+impl<const W: usize> Component for LeafModel<W> {
+    type Kind = CoupledKind;
+    type Input = Port<usize, 1>;
     type Output = HOModelOutput<W>;
 }
 
-impl<const W: usize> crate::Coupled for LeafModel<W> {
-    fn eic(from: &Self::Input, to: &mut crate::ComponentsInput<Self>) {
+impl<const W: usize> Coupled for LeafModel<W> {
+    fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
         let _ = from.couple(&mut to.atomic);
     }
-    fn eoc(from: &crate::ComponentsOutput<Self>, to: &mut Self::Output) {
+    fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
         let _ = from.atomic.couple(&mut to.output_port_1);
     }
 }
@@ -77,28 +76,28 @@ impl<'a, const W: usize> Devstone for HOModel<'a, W> {
     crate::impl_devstone_coupled!();
 }
 
-impl<'a, const W: usize> crate::Component for HOModel<'a, W> {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
+impl<'a, const W: usize> Component for HOModel<'a, W> {
+    type Kind = CoupledKind;
+    type Input = Port<usize, 1>;
     type Output = HOModelOutput<W>;
 }
 
-impl<'a, const W: usize> crate::Coupled for HOModel<'a, W> {
-    fn eic(from: &Self::Input, to: &mut crate::ComponentsInput<Self>) {
+impl<'a, const W: usize> Coupled for HOModel<'a, W> {
+    fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
         let _ = from.couple(&mut to.inner);
         for atom_ports in to.atomics.iter_mut() {
             let _ = from.couple(atom_ports);
         }
     }
 
-    fn eoc(from: &crate::ComponentsOutput<Self>, to: &mut Self::Output) {
+    fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
         let _ = from.inner.output_port_1.couple(&mut to.output_port_1);
         for atom_output_ports in from.atomics.iter() {
             let _ = atom_output_ports.couple(&mut to.output_port_2);
         }
     }
 
-    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
+    fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
         for i in 0..(W.saturating_sub(1)) {
             let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
         }
@@ -113,17 +112,17 @@ pub struct TopModel<'a, const W: usize> {
 }
 
 impl<'a, const W: usize> Component for TopModel<'a, W> {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+    type Kind = CoupledKind;
+    type Input = Port<usize, 1>;
+    type Output = Port<usize, 1>;
 }
 
 impl<'a, const W: usize> Devstone for TopModel<'a, W> {
     crate::impl_devstone_top!(ho_model, generator);
 }
 
-impl<'a, const W: usize> crate::Coupled for TopModel<'a, W> {
-    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
+impl<'a, const W: usize> Coupled for TopModel<'a, W> {
+    fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
         let _ = from.generator.couple(&mut to.ho_model);
     }
 }
@@ -152,7 +151,7 @@ mod test {
         let generator = JobGenerator::new(5);
         let top_model: TopModel<'_, W> = TopModel::build(generator, &mut model_ho);
         let mut simulator = top_model.to_simulator();
-        let config = crate::simulation::Config::new(0.0, 10.0, 1.0, None);
+        let config = crate::Config::new(0.0, 10.0, 1.0, None);
         simulator.simulate_vt(&config);
 
         assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());

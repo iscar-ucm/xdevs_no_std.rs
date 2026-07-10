@@ -1,3 +1,6 @@
+use crate::{
+    Atomic, AtomicKind, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port,
+};
 /// Generator that produces jobs at a fixed period until told to stop.
 pub struct Generator {
     sigma: f64,
@@ -5,13 +8,13 @@ pub struct Generator {
     count: usize,
 }
 
-impl crate::Component for Generator {
-    type Kind = crate::AtomicKind;
-    type Input = crate::Port<bool, 1>;
-    type Output = crate::Port<usize, 1>;
+impl Component for Generator {
+    type Kind = AtomicKind;
+    type Input = Port<bool, 1>;
+    type Output = Port<usize, 1>;
 }
 
-impl crate::Atomic for Generator {
+impl Atomic for Generator {
     fn delta_int(&mut self) {
         self.count += 1;
         self.sigma = self.period;
@@ -56,13 +59,13 @@ pub struct Processor {
     job: Option<usize>,
 }
 
-impl crate::Component for Processor {
-    type Kind = crate::AtomicKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+impl Component for Processor {
+    type Kind = AtomicKind;
+    type Input = Port<usize, 1>;
+    type Output = Port<usize, 1>;
 }
 
-impl crate::Atomic for Processor {
+impl Atomic for Processor {
     fn delta_int(&mut self) {
         self.sigma = f64::INFINITY;
         if self.job.is_some() {
@@ -113,8 +116,8 @@ impl Processor {
 /// Input bag for the Transducer.
 #[derive(crate::Bag)]
 pub struct TransducerInput {
-    pub in_generator: crate::Port<usize, 1>,
-    pub in_processor: crate::Port<usize, 1>,
+    pub in_generator: Port<usize, 1>,
+    pub in_processor: Port<usize, 1>,
 }
 
 /// Transducer that observes generated and processed jobs, computes metrics,
@@ -126,13 +129,13 @@ pub struct Transducer {
     n_processed: usize,
 }
 
-impl crate::Component for Transducer {
-    type Kind = crate::AtomicKind;
+impl Component for Transducer {
+    type Kind = AtomicKind;
     type Input = TransducerInput;
-    type Output = crate::Port<bool, 1>;
+    type Output = Port<bool, 1>;
 }
 
-impl crate::Atomic for Transducer {
+impl Atomic for Transducer {
     fn delta_int(&mut self) {
         self.clock += self.sigma;
         #[cfg(feature = "std")]
@@ -194,14 +197,14 @@ pub struct GPT {
     transducer: Transducer,
 }
 
-impl crate::Component for GPT {
-    type Kind = crate::CoupledKind;
+impl Component for GPT {
+    type Kind = CoupledKind;
     type Input = ();
     type Output = ();
 }
 
-impl crate::Coupled for GPT {
-    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
+impl Coupled for GPT {
+    fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
         from.generator.couple(&mut to.processor).unwrap();
         from.processor
             .couple(&mut to.transducer.in_processor)
@@ -219,23 +222,23 @@ pub struct EF {
     transducer: Transducer,
 }
 
-impl crate::Component for EF {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+impl Component for EF {
+    type Kind = CoupledKind;
+    type Input = Port<usize, 1>;
+    type Output = Port<usize, 1>;
 }
 
-impl crate::Coupled for EF {
-    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
+impl Coupled for EF {
+    fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
         from.generator
             .couple(&mut to.transducer.in_generator)
             .unwrap();
         from.transducer.couple(&mut to.generator).unwrap();
     }
-    fn eic(from: &Self::Input, to: &mut crate::ComponentsInput<Self>) {
+    fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
         from.couple(&mut to.transducer.in_processor).unwrap();
     }
-    fn eoc(from: &crate::ComponentsOutput<Self>, to: &mut Self::Output) {
+    fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
         from.generator.couple(to).unwrap();
     }
 }
@@ -246,14 +249,14 @@ pub struct EFP {
     processor: Processor,
 }
 
-impl crate::Component for EFP {
-    type Kind = crate::CoupledKind;
+impl Component for EFP {
+    type Kind = CoupledKind;
     type Input = ();
     type Output = ();
 }
 
-impl crate::Coupled for EFP {
-    fn ic(from: &crate::ComponentsOutput<Self>, to: &mut crate::ComponentsInput<Self>) {
+impl Coupled for EFP {
+    fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
         from.ef.couple(&mut to.processor).unwrap();
         from.processor.couple(&mut to.ef).unwrap();
     }
@@ -262,10 +265,7 @@ impl crate::Coupled for EFP {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::port::Bag;
-    use crate::prelude::*;
-    use crate::simulation::Config;
-    use crate::{Atomic, Component};
+    use crate::{port::Bag, prelude::*, Atomic, Component, Config};
 
     #[test]
     fn generator_emits_sequential_jobs() {

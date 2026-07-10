@@ -1,7 +1,7 @@
 use crate::{
-    component::{atomic::Atomic, AtomicKind},
     port::Bag,
     simulation::{AbstractSimulator, Simulable},
+    Atomic, AtomicKind,
 };
 use core::ops::{Deref, DerefMut};
 

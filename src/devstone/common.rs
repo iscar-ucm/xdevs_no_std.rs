@@ -1,6 +1,9 @@
-use crate::Duration;
 #[cfg(not(feature = "std"))]
 use crate::Instant;
+use crate::{
+    Atomic, AtomicKind, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind,
+    Duration, Port,
+};
 #[cfg(feature = "std")]
 use cpu_time::ThreadTime;
 
@@ -10,13 +13,13 @@ pub struct JobGenerator {
     count: usize,
 }
 
-impl crate::Component for JobGenerator {
-    type Kind = crate::AtomicKind;
+impl Component for JobGenerator {
+    type Kind = AtomicKind;
     type Input = ();
-    type Output = crate::Port<usize, 1>;
+    type Output = Port<usize, 1>;
 }
 
-impl crate::Atomic for JobGenerator {
+impl Atomic for JobGenerator {
     fn delta_int(&mut self) {
         self.sigma = f64::INFINITY;
     }
@@ -75,13 +78,13 @@ fn burn_cycles(duration: Duration) {
     }
 }
 
-impl crate::Component for AtomicModel {
-    type Kind = crate::AtomicKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+impl Component for AtomicModel {
+    type Kind = AtomicKind;
+    type Input = Port<usize, 1>;
+    type Output = Port<usize, 1>;
 }
 
-impl crate::Atomic for AtomicModel {
+impl Atomic for AtomicModel {
     fn delta_int(&mut self) {
         self.sigma = f64::INFINITY;
         self.n_internals += 1;
@@ -166,10 +169,10 @@ pub struct LeafModel {
     atomic: AtomicModel,
 }
 
-impl crate::Component for LeafModel {
-    type Kind = crate::CoupledKind;
-    type Input = crate::Port<usize, 1>;
-    type Output = crate::Port<usize, 1>;
+impl Component for LeafModel {
+    type Kind = CoupledKind;
+    type Input = Port<usize, 1>;
+    type Output = Port<usize, 1>;
 }
 
 impl LeafModel {
@@ -206,11 +209,11 @@ impl Default for LeafModel {
     }
 }
 
-impl crate::Coupled for LeafModel {
-    fn eic(from: &Self::Input, to: &mut crate::ComponentsInput<Self>) {
+impl Coupled for LeafModel {
+    fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
         let _ = from.couple(&mut to.atomic);
     }
-    fn eoc(from: &crate::ComponentsOutput<Self>, to: &mut Self::Output) {
+    fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
         let _ = from.atomic.couple(to);
     }
 }
@@ -337,13 +340,13 @@ macro_rules! impl_devstone_top {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::Atomic;
+    use Atomic;
 
     #[test]
     fn job_generator_emits_configured_count() {
         let gen = JobGenerator::new(5);
 
-        let mut output = <JobGenerator as crate::Component>::Output::default();
+        let mut output = <JobGenerator as Component>::Output::default();
         gen.lambda(&mut output);
         assert_eq!(
             output.get_values(),
