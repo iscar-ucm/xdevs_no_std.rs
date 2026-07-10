@@ -1,8 +1,9 @@
 /// A simple DEVS GPT model using the library gpt module with async simulation.
 use xdevs::{
     gpt::{Generator, Processor, Transducer, GPT},
+    prelude::*,
     simulation::std::SleepAsync,
-    AbstractSimulator, Config, Simulable,
+    Config,
 };
 
 #[tokio::main]

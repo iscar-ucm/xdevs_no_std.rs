@@ -1,4 +1,4 @@
-use crate::{component::Component, port::Bag, ComponentsKind};
+use crate::{port::Bag, Component, ComponentsKind};
 use core::{future::Future, time::Duration};
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
@@ -369,108 +369,101 @@ unsafe impl<T: AbstractSimulator> AbstractSimulator for Option<T> {
     }
 }
 
-// Splitter that deinterleaves a list of tts into even-indexed and odd-indexed halves.
 #[cfg(feature = "rayon")]
-macro_rules! split_even_odd {
+mod tuple_macros {
+    // Splitter that deinterleaves a list of tts into even-indexed and odd-indexed halves.
+    macro_rules! split_even_odd {
     ([$($even:tt)*] [$($odd:tt)*] [] $cont:ident $ctx:tt) => {
-        $cont!([$($even)*] [$($odd)*] $ctx)
+        tuple_macros::$cont!([$($even)*] [$($odd)*] $ctx)
     };
     ([$($even:tt)*] [$($odd:tt)*] [$a:tt] $cont:ident $ctx:tt) => {
-        $cont!([$($even)* $a] [$($odd)*] $ctx)
+        tuple_macros::$cont!([$($even)* $a] [$($odd)*] $ctx)
     };
     ([$($even:tt)*] [$($odd:tt)*] [$a:tt $b:tt $($rest:tt)*] $cont:ident $ctx:tt) => {
-        split_even_odd!([$($even)* $a] [$($odd)* $b] [$($rest)*] $cont $ctx)
+        tuple_macros::split_even_odd!([$($even)* $a] [$($odd)* $b] [$($rest)*] $cont $ctx)
     };
 }
 
-// Balanced rayon::join tree for tuple start (returns f64::min).
-#[cfg(feature = "rayon")]
-macro_rules! par_start {
+    // Balanced rayon::join tree for tuple start (returns f64::min).
+    macro_rules! par_start {
     ($self:expr, $t:expr, [$idx:tt]) => {
         $crate::simulation::AbstractSimulator::start(&mut $self.$idx, $t)
     };
     ($self:expr, $t:expr, [$idx:tt $($rest:tt)+]) => {
-        split_even_odd!([] [] [$idx $($rest)+] par_start_node [$self, $t])
+        tuple_macros::split_even_odd!([] [] [$idx $($rest)+] par_start_node [$self, $t])
     };
 }
 
-#[cfg(feature = "rayon")]
-macro_rules! par_start_node {
+    macro_rules! par_start_node {
     ([$($even:tt)*] [$($odd:tt)*] [$self:expr, $t:expr]) => {{
         let (a, b) = ::rayon::join(
-            || par_start!($self, $t, [$($even)*]),
-            || par_start!($self, $t, [$($odd)*]),
+            || tuple_macros::par_start!($self, $t, [$($even)*]),
+            || tuple_macros::par_start!($self, $t, [$($odd)*]),
         );
         f64::min(a, b)
     }};
 }
 
-// Balanced rayon::join tree for tuple stop (returns ()).
-#[cfg(feature = "rayon")]
-macro_rules! par_stop {
+    // Balanced rayon::join tree for tuple stop (returns ()).
+    macro_rules! par_stop {
     ($self:expr, [$idx:tt]) => {
         $crate::simulation::AbstractSimulator::stop(&mut $self.$idx)
     };
     ($self:expr, [$idx:tt $($rest:tt)+]) => {
-        split_even_odd!([] [] [$idx $($rest)+] par_stop_node [$self])
+        tuple_macros::split_even_odd!([] [] [$idx $($rest)+] par_stop_node [$self])
     };
 }
 
-#[cfg(feature = "rayon")]
-macro_rules! par_stop_node {
+    macro_rules! par_stop_node {
     ([$($even:tt)*] [$($odd:tt)*] [$self:expr]) => {{
         ::rayon::join(
-            || par_stop!($self, [$($even)*]),
-            || par_stop!($self, [$($odd)*]),
+            || tuple_macros::par_stop!($self, [$($even)*]),
+            || tuple_macros::par_stop!($self, [$($odd)*]),
         );
     }};
 }
 
-// Balanced rayon::join tree for tuple lambda (returns ()).
-#[cfg(feature = "rayon")]
-macro_rules! par_lambda {
+    // Balanced rayon::join tree for tuple lambda (returns ()).
+    macro_rules! par_lambda {
     ($self:expr, $output:expr, $t:expr, [$idx:tt]) => {
         $crate::simulation::AbstractSimulator::lambda(&mut $self.$idx, &mut $output.$idx, $t)
     };
     ($self:expr, $output:expr, $t:expr, [$idx:tt $($rest:tt)+]) => {
-        split_even_odd!([] [] [$idx $($rest)+] par_lambda_node [$self, $output, $t])
+        tuple_macros::split_even_odd!([] [] [$idx $($rest)+] par_lambda_node [$self, $output, $t])
     };
 }
 
-#[cfg(feature = "rayon")]
-macro_rules! par_lambda_node {
+    macro_rules! par_lambda_node {
     ([$($even:tt)*] [$($odd:tt)*] [$self:expr, $output:expr, $t:expr]) => {{
         ::rayon::join(
-            || par_lambda!($self, $output, $t, [$($even)*]),
-            || par_lambda!($self, $output, $t, [$($odd)*]),
+            || tuple_macros::par_lambda!($self, $output, $t, [$($even)*]),
+            || tuple_macros::par_lambda!($self, $output, $t, [$($odd)*]),
         );
     }};
 }
 
-// Balanced rayon::join tree for tuple delta (returns f64::min).
-#[cfg(feature = "rayon")]
-macro_rules! par_delta {
+    // Balanced rayon::join tree for tuple delta (returns f64::min).
+    macro_rules! par_delta {
     ($self:expr, $input:expr, $output:expr, $t:expr, [$idx:tt]) => {
         $crate::simulation::AbstractSimulator::delta(
             &mut $self.$idx, &mut $input.$idx, &mut $output.$idx, $t)
     };
     ($self:expr, $input:expr, $output:expr, $t:expr, [$idx:tt $($rest:tt)+]) => {
-        split_even_odd!([] [] [$idx $($rest)+] par_delta_node [$self, $input, $output, $t])
+        tuple_macros::split_even_odd!([] [] [$idx $($rest)+] par_delta_node [$self, $input, $output, $t])
     };
 }
 
-#[cfg(feature = "rayon")]
-macro_rules! par_delta_node {
+    macro_rules! par_delta_node {
     ([$($even:tt)*] [$($odd:tt)*] [$self:expr, $input:expr, $output:expr, $t:expr]) => {{
         let (a, b) = ::rayon::join(
-            || par_delta!($self, $input, $output, $t, [$($even)*]),
-            || par_delta!($self, $input, $output, $t, [$($odd)*]),
+            || tuple_macros::par_delta!($self, $input, $output, $t, [$($even)*]),
+            || tuple_macros::par_delta!($self, $input, $output, $t, [$($odd)*]),
         );
         f64::min(a, b)
     }};
 }
 
-macro_rules! impl_abstract_simulator_for_tuple {
+    macro_rules! impl_abstract_simulator_for_tuple {
     ($($idx:tt => $T:ident),+) => {
         unsafe impl<$($T: AbstractSimulator + SimSend),+> AbstractSimulator for ($($T,)+)
         where
@@ -481,71 +474,92 @@ macro_rules! impl_abstract_simulator_for_tuple {
 
             #[inline(always)]
             fn start(&mut self, t_start: f64) -> f64 {
-                #[cfg(feature = "rayon")]
-                {
-                    par_start!(self, t_start, [$($idx)+])
-                }
-                #[cfg(not(feature = "rayon"))]
-                {
-                    let mut min_t = f64::INFINITY;
-                    $(min_t = min_t.min(self.$idx.start(t_start));)+
-                    min_t
-                }
+                tuple_macros::par_start!(self, t_start, [$($idx)+])
             }
 
             #[inline(always)]
             fn stop(&mut self) {
-                #[cfg(feature = "rayon")]
-                {
-                    par_stop!(self, [$($idx)+])
-                }
-                #[cfg(not(feature = "rayon"))]
-                {
-                    $(self.$idx.stop();)+
-                }
+                tuple_macros::par_stop!(self, [$($idx)+])
             }
 
             #[inline(always)]
             fn lambda(&mut self, output: &mut Self::Output, t: f64) {
-                #[cfg(feature = "rayon")]
-                {
-                    par_lambda!(self, output, t, [$($idx)+])
-                }
-                #[cfg(not(feature = "rayon"))]
-                {
-                    $(self.$idx.lambda(&mut output.$idx, t);)+
-                }
+                tuple_macros::par_lambda!(self, output, t, [$($idx)+])
             }
 
             #[inline(always)]
             fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-                #[cfg(feature = "rayon")]
-                {
-                    par_delta!(self, input, output, t, [$($idx)+])
-                }
-                #[cfg(not(feature = "rayon"))]
-                {
-                    let mut min_t = f64::INFINITY;
-                    $(min_t = min_t.min(self.$idx.delta(&mut input.$idx, &mut output.$idx, t));)+
-                    min_t
-                }
+                tuple_macros::par_delta!(self, input, output, t, [$($idx)+])
+            }
+        }
+    }
+    }
+    pub(crate) use impl_abstract_simulator_for_tuple;
+    pub(crate) use par_delta;
+    pub(crate) use par_delta_node;
+    pub(crate) use par_lambda;
+    pub(crate) use par_lambda_node;
+    pub(crate) use par_start;
+    pub(crate) use par_start_node;
+    pub(crate) use par_stop;
+    pub(crate) use par_stop_node;
+    pub(crate) use split_even_odd;
+}
+
+#[cfg(not(feature = "rayon"))]
+mod tuple_macros {
+    macro_rules! impl_abstract_simulator_for_tuple {
+    ($($idx:tt => $T:ident),+) => {
+        unsafe impl<$($T: AbstractSimulator + SimSend),+> AbstractSimulator for ($($T,)+)
+        where
+            $($T::Input: SimSend, $T::Output: SimSend),+
+        {
+            type Input = ($($T::Input,)+);
+            type Output = ($($T::Output,)+);
+
+            #[inline(always)]
+            fn start(&mut self, t_start: f64) -> f64 {
+                let mut min_t = f64::INFINITY;
+                $(min_t = min_t.min(self.$idx.start(t_start));)+
+                min_t
+
+            }
+
+            #[inline(always)]
+            fn stop(&mut self) {
+                $(self.$idx.stop();)+
+
+            }
+
+            #[inline(always)]
+            fn lambda(&mut self, output: &mut Self::Output, t: f64) {
+                $(self.$idx.lambda(&mut output.$idx, t);)+
+            }
+
+            #[inline(always)]
+            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
+                let mut min_t = f64::INFINITY;
+                $(min_t = min_t.min(self.$idx.delta(&mut input.$idx, &mut output.$idx, t));)+
+                min_t
             }
         }
     }
 }
+    pub(crate) use impl_abstract_simulator_for_tuple;
+}
 
-impl_abstract_simulator_for_tuple!(0 => T0);
-impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1);
-impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2);
-impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3);
-impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4);
-impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5);
-impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6);
-impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7);
-impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8);
-impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9);
-impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10);
-impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10, 11 => T11);
+tuple_macros::impl_abstract_simulator_for_tuple!(0 => T0);
+tuple_macros::impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1);
+tuple_macros::impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2);
+tuple_macros::impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3);
+tuple_macros::impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4);
+tuple_macros::impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5);
+tuple_macros::impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6);
+tuple_macros::impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7);
+tuple_macros::impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8);
+tuple_macros::impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9);
+tuple_macros::impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10);
+tuple_macros::impl_abstract_simulator_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10, 11 => T11);
 
 macro_rules! impl_simulable_for_tuple {
     ($($idx:tt => ($T:ident, $K:ident)),+) => {
@@ -626,10 +640,8 @@ where
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::{
-        component::coupled::{ComponentsInput, ComponentsOutput, Coupled},
-        component::CoupledKind,
-        port::Port,
-        Atomic, AtomicKind, Component,
+        port::Port, Atomic, AtomicKind, Component, ComponentsInput, ComponentsOutput, Coupled,
+        CoupledKind,
     };
 
     pub(crate) struct TestAtomic {
@@ -730,7 +742,8 @@ mod tests {
     use crate::{
         component::coupled::PartialCoupled,
         port::Port,
-        simulation::{simulator::Simulator, AbstractSimulator, Config, Simulable},
+        prelude::*,
+        simulation::{simulator::Simulator, Config},
         Component,
     };
     #[test]
@@ -1112,10 +1125,7 @@ mod tests {
     #[test]
     fn simulate_vt_with_array() {
         // Coupled model with array of atomics
-        use crate::component::{
-            coupled::{ComponentsInput, ComponentsOutput, Coupled},
-            CoupledKind,
-        };
+        use crate::{ComponentsInput, ComponentsOutput, Coupled, CoupledKind};
 
         #[crate::to_component]
         struct ArrayCoupledComponents {

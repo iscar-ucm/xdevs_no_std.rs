@@ -1,10 +1,7 @@
 use crate::{
-    component::{
-        coupled::{ComponentsInput, ComponentsOutput, Coupled},
-        CoupledKind,
-    },
     port::Bag,
     simulation::{AbstractSimulator, Simulable},
+    ComponentsInput, ComponentsOutput, Coupled, CoupledKind,
 };
 use core::ops::{Deref, DerefMut};
 

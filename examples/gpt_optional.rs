@@ -1,7 +1,8 @@
 /// GPT-like example with an optional processor, using the library gpt module.
 use xdevs::{
     gpt::{Generator, Processor, Transducer},
-    AbstractSimulator, ComponentsInput, ComponentsOutput, CoupledKind, Simulable,
+    prelude::*,
+    ComponentsInput, ComponentsOutput, CoupledKind,
 };
 
 /// Coupled model with an optional processor, demonstrates

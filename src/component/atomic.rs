@@ -1,4 +1,4 @@
-use crate::component::{AtomicKind, Component};
+use crate::{AtomicKind, Component};
 
 /// Interface for DEVS atomic models. All DEVS atomic models must implement this trait.
 pub trait Atomic: Component<Kind = AtomicKind> {

@@ -1,6 +1,9 @@
-use crate::Duration;
 #[cfg(not(feature = "std"))]
 use crate::Instant;
+use crate::{
+    Atomic, AtomicKind, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind,
+    Duration, Port,
+};
 #[cfg(feature = "std")]
 use cpu_time::ThreadTime;
 
@@ -10,13 +13,13 @@ pub struct JobGenerator {
     count: usize,
 }
 
-impl xdevs::Component for JobGenerator {
-    type Kind = xdevs::AtomicKind;
+impl Component for JobGenerator {
+    type Kind = AtomicKind;
     type Input = ();
-    type Output = xdevs::Port<usize, 1>;
+    type Output = Port<usize, 1>;
 }
 
-impl xdevs::Atomic for JobGenerator {
+impl Atomic for JobGenerator {
     fn delta_int(&mut self) {
         self.sigma = f64::INFINITY;
     }
@@ -75,13 +78,13 @@ fn burn_cycles(duration: Duration) {
     }
 }
 
-impl xdevs::Component for AtomicModel {
-    type Kind = xdevs::AtomicKind;
-    type Input = xdevs::Port<usize, 1>;
-    type Output = xdevs::Port<usize, 1>;
+impl Component for AtomicModel {
+    type Kind = AtomicKind;
+    type Input = Port<usize, 1>;
+    type Output = Port<usize, 1>;
 }
 
-impl xdevs::Atomic for AtomicModel {
+impl Atomic for AtomicModel {
     fn delta_int(&mut self) {
         self.sigma = f64::INFINITY;
         self.n_internals += 1;
@@ -161,15 +164,15 @@ impl Devstone for AtomicModel {
 }
 
 /// Leaf coupled model with only one atomic in LI models and HI leaf model
-#[xdevs::coupled]
+#[crate::coupled]
 pub struct LeafModel {
     atomic: AtomicModel,
 }
 
-impl xdevs::Component for LeafModel {
-    type Kind = xdevs::CoupledKind;
-    type Input = xdevs::Port<usize, 1>;
-    type Output = xdevs::Port<usize, 1>;
+impl Component for LeafModel {
+    type Kind = CoupledKind;
+    type Input = Port<usize, 1>;
+    type Output = Port<usize, 1>;
 }
 
 impl LeafModel {
@@ -206,11 +209,11 @@ impl Default for LeafModel {
     }
 }
 
-impl xdevs::Coupled for LeafModel {
-    fn eic(from: &Self::Input, to: &mut xdevs::ComponentsInput<Self>) {
+impl Coupled for LeafModel {
+    fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
         let _ = from.couple(&mut to.atomic);
     }
-    fn eoc(from: &xdevs::ComponentsOutput<Self>, to: &mut Self::Output) {
+    fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
         let _ = from.atomic.couple(to);
     }
 }
@@ -337,13 +340,13 @@ macro_rules! impl_devstone_top {
 #[cfg(test)]
 mod test {
     use super::*;
-    use xdevs::Atomic;
+    use Atomic;
 
     #[test]
     fn job_generator_emits_configured_count() {
         let gen = JobGenerator::new(5);
 
-        let mut output = <JobGenerator as xdevs::Component>::Output::default();
+        let mut output = <JobGenerator as Component>::Output::default();
         gen.lambda(&mut output);
         assert_eq!(
             output.get_values(),

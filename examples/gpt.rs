@@ -1,7 +1,8 @@
 /// A simple DEVS GPT model using the library gpt module.
 use xdevs::{
     gpt::{Generator, Processor, Transducer, EF, EFP},
-    AbstractSimulator, Config, Simulable,
+    prelude::*,
+    Config,
 };
 
 fn main() {

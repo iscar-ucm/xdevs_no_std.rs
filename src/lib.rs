@@ -21,5 +21,14 @@ pub use component::{
 };
 pub use embassy_time::{Duration, Instant};
 pub use port::Port;
-pub use simulation::{AbstractSimulator, Config, Simulable};
+pub use simulation::Config;
 pub use xdevs_no_std_macros::*;
+
+/// Prelude with the traits needed to call the high-level simulation methods
+/// (`.to_simulator()`, `.simulate_vt()`, `.simulate_rt()`, `.simulate_rt_async()`)
+/// directly on components and simulators.
+///
+/// Intended to be imported with `use xdevs::prelude::*;`.
+pub mod prelude {
+    pub use crate::simulation::{AbstractSimulator, Simulable};
+}
