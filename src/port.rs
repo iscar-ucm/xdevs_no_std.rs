@@ -85,6 +85,20 @@ unsafe impl<T: Clone, const N: usize> Bag for Port<T, N> {
     }
 }
 
+unsafe impl<T: Clone, const N: usize> BagMux for Port<T, N> {
+    type Mux = T;
+
+    fn inject_event(&mut self, event: Self::Mux) -> Result<(), Self::Mux> {
+        self.add_value(event)
+    }
+
+    fn eject_events(&self, mut ejector: impl FnMut(Self::Mux)) {
+        for value in self.get_values() {
+            ejector(value.clone());
+        }
+    }
+}
+
 impl<T: Clone, const N: usize> AsPort for Port<T, N> {
     type Item = T;
 }
