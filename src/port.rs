@@ -1,5 +1,3 @@
-use sealed::Sealed;
-
 /// Port is a generic structure that can be used to store values of any type `T`.
 /// It is the main artifact to exchange data between components.
 /// Note that, in `no_std` environments, the capacity of the port `N` must be known at compile time.
@@ -99,12 +97,6 @@ unsafe impl<T: Clone, const N: usize> BagMux for Port<T, N> {
     }
 }
 
-impl<T: Clone, const N: usize> AsPort for Port<T, N> {
-    type Item = T;
-}
-
-impl<T: Clone, const N: usize> Sealed for Port<T, N> {}
-
 /// Trait that defines the methods that a DEVS event bag set must implement.
 ///
 /// # Safety
@@ -119,16 +111,6 @@ pub unsafe trait Bag {
 
     /// Clears the ports, removing all values.
     fn clear(&mut self);
-}
-
-/// Trait that defines the type inside of a Bag for rt_engine enums.
-///
-/// # Note
-///
-/// This trait is sealed and cannot be implemented by the user
-pub trait AsPort: Bag + Sealed {
-    /// The type of the values contained in the bag.
-    type Item;
 }
 
 /// Trait that defines a type that maps to event bag ports.
@@ -162,10 +144,22 @@ unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
     }
 }
 
-impl<T: AsPort, const N: usize> AsPort for [T; N] {
-    type Item = (usize, T::Item); // Include index to identify which bag the value came from
+unsafe impl<T: BagMux, const N: usize> BagMux for [T; N] {
+    type Mux = (usize, T::Mux); // Include index to identify which bag the value came from
+
+    fn inject_event(&mut self, (index, event): Self::Mux) -> Result<(), Self::Mux> {
+        match self.get_mut(index) {
+            Some(elem) => elem.inject_event(event).map_err(|err| (index, err)),
+            None => Err((index, event)),
+        }
+    }
+
+    fn eject_events(&self, mut ejector: impl FnMut(Self::Mux)) {
+        for (index, elem) in self.iter().enumerate() {
+            elem.eject_events(|v| ejector((index, v)));
+        }
+    }
 }
-impl<T: AsPort, const N: usize> Sealed for [T; N] {}
 
 unsafe impl Bag for () {
     fn build() -> Self {}
@@ -209,11 +203,6 @@ impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T
 impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9);
 impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10);
 impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10, 11 => T11);
-
-mod sealed {
-    /// Trait used to prevent users from implementing certain traits manually.
-    pub trait Sealed {}
-}
 
 #[cfg(test)]
 mod tests {
@@ -359,6 +348,42 @@ mod tests {
     }
 
     #[test]
+    fn port_bagmux_impl_contract() {
+        let mut bag = <Port<u32, 2> as Bag>::build();
+        assert!(bag.is_empty());
+
+        assert!(bag.inject_event(7).is_ok());
+        assert!(bag.inject_event(99).is_ok());
+        assert_eq!(bag.inject_event(42), Err(42));
+
+        let mut collected: heapless::Vec<u32, 4> = heapless::Vec::new();
+        bag.eject_events(|v| {
+            let _ = collected.push(v);
+        });
+        assert_eq!(collected.as_slice(), &[7, 99]);
+    }
+
+    #[test]
+    fn array_bagmux_impl_contract() {
+        let mut bags = <[Port<u32, 2>; 3] as Bag>::build();
+        assert!(bags.is_empty());
+
+        assert!(bags.inject_event((0, 10)).is_ok());
+        assert!(bags.inject_event((2, 30)).is_ok());
+
+        assert_eq!(bags.inject_event((5, 77)), Err((5, 77)));
+
+        assert!(bags.inject_event((0, 11)).is_ok());
+        assert_eq!(bags.inject_event((0, 12)), Err((0, 12)));
+
+        let mut collected: heapless::Vec<(usize, u32), 4> = heapless::Vec::new();
+        bags.eject_events(|(i, v)| {
+            let _ = collected.push((i, v));
+        });
+        assert_eq!(collected.as_slice(), &[(0, 10), (0, 11), (2, 30)]);
+    }
+
+    #[test]
     fn unit_bag_impl() {
         <() as Bag>::build();
         assert!(<() as Bag>::is_empty(&()));
@@ -405,5 +430,47 @@ mod tests {
         let port: Port<u32, 5> = Default::default();
         assert!(port.is_empty());
         assert_eq!(port.len(), 0);
+    }
+
+    #[derive(crate::Bag, crate::BagMux)]
+    struct InnerBag {
+        a: Port<u32, 2>,
+    }
+
+    #[derive(crate::Bag, crate::BagMux)]
+    struct OuterBag {
+        inner: InnerBag,
+        b: Port<bool, 1>,
+    }
+
+    #[test]
+    fn nested_bagmux_impl() {
+        let mut outer = <OuterBag as Bag>::build();
+        assert!(outer.is_empty());
+
+        let inner_event = _xdevs_no_std_inner_bag_bagmux::PortMux::A(42u32);
+        let outer_inner = _xdevs_no_std_outer_bag_bagmux::PortMux::Inner(inner_event);
+        assert!(outer.inject_event(outer_inner).is_ok());
+        assert!(!outer.is_empty());
+
+        assert!(outer
+            .inject_event(_xdevs_no_std_outer_bag_bagmux::PortMux::B(true))
+            .is_ok());
+
+        let mut got_a: heapless::Vec<u32, 4> = heapless::Vec::new();
+        let mut got_b: heapless::Vec<bool, 4> = heapless::Vec::new();
+        outer.eject_events(|ev| match ev {
+            _xdevs_no_std_outer_bag_bagmux::PortMux::Inner(inner) => match inner {
+                _xdevs_no_std_inner_bag_bagmux::PortMux::A(v) => {
+                    let _ = got_a.push(v);
+                }
+            },
+            _xdevs_no_std_outer_bag_bagmux::PortMux::B(v) => {
+                let _ = got_b.push(v);
+            }
+        });
+
+        assert_eq!(got_a.as_slice(), &[42]);
+        assert_eq!(got_b.as_slice(), &[true]);
     }
 }
