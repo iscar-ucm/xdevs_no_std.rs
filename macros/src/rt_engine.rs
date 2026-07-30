@@ -210,7 +210,7 @@ pub fn expand(args: RtEngineArgs, item: ItemImpl) -> Result<TokenStream2> {
 
         /// Auto-generated input enum for channel communication alias.
         pub type #input_enum_ident #model_ty_generics = <<#model_ident #model_ty_generics as ::xdevs::Component>::
-        Input as ::xdevs::port::BagMux>::Mux;
+        Input as ::xdevs::port::AsPort>::Value;
         });
 
         let input_channel_tokens = RtEngineBackend::input_channel(&args, &model_ident);
@@ -223,7 +223,7 @@ pub fn expand(args: RtEngineArgs, item: ItemImpl) -> Result<TokenStream2> {
         let map_input_body = quote::quote! {
             let input = <Self::InputChannel as ::xdevs::rt_engine::RtEngineInputChannel>::recv(in_channel).await;
             // TODO: Return Result when embassy time is merged
-            let _ = <Self as ::xdevs::port::BagMux>::inject_event(self, input);
+            let _ = <Self as ::xdevs::port::AsPort>::inject_event(self, input);
         };
 
         inject_input_impl = quote::quote! {
@@ -255,7 +255,7 @@ pub fn expand(args: RtEngineArgs, item: ItemImpl) -> Result<TokenStream2> {
 
             /// Auto-generated output enum for channel communication alias.
             pub type #output_enum_ident #model_ty_generics = <<#model_ident #model_ty_generics as ::xdevs::Component>::
-            Output as ::xdevs::port::BagMux>::Mux;
+            Output as ::xdevs::port::AsPort>::Value;
         });
 
         let output_channel_tokens = RtEngineBackend::output_channel(&args, &model_ident);
@@ -270,7 +270,7 @@ pub fn expand(args: RtEngineArgs, item: ItemImpl) -> Result<TokenStream2> {
                     output,
                 );
             };
-            <Self as ::xdevs::port::BagMux>::eject_events(self, out_func);
+            <Self as ::xdevs::port::AsPort>::eject_events(self, out_func);
         };
 
         eject_output_impl = quote::quote! {

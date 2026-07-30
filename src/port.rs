@@ -83,14 +83,14 @@ unsafe impl<T: Clone, const N: usize> Bag for Port<T, N> {
     }
 }
 
-unsafe impl<T: Clone, const N: usize> BagMux for Port<T, N> {
-    type Mux = T;
+unsafe impl<T: Clone, const N: usize> AsPort for Port<T, N> {
+    type Value = T;
 
-    fn inject_event(&mut self, event: Self::Mux) -> Result<(), Self::Mux> {
+    fn inject_event(&mut self, event: Self::Value) -> Result<(), Self::Value> {
         self.add_value(event)
     }
 
-    fn eject_events(&self, mut ejector: impl FnMut(Self::Mux)) {
+    fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
         for value in self.get_values() {
             ejector(value.clone());
         }
@@ -119,15 +119,15 @@ pub unsafe trait Bag {
 /// # Safety
 ///
 /// This trait must be implemented via the [`Bag`](crate::Bag) macro. Do not implement it manually.
-pub unsafe trait BagMux: Bag {
+pub unsafe trait AsPort: Bag {
     /// The type that represents the ports of the model. Each variant corresponds to a port.
-    type Mux;
+    type Value;
 
     /// Maps the type to the corresponding port, allowing to inject events to the bag.
-    fn inject_event(&mut self, event: Self::Mux) -> Result<(), Self::Mux>;
+    fn inject_event(&mut self, event: Self::Value) -> Result<(), Self::Value>;
 
     /// Maps the type to the corresponding port, allowing to receive events from the bag.
-    fn eject_events(&self, ejector: impl FnMut(Self::Mux));
+    fn eject_events(&self, ejector: impl FnMut(Self::Value));
 }
 
 unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
@@ -144,17 +144,17 @@ unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
     }
 }
 
-unsafe impl<T: BagMux, const N: usize> BagMux for [T; N] {
-    type Mux = (usize, T::Mux); // Include index to identify which bag the value came from
+unsafe impl<T: AsPort, const N: usize> AsPort for [T; N] {
+    type Value = (usize, T::Value); // Include index to identify which bag the value came from
 
-    fn inject_event(&mut self, (index, event): Self::Mux) -> Result<(), Self::Mux> {
+    fn inject_event(&mut self, (index, event): Self::Value) -> Result<(), Self::Value> {
         match self.get_mut(index) {
             Some(elem) => elem.inject_event(event).map_err(|err| (index, err)),
             None => Err((index, event)),
         }
     }
 
-    fn eject_events(&self, mut ejector: impl FnMut(Self::Mux)) {
+    fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
         for (index, elem) in self.iter().enumerate() {
             elem.eject_events(|v| ejector((index, v)));
         }
@@ -204,12 +204,12 @@ impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T
 impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10);
 impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10, 11 => T11);
 
-macro_rules! impl_bagmux_for_tuple {
+macro_rules! impl_asport_for_tuple {
     ($($idx:tt => $T:ident),+) => {
-        unsafe impl<$($T: BagMux),+> BagMux for ($($T,)+) {
-            type Mux = ($(Option<$T::Mux>,)+);
+        unsafe impl<$($T: AsPort),+> AsPort for ($($T,)+) {
+            type Value = ($(Option<$T::Value>,)+);
 
-            fn inject_event(&mut self, event: Self::Mux) -> Result<(), Self::Mux> {
+            fn inject_event(&mut self, event: Self::Value) -> Result<(), Self::Value> {
                 let mut event = event;
                 let mut had_error = false;
                 $(
@@ -223,10 +223,10 @@ macro_rules! impl_bagmux_for_tuple {
                 if had_error { Err(event) } else { Ok(()) }
             }
 
-            fn eject_events(&self, mut ejector: impl FnMut(Self::Mux)) {
+            fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
                 $(
                     self.$idx.eject_events(|v| {
-                        let mut mux: Self::Mux = Default::default();
+                        let mut mux: Self::Value = Default::default();
                         mux.$idx = Some(v);
                         ejector(mux);
                     });
@@ -236,18 +236,18 @@ macro_rules! impl_bagmux_for_tuple {
     }
 }
 
-impl_bagmux_for_tuple!(0 => T0);
-impl_bagmux_for_tuple!(0 => T0, 1 => T1);
-impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2);
-impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3);
-impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4);
-impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5);
-impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6);
-impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7);
-impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8);
-impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9);
-impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10);
-impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10, 11 => T11);
+impl_asport_for_tuple!(0 => T0);
+impl_asport_for_tuple!(0 => T0, 1 => T1);
+impl_asport_for_tuple!(0 => T0, 1 => T1, 2 => T2);
+impl_asport_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3);
+impl_asport_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4);
+impl_asport_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5);
+impl_asport_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6);
+impl_asport_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7);
+impl_asport_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8);
+impl_asport_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9);
+impl_asport_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10);
+impl_asport_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10, 11 => T11);
 
 #[cfg(test)]
 mod tests {
@@ -393,7 +393,7 @@ mod tests {
     }
 
     #[test]
-    fn port_bagmux_impl_contract() {
+    fn port_asport_impl_contract() {
         let mut bag = <Port<u32, 2> as Bag>::build();
         assert!(bag.is_empty());
 
@@ -409,7 +409,7 @@ mod tests {
     }
 
     #[test]
-    fn array_bagmux_impl_contract() {
+    fn array_asport_impl_contract() {
         let mut bags = <[Port<u32, 2>; 3] as Bag>::build();
         assert!(bags.is_empty());
 
@@ -429,7 +429,7 @@ mod tests {
     }
 
     #[test]
-    fn tuple_bagmux_impl_2_elements() {
+    fn tuple_asport_impl_2_elements() {
         let mut bag = <(Port<u32, 1>, Port<bool, 1>) as Bag>::build();
         assert!(bag.is_empty());
 
@@ -453,7 +453,7 @@ mod tests {
     }
 
     #[test]
-    fn tuple_bagmux_impl_full_preserves_failed_positions() {
+    fn tuple_asport_impl_full_preserves_failed_positions() {
         let mut bag = <(Port<u32, 1>, Port<bool, 1>) as Bag>::build();
         bag.inject_event((Some(1u32), None)).unwrap();
         bag.inject_event((None, Some(true))).unwrap();
@@ -532,40 +532,40 @@ mod tests {
         assert_eq!(port.len(), 0);
     }
 
-    #[derive(crate::Bag, crate::BagMux)]
+    #[derive(crate::Bag, crate::AsPort)]
     struct InnerBag {
         a: Port<u32, 2>,
     }
 
-    #[derive(crate::Bag, crate::BagMux)]
+    #[derive(crate::Bag, crate::AsPort)]
     struct OuterBag {
         inner: InnerBag,
         b: Port<bool, 1>,
     }
 
     #[test]
-    fn nested_bagmux_impl() {
+    fn nested_asport_impl() {
         let mut outer = <OuterBag as Bag>::build();
         assert!(outer.is_empty());
 
-        let inner_event = _xdevs_no_std_inner_bag_bagmux::PortMux::A(42u32);
-        let outer_inner = _xdevs_no_std_outer_bag_bagmux::PortMux::Inner(inner_event);
+        let inner_event = _xdevs_no_std_inner_bag_asport::PortMux::A(42u32);
+        let outer_inner = _xdevs_no_std_outer_bag_asport::PortMux::Inner(inner_event);
         assert!(outer.inject_event(outer_inner).is_ok());
         assert!(!outer.is_empty());
 
         assert!(outer
-            .inject_event(_xdevs_no_std_outer_bag_bagmux::PortMux::B(true))
+            .inject_event(_xdevs_no_std_outer_bag_asport::PortMux::B(true))
             .is_ok());
 
         let mut got_a: heapless::Vec<u32, 4> = heapless::Vec::new();
         let mut got_b: heapless::Vec<bool, 4> = heapless::Vec::new();
         outer.eject_events(|ev| match ev {
-            _xdevs_no_std_outer_bag_bagmux::PortMux::Inner(inner) => match inner {
-                _xdevs_no_std_inner_bag_bagmux::PortMux::A(v) => {
+            _xdevs_no_std_outer_bag_asport::PortMux::Inner(inner) => match inner {
+                _xdevs_no_std_inner_bag_asport::PortMux::A(v) => {
                     let _ = got_a.push(v);
                 }
             },
-            _xdevs_no_std_outer_bag_bagmux::PortMux::B(v) => {
+            _xdevs_no_std_outer_bag_asport::PortMux::B(v) => {
                 let _ = got_b.push(v);
             }
         });

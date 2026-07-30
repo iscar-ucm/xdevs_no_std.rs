@@ -91,10 +91,10 @@ pub fn derive_bag(input: TokenStream) -> TokenStream {
     }
 }
 
-#[proc_macro_derive(BagMux)]
-pub fn derive_bagmux(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(AsPort)]
+pub fn derive_asport(input: TokenStream) -> TokenStream {
     let input: syn::DeriveInput = syn::parse_macro_input!(input);
-    match derive::derive_bagmux(input) {
+    match derive::derive_asport(input) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.to_compile_error().into(),
     }

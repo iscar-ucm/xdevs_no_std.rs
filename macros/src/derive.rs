@@ -97,11 +97,11 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
     })
 }
 
-pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
+pub fn derive_asport(input: DeriveInput) -> Result<TokenStream2> {
     let ident = input.ident;
     let snake_case_ident = Ident::new(&ident.to_string().to_snake_case(), ident.span());
     let private_mod_ident = Ident::new(
-        &format!("_xdevs_no_std_{}_bagmux", snake_case_ident),
+        &format!("_xdevs_no_std_{}_asport", snake_case_ident),
         ident.span(),
     );
     let generics = input.generics;
@@ -111,7 +111,7 @@ pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
         _ => {
             return Err(Error::new_spanned(
                 ident,
-                "BagMux can only be derived for structs",
+                "AsPort can only be derived for structs",
             ))
         }
     };
@@ -121,15 +121,15 @@ pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
     match fields {
         Fields::Unnamed(_) => Err(Error::new_spanned(
             ident,
-            "BagMux cannot be derived for tuple structs",
+            "AsPort cannot be derived for tuple structs",
         )),
         Fields::Unit => Ok(quote::quote! {
-            unsafe impl #impl_generics ::xdevs::port::BagMux for #ident #ty_generics #where_clause {
-                type Mux = ();
-                fn inject_event(&mut self, _event: Self::Mux) -> ::core::result::Result<(), Self::Mux> {
+            unsafe impl #impl_generics ::xdevs::port::AsPort for #ident #ty_generics #where_clause {
+                type Value = ();
+                fn inject_event(&mut self, _event: Self::Value) -> ::core::result::Result<(), Self::Value> {
                     Ok(())
                 }
-                fn eject_events(&self, _ejector: impl FnMut(Self::Mux)) {}
+                fn eject_events(&self, _ejector: impl FnMut(Self::Value)) {}
             }
         }),
 
@@ -142,7 +142,7 @@ pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
                         info.ident.as_ref().expect("named field must have ident"),
                     );
                     let ty = &info.ty;
-                    quote::quote! { #variant(<#ty as ::xdevs::port::BagMux>::Mux) }
+                    quote::quote! { #variant(<#ty as ::xdevs::port::AsPort>::Value) }
                 })
                 .collect();
 
@@ -155,7 +155,7 @@ pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
                     );
                     let field = info.ident.as_ref().expect("named field must have ident");
                     quote::quote! {
-                        Self::Mux::#variant(value) => self.#field.inject_event(value).map_err(Self::Mux::#variant)
+                        Self::Value::#variant(value) => self.#field.inject_event(value).map_err(Self::Value::#variant)
                     }
                 })
                 .collect();
@@ -169,22 +169,22 @@ pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
                     );
                     let field = info.ident.as_ref().expect("named field must have ident");
                     quote::quote! {
-                        self.#field.eject_events(|v| ejector(Self::Mux::#variant(v)));
+                        self.#field.eject_events(|v| ejector(Self::Value::#variant(v)));
                     }
                 })
                 .collect();
 
             Ok(quote::quote! {
-                unsafe impl #impl_generics ::xdevs::port::BagMux for #ident #ty_generics #where_clause {
-                    type Mux = #private_mod_ident::PortMux #ty_generics;
+                unsafe impl #impl_generics ::xdevs::port::AsPort for #ident #ty_generics #where_clause {
+                    type Value = #private_mod_ident::PortMux #ty_generics;
 
-                    fn inject_event(&mut self, event: Self::Mux) -> ::core::result::Result<(), Self::Mux> {
+                    fn inject_event(&mut self, event: Self::Value) -> ::core::result::Result<(), Self::Value> {
                         match event {
                             #(#match_arms),*
                         }
                     }
 
-                    fn eject_events(&self, mut ejector: impl FnMut(Self::Mux)) {
+                    fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
                         #(#propagations)*
                     }
                 }
