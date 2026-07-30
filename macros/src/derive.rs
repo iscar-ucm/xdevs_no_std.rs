@@ -126,7 +126,7 @@ pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
         Fields::Unit => Ok(quote::quote! {
             unsafe impl #impl_generics ::xdevs::port::BagMux for #ident #ty_generics #where_clause {
                 type Mux = ();
-                fn inject_event(&mut self, _event: Self::Mux) -> Result<(), Self::Mux> {
+                fn inject_event(&mut self, _event: Self::Mux) -> ::core::result::Result<(), Self::Mux> {
                     Ok(())
                 }
                 fn eject_events(&self, _ejector: impl FnMut(Self::Mux)) {}
@@ -178,7 +178,7 @@ pub fn derive_bagmux(input: DeriveInput) -> Result<TokenStream2> {
                 unsafe impl #impl_generics ::xdevs::port::BagMux for #ident #ty_generics #where_clause {
                     type Mux = #private_mod_ident::PortMux #ty_generics;
 
-                    fn inject_event(&mut self, event: Self::Mux) -> Result<(), Self::Mux> {
+                    fn inject_event(&mut self, event: Self::Mux) -> ::core::result::Result<(), Self::Mux> {
                         match event {
                             #(#match_arms),*
                         }

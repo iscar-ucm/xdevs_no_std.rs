@@ -204,6 +204,51 @@ impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T
 impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10);
 impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10, 11 => T11);
 
+macro_rules! impl_bagmux_for_tuple {
+    ($($idx:tt => $T:ident),+) => {
+        unsafe impl<$($T: BagMux),+> BagMux for ($($T,)+) {
+            type Mux = ($(Option<$T::Mux>,)+);
+
+            fn inject_event(&mut self, event: Self::Mux) -> Result<(), Self::Mux> {
+                let mut event = event;
+                let mut had_error = false;
+                $(
+                    if let Some(v) = event.$idx.take() {
+                        if let Err(e) = self.$idx.inject_event(v) {
+                            event.$idx = Some(e);
+                            had_error = true;
+                        }
+                    }
+                )+
+                if had_error { Err(event) } else { Ok(()) }
+            }
+
+            fn eject_events(&self, mut ejector: impl FnMut(Self::Mux)) {
+                $(
+                    self.$idx.eject_events(|v| {
+                        let mut mux: Self::Mux = Default::default();
+                        mux.$idx = Some(v);
+                        ejector(mux);
+                    });
+                )+
+            }
+        }
+    }
+}
+
+impl_bagmux_for_tuple!(0 => T0);
+impl_bagmux_for_tuple!(0 => T0, 1 => T1);
+impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2);
+impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3);
+impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4);
+impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5);
+impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6);
+impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7);
+impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8);
+impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9);
+impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10);
+impl_bagmux_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10, 11 => T11);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -381,6 +426,61 @@ mod tests {
             let _ = collected.push((i, v));
         });
         assert_eq!(collected.as_slice(), &[(0, 10), (0, 11), (2, 30)]);
+    }
+
+    #[test]
+    fn tuple_bagmux_impl_2_elements() {
+        let mut bag = <(Port<u32, 1>, Port<bool, 1>) as Bag>::build();
+        assert!(bag.is_empty());
+
+        assert!(bag.inject_event((Some(7u32), None)).is_ok());
+        assert!(bag.inject_event((None, Some(true))).is_ok());
+        assert_eq!(bag.inject_event((Some(99u32), None)), Err((Some(99), None)));
+
+        let mut got_u32: heapless::Vec<u32, 4> = heapless::Vec::new();
+        let mut got_bool: heapless::Vec<bool, 4> = heapless::Vec::new();
+        bag.eject_events(|ev| match ev {
+            (Some(v), None) => {
+                let _ = got_u32.push(v);
+            }
+            (None, Some(v)) => {
+                let _ = got_bool.push(v);
+            }
+            _ => {}
+        });
+        assert_eq!(got_u32.as_slice(), &[7]);
+        assert_eq!(got_bool.as_slice(), &[true]);
+    }
+
+    #[test]
+    fn tuple_bagmux_impl_full_preserves_failed_positions() {
+        let mut bag = <(Port<u32, 1>, Port<bool, 1>) as Bag>::build();
+        bag.inject_event((Some(1u32), None)).unwrap();
+        bag.inject_event((None, Some(true))).unwrap();
+
+        assert_eq!(bag.inject_event((Some(7u32), None)), Err((Some(7), None)));
+        assert_eq!(
+            bag.inject_event((None, Some(false))),
+            Err((None, Some(false)))
+        );
+        assert_eq!(
+            bag.inject_event((Some(7u32), Some(false))),
+            Err((Some(7), Some(false)))
+        );
+
+        let mut got_u32: heapless::Vec<u32, 4> = heapless::Vec::new();
+        let mut got_bool: heapless::Vec<bool, 4> = heapless::Vec::new();
+        bag.eject_events(|ev| match ev {
+            (Some(v), None) => {
+                let _ = got_u32.push(v);
+            }
+            (None, Some(v)) => {
+                let _ = got_bool.push(v);
+            }
+            _ => {}
+        });
+        assert_eq!(got_u32.as_slice(), &[1]);
+        assert_eq!(got_bool.as_slice(), &[true]);
     }
 
     #[test]
