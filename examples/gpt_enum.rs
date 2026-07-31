@@ -40,7 +40,7 @@ mod processor {
         }
         fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
             self.sigma -= elapsed;
-            if let Some(&job) = input.get_values().last() {
+            if let Some(&job) = input.as_slice().last() {
                 if self.job.is_none() {
                     println!("[P-fast] received job {}", job);
                     self.job = Some(job);
@@ -90,7 +90,7 @@ mod processor {
         }
         fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
             self.sigma -= elapsed;
-            if let Some(&job) = input.get_values().last() {
+            if let Some(&job) = input.as_slice().last() {
                 if self.job.is_none() {
                     println!("[P-slow] received job {}", job);
                     self.job = Some(job);

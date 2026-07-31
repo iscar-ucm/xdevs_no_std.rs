@@ -104,7 +104,7 @@ impl Atomic for AtomicModel {
     fn delta_ext(&mut self, _elapsed: f64, input: &Self::Input) {
         self.sigma = 0.0;
         self.n_externals += 1;
-        self.n_events += input.get_values().len();
+        self.n_events += input.as_slice().len();
         if self.ext_delay > Duration::MIN {
             burn_cycles(self.ext_delay);
         }
@@ -349,7 +349,7 @@ mod test {
         let mut output = <JobGenerator as Component>::Output::default();
         gen.lambda(&mut output);
         assert_eq!(
-            output.get_values(),
+            output.as_slice(),
             &[5],
             "generator should output its count"
         );

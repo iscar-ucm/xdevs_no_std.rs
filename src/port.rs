@@ -1,69 +1,202 @@
+#[cfg(feature = "alloc")]
+pub mod alloc;
+#[cfg(feature = "std")]
+pub mod std;
+
 /// Port is a generic structure that can be used to store values of any type `T`.
 /// It is the main artifact to exchange data between components.
 /// Note that, in `no_std` environments, the capacity of the port `N` must be known at compile time.
-#[derive(Debug)]
-pub struct Port<T: Clone, const N: usize>(heapless::Vec<T, N>);
+pub type Port<T, const N: usize> = heapless::Vec<T, N>;
 
-impl<T: Clone, const N: usize> Default for Port<T, N> {
-    fn default() -> Self {
-        Self::new()
-    }
+/// Error returned by [`Bag::try_couple`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TryCoupleError<S, T, E> {
+    /// Conversion from source event type to target event type failed.
+    Convert { source: S, error: E },
+    /// Converted event could not be inserted in the target bag.
+    Insert(T),
 }
 
-impl<T: Clone, const N: usize> Port<T, N> {
-    /// Creates a new empty port.
+/// Error returned by [`Bag::try_adapt_and_couple`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TryAdaptAndCoupleError<S, T, E> {
+    /// Adapter closure failed for a source event.
+    Adapt { source: S, error: E },
+    /// Adapted event could not be inserted in the target bag.
+    Insert(T),
+}
+
+/// Trait that defines the methods that a DEVS event bag set must implement.
+///
+/// # Safety
+///
+/// Implementors must preserve DEVS bag semantics:
+/// additions must be observable through `propagate`, `clear` must remove all events,
+/// and failed insertions must return the rejected event.
+pub unsafe trait Bag {
+    /// The data type of the events stored in the event bag.
+    type Value;
+
+    /// Build a new instance of the bag.
+    fn build() -> Self;
+
+    /// Returns `true` if the event bag is empty.
+    fn is_empty(&self) -> bool;
+
+    /// Clears the event bag, removing all values.
+    fn clear(&mut self);
+
+    /// Adds a new value into the bag.
+    fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value>;
+
+    /// Returns the number of events in the bag.
+    ///
+    /// Implementations may override this method for better performance.
     #[inline]
-    pub const fn new() -> Self {
-        Self(heapless::Vec::new())
+    fn len(&self) -> usize {
+        let mut len = 0;
+        self.propagate(|_| {
+            len += 1;
+        });
+        len
     }
 
-    /// Returns `true` if the port is empty.
+    /// Adds multiple values to the bag.
+    ///
+    /// Returns the first event that cannot be inserted.
     #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+    fn add_values(&mut self, events: &[Self::Value]) -> Result<(), Self::Value>
+    where
+        Self::Value: Clone,
+    {
+        for event in events {
+            self.add_value(event.clone())?;
+        }
+        Ok(())
     }
 
-    /// Returns `true` if the port is full.
+    /// Copies all events from this bag into another bag of the same event type.
+    ///
+    /// Returns the first event that cannot be inserted into `to`.
     #[inline]
-    pub fn is_full(&self) -> bool {
-        self.0.is_full()
+    fn couple<B: Bag<Value = Self::Value>>(&self, to: &mut B) -> Result<(), Self::Value>
+    where
+        Self::Value: Clone,
+    {
+        let mut failure: Option<Self::Value> = None;
+        self.propagate(|event| {
+            if failure.is_none() {
+                if let Err(err) = to.add_value(event) {
+                    failure = Some(err);
+                }
+            }
+        });
+
+        match failure {
+            Some(err) => Err(err),
+            None => Ok(()),
+        }
     }
 
-    /// Returns the number of elements in the port.
+    /// Copies all events from this bag into another bag using an adapter closure.
+    ///
+    /// The adapter transforms each source event into the target bag event type.
+    /// Returns the first adapted event that cannot be inserted into `to`.
     #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len()
+    fn adapt_and_couple<B: Bag, F>(&self, to: &mut B, mut adapter: F) -> Result<(), B::Value>
+    where
+        F: FnMut(Self::Value) -> B::Value,
+    {
+        let mut failure: Option<B::Value> = None;
+        self.propagate(|event| {
+            if failure.is_none() {
+                let adapted = adapter(event);
+                if let Err(err) = to.add_value(adapted) {
+                    failure = Some(err);
+                }
+            }
+        });
+
+        match failure {
+            Some(err) => Err(err),
+            None => Ok(()),
+        }
     }
 
-    /// Clears the port, removing all values.
+    /// Copies all events from this bag into another bag using a fallible adapter closure.
+    ///
+    /// Returns [`TryAdaptAndCoupleError::Adapt`] when adapter conversion fails,
+    /// and [`TryAdaptAndCoupleError::Insert`] when insertion into target bag fails.
     #[inline]
-    pub fn clear(&mut self) {
-        self.0.clear()
-    }
-
-    /// Adds multiple values to the port.
-    #[inline]
-    pub fn add_values(&mut self, items: &[T]) -> Result<(), heapless::CapacityError> {
-        self.0.extend_from_slice(items)
-    }
-
-    /// Returns a slice of the port's values.
-    #[inline]
-    pub fn get_values(&self) -> &[T] {
-        self.0.as_slice()
-    }
-
-    /// Easy port mapping method
-    #[inline]
-    pub fn couple<const M: usize>(
+    fn try_adapt_and_couple<B: Bag, F, E>(
         &self,
-        to: &mut Port<T, M>,
-    ) -> Result<(), heapless::CapacityError> {
-        to.add_values(self.get_values())
+        to: &mut B,
+        mut adapter: F,
+    ) -> Result<(), TryAdaptAndCoupleError<Self::Value, B::Value, E>>
+    where
+        Self::Value: Clone,
+        F: FnMut(Self::Value) -> Result<B::Value, E>,
+    {
+        let mut failure: Option<TryAdaptAndCoupleError<Self::Value, B::Value, E>> = None;
+        self.propagate(|event| {
+            if failure.is_none() {
+                let source = event.clone();
+                match adapter(event) {
+                    Ok(adapted) => {
+                        if let Err(err) = to.add_value(adapted) {
+                            failure = Some(TryAdaptAndCoupleError::Insert(err));
+                        }
+                    }
+                    Err(error) => {
+                        failure = Some(TryAdaptAndCoupleError::Adapt { source, error });
+                    }
+                }
+            }
+        });
+
+        match failure {
+            Some(err) => Err(err),
+            None => Ok(()),
+        }
     }
+
+    /// Couples this bag into another bag using [`core::convert::TryFrom`].
+    ///
+    /// Returns [`TryCoupleError::Convert`] when value conversion fails, and
+    /// [`TryCoupleError::Insert`] when converted value insertion fails.
+    #[inline]
+    fn try_couple<B>(
+        &self,
+        to: &mut B,
+    ) -> Result<
+        (),
+        TryCoupleError<
+            Self::Value,
+            B::Value,
+            <B::Value as core::convert::TryFrom<Self::Value>>::Error,
+        >,
+    >
+    where
+        B: Bag,
+        Self::Value: Clone,
+        B::Value: core::convert::TryFrom<Self::Value>,
+    {
+        self.try_adapt_and_couple(to, |event| {
+            <B::Value as core::convert::TryFrom<Self::Value>>::try_from(event)
+        })
+        .map_err(|err| match err {
+            TryAdaptAndCoupleError::Adapt { source, error } => {
+                TryCoupleError::Convert { source, error }
+            }
+            TryAdaptAndCoupleError::Insert(v) => TryCoupleError::Insert(v),
+        })
+    }
+
+    /// Propagates all events from the bag according to the provided closure.
+    fn propagate(&self, propagator: impl FnMut(Self::Value));
 }
 
-unsafe impl<T: Clone, const N: usize> Bag for Port<T, N> {
+unsafe impl<T: Clone, const N: usize> Bag for heapless::Vec<T, N> {
     type Value = T;
 
     #[inline]
@@ -83,42 +216,20 @@ unsafe impl<T: Clone, const N: usize> Bag for Port<T, N> {
 
     #[inline]
     fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value> {
-        self.0.push(event)
+        self.push(event)
     }
 
     #[inline]
-    fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
-        for value in self.get_values() {
-            ejector(value.clone());
+    fn len(&self) -> usize {
+        self.as_slice().len()
+    }
+
+    #[inline]
+    fn propagate(&self, mut propagator: impl FnMut(Self::Value)) {
+        for value in self.iter() {
+            propagator(value.clone());
         }
     }
-}
-
-/// Trait that defines the methods that a DEVS event bag set must implement.
-///
-/// # Safety
-///
-/// This trait must be implemented via the [`Bag`] macro. Do not implement it manually.
-pub unsafe trait Bag {
-    /// The data type of the events stored in the event bag.
-    type Value;
-
-    /// Build a new instance of the bag.
-    fn build() -> Self;
-
-    /// Returns `true` if the event bag is empty.
-    fn is_empty(&self) -> bool;
-
-    /// Clears the event bag, removing all values.
-    fn clear(&mut self);
-
-    /// Adds a new value into the bag.
-    fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value>;
-
-    /// Ejects all events from the bag.
-    ///
-    /// This function is mainly used internally by the [`RtEngine`](crate::rt_engine::RtEngine) to collect all events from the model.
-    fn eject_events(&self, ejector: impl FnMut(Self::Value));
 }
 
 unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
@@ -131,7 +242,7 @@ unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
 
     #[inline]
     fn is_empty(&self) -> bool {
-        self.iter().all(|bag| bag.is_empty())
+        self.as_slice().iter().all(|bag| bag.is_empty())
     }
 
     #[inline]
@@ -148,10 +259,13 @@ unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
     }
 
     #[inline]
-    fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
-        self.iter().enumerate().for_each(|(index, elem)| {
-            elem.eject_events(|v| ejector((index, v)));
-        });
+    fn propagate(&self, mut propagator: impl FnMut(Self::Value)) {
+        self.as_slice()
+            .iter()
+            .enumerate()
+            .for_each(|(index, elem)| {
+                elem.propagate(|v| propagator((index, v)));
+            });
     }
 }
 
@@ -175,7 +289,7 @@ unsafe impl Bag for () {
     }
 
     #[inline]
-    fn eject_events(&self, _ejector: impl FnMut(Self::Value)) {}
+    fn propagate(&self, _ejector: impl FnMut(Self::Value)) {}
 }
 
 unsafe impl<T: Clone> Bag for Option<T> {
@@ -208,9 +322,9 @@ unsafe impl<T: Clone> Bag for Option<T> {
     }
 
     #[inline]
-    fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
+    fn propagate(&self, mut propagator: impl FnMut(Self::Value)) {
         if let Some(value) = self {
-            ejector(value.clone());
+            propagator(value.clone());
         }
     }
 }
@@ -253,16 +367,17 @@ macro_rules! impl_bag_for_tuple {
             }
 
             #[inline]
-            fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
+            fn propagate(&self, mut propagator: impl FnMut(Self::Value)) {
                 $(
-                    self.$idx.eject_events(|v| {
+                    self.$idx.propagate(|v| {
                         let mut mux: Self::Value = Default::default();
                         mux.$idx = Some(v);
-                        ejector(mux);
+                        propagator(mux);
                     });
                 )+
             }
         }
+
     }
 }
 
@@ -296,7 +411,7 @@ mod tests {
         assert!(port.add_value(1).is_ok());
         assert!(port.add_value(2).is_ok());
         assert!(port.add_value(3).is_ok());
-        assert_eq!(port.get_values(), &[1, 2, 3]);
+        assert_eq!(port.as_slice(), &[1, 2, 3]);
     }
 
     #[test]
@@ -308,7 +423,7 @@ mod tests {
         assert!(port.is_full());
         let result = port.add_value(40);
         assert_eq!(result, Err(40));
-        assert_eq!(port.get_values(), &[10, 20, 30]);
+        assert_eq!(port.as_slice(), &[10, 20, 30]);
     }
 
     #[test]
@@ -316,7 +431,7 @@ mod tests {
         let mut port: Port<u32, 5> = Port::new();
         assert!(port.add_values(&[10, 20, 30]).is_ok());
         assert_eq!(port.len(), 3);
-        assert_eq!(port.get_values(), &[10, 20, 30]);
+        assert_eq!(port.as_slice(), &[10, 20, 30]);
     }
 
     #[test]
@@ -326,7 +441,7 @@ mod tests {
         assert!(port.is_full());
         let result = port.add_values(&[4]);
         assert!(result.is_err());
-        assert_eq!(port.get_values(), &[1, 2, 3]);
+        assert_eq!(port.as_slice(), &[1, 2, 3]);
     }
 
     #[test]
@@ -345,8 +460,8 @@ mod tests {
         src.add_values(&[1, 2, 3]).unwrap();
         let mut dst: Port<u32, 5> = Port::new();
         assert!(src.couple(&mut dst).is_ok());
-        assert_eq!(dst.get_values(), &[1, 2, 3]);
-        assert_eq!(src.get_values(), &[1, 2, 3]);
+        assert_eq!(dst.as_slice(), &[1, 2, 3]);
+        assert_eq!(src.as_slice(), &[1, 2, 3]);
     }
 
     #[test]
@@ -356,7 +471,7 @@ mod tests {
         let mut dst: Port<u32, 2> = Port::new();
         let result = src.couple(&mut dst);
         assert!(result.is_err());
-        assert_eq!(src.get_values(), &[1, 2, 3]);
+        assert_eq!(src.as_slice(), &[1, 2, 3]);
     }
 
     #[test]
@@ -432,7 +547,7 @@ mod tests {
         assert_eq!(bag.add_value(42), Err(42));
 
         let mut collected: heapless::Vec<u32, 4> = heapless::Vec::new();
-        bag.eject_events(|v| {
+        bag.propagate(|v| {
             let _ = collected.push(v);
         });
         assert_eq!(collected.as_slice(), &[7, 99]);
@@ -452,7 +567,7 @@ mod tests {
         assert_eq!(bags.add_value((0, 12)), Err((0, 12)));
 
         let mut collected: heapless::Vec<(usize, u32), 4> = heapless::Vec::new();
-        bags.eject_events(|(i, v)| {
+        bags.propagate(|(i, v)| {
             let _ = collected.push((i, v));
         });
         assert_eq!(collected.as_slice(), &[(0, 10), (0, 11), (2, 30)]);
@@ -479,7 +594,7 @@ mod tests {
         assert_eq!(bag.add_value(99), Err(99));
 
         let mut collected: heapless::Vec<u32, 4> = heapless::Vec::new();
-        bag.eject_events(|v| {
+        bag.propagate(|v| {
             let _ = collected.push(v);
         });
         assert_eq!(collected.as_slice(), &[7]);
@@ -488,7 +603,7 @@ mod tests {
         assert!(bag.is_empty());
 
         let mut collected_after: heapless::Vec<u32, 4> = heapless::Vec::new();
-        bag.eject_events(|v| {
+        bag.propagate(|v| {
             let _ = collected_after.push(v);
         });
         assert!(collected_after.is_empty());
@@ -505,7 +620,7 @@ mod tests {
 
         let mut got_u32: heapless::Vec<u32, 4> = heapless::Vec::new();
         let mut got_bool: heapless::Vec<bool, 4> = heapless::Vec::new();
-        bag.eject_events(|ev| match ev {
+        bag.propagate(|ev| match ev {
             (Some(v), None) => {
                 let _ = got_u32.push(v);
             }
@@ -533,7 +648,7 @@ mod tests {
 
         let mut got_u32: heapless::Vec<u32, 4> = heapless::Vec::new();
         let mut got_bool: heapless::Vec<bool, 4> = heapless::Vec::new();
-        bag.eject_events(|ev| match ev {
+        bag.propagate(|ev| match ev {
             (Some(v), None) => {
                 let _ = got_u32.push(v);
             }
@@ -622,7 +737,7 @@ mod tests {
 
         let mut got_a: heapless::Vec<u32, 4> = heapless::Vec::new();
         let mut got_b: heapless::Vec<bool, 4> = heapless::Vec::new();
-        outer.eject_events(|ev| match ev {
+        outer.propagate(|ev| match ev {
             _xdevs_no_std_outer_bag_bag::PortMux::Inner(inner) => match inner {
                 _xdevs_no_std_inner_bag_bag::PortMux::A(v) => {
                     let _ = got_a.push(v);
@@ -635,5 +750,131 @@ mod tests {
 
         assert_eq!(got_a.as_slice(), &[42]);
         assert_eq!(got_b.as_slice(), &[true]);
+    }
+
+    #[test]
+    fn heapless_vec_bag_impl_contract() {
+        let mut bag = <heapless::Vec<u32, 4> as Bag>::build();
+        assert!(bag.is_empty());
+
+        assert!(bag.add_value(7).is_ok());
+        assert!(bag.add_value(8).is_ok());
+        assert_eq!(Bag::len(&bag), 2);
+
+        let mut collected: heapless::Vec<u32, 4> = heapless::Vec::new();
+        bag.propagate(|v| {
+            let _ = collected.push(v);
+        });
+        assert_eq!(collected.as_slice(), &[7, 8]);
+    }
+
+    #[test]
+    fn bag_trait_couple_between_port_and_heapless_vec() {
+        let mut src: Port<u32, 4> = Port::new();
+        src.add_values(&[1, 2, 3]).unwrap();
+
+        let mut dst = <heapless::Vec<u32, 4> as Bag>::build();
+        assert!(Bag::couple(&src, &mut dst).is_ok());
+        assert_eq!(dst.as_slice(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn bag_trait_adapt_and_couple_different_types() {
+        let mut src: Port<u32, 4> = Port::new();
+        src.add_values(&[0, 3, 5]).unwrap();
+
+        let mut dst: Port<bool, 4> = Port::new();
+        assert!(src.adapt_and_couple(&mut dst, |v| v > 0).is_ok());
+        assert_eq!(dst.as_slice(), &[false, true, true]);
+    }
+
+    #[test]
+    fn bag_trait_adapt_and_couple_returns_target_error() {
+        let mut src: Port<u32, 4> = Port::new();
+        src.add_values(&[1, 2, 3]).unwrap();
+
+        let mut dst: Port<u32, 1> = Port::new();
+        assert_eq!(src.adapt_and_couple(&mut dst, |v| v * 10), Err(20));
+        assert_eq!(dst.as_slice(), &[10]);
+    }
+
+    #[test]
+    fn bag_trait_try_adapt_and_couple_different_types() {
+        let mut src: Port<u32, 4> = Port::new();
+        src.add_values(&[0, 3, 5]).unwrap();
+
+        let mut dst: Port<bool, 4> = Port::new();
+        assert!(src
+            .try_adapt_and_couple(&mut dst, |v| Ok::<bool, &'static str>(v > 0))
+            .is_ok());
+        assert_eq!(dst.as_slice(), &[false, true, true]);
+    }
+
+    #[test]
+    fn bag_trait_try_adapt_and_couple_adapter_error() {
+        let mut src: Port<u32, 4> = Port::new();
+        src.add_values(&[1, 0, 2]).unwrap();
+
+        let mut dst: Port<u32, 4> = Port::new();
+        let result = src.try_adapt_and_couple(&mut dst, |v| {
+            if v == 0 {
+                Err("zero is invalid")
+            } else {
+                Ok(v * 10)
+            }
+        });
+        assert_eq!(
+            result,
+            Err(TryAdaptAndCoupleError::Adapt {
+                source: 0,
+                error: "zero is invalid"
+            })
+        );
+        assert_eq!(dst.as_slice(), &[10]);
+    }
+
+    #[test]
+    fn bag_trait_try_adapt_and_couple_insert_error() {
+        let mut src: Port<u32, 4> = Port::new();
+        src.add_values(&[2, 3]).unwrap();
+
+        let mut dst: Port<u32, 1> = Port::new();
+        let result = src.try_adapt_and_couple(&mut dst, |v| Ok::<u32, &'static str>(v * 2));
+        assert_eq!(result, Err(TryAdaptAndCoupleError::Insert(6)));
+        assert_eq!(dst.as_slice(), &[4]);
+    }
+
+    #[test]
+    fn bag_trait_try_couple_different_types() {
+        let mut src: Port<u8, 4> = Port::new();
+        src.add_values(&[1, 2, 3]).unwrap();
+
+        let mut dst: Port<u16, 4> = Port::new();
+        assert!(src.try_couple(&mut dst).is_ok());
+        assert_eq!(dst.as_slice(), &[1u16, 2u16, 3u16]);
+    }
+
+    #[test]
+    fn bag_trait_try_couple_conversion_error() {
+        let mut src: Port<u16, 4> = Port::new();
+        src.add_values(&[10, 300]).unwrap();
+
+        let mut dst: Port<u8, 4> = Port::new();
+        let result = src.try_couple(&mut dst);
+        assert!(matches!(
+            result,
+            Err(TryCoupleError::Convert { source: 300, .. })
+        ));
+        assert_eq!(dst.as_slice(), &[10u8]);
+    }
+
+    #[test]
+    fn bag_trait_try_couple_insert_error() {
+        let mut src: Port<u8, 4> = Port::new();
+        src.add_values(&[5, 6]).unwrap();
+
+        let mut dst: Port<u16, 1> = Port::new();
+        assert_eq!(src.try_couple(&mut dst), Err(TryCoupleError::Insert(6u16)));
+        assert_eq!(dst.as_slice(), &[5u16]);
     }
 }

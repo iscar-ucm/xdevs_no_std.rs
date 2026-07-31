@@ -1,5 +1,5 @@
 use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
-use crate::{Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
+use crate::{Bag, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
 /// HI model enum (ref version)
 #[crate::to_component]
 pub enum HIEnum<'a, const W: usize> {

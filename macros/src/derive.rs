@@ -52,7 +52,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                 }
 
                 #[inline]
-                fn eject_events(&self, _ejector: impl FnMut(Self::Value)) {}
+                fn propagate(&self, _ejector: impl FnMut(Self::Value)) {}
             }
         }),
         Fields::Named(fields) => {
@@ -75,6 +75,12 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                 quote::quote! { true }
             } else {
                 quote::quote! { #(#accesses.is_empty())&&* }
+            };
+
+            let len_body = if accesses.is_empty() {
+                quote::quote! { 0 }
+            } else {
+                quote::quote! { 0 #( + #accesses.len() )* }
             };
 
             let variants: Vec<TokenStream2> = fields
@@ -112,7 +118,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                     );
                     let field = info.ident.as_ref().expect("named field must have ident");
                     quote::quote! {
-                        self.#field.eject_events(|v| ejector(Self::Value::#variant(v)));
+                        self.#field.propagate(|v| propagator(Self::Value::#variant(v)));
                     }
                 })
                 .collect();
@@ -138,13 +144,18 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                         #( #accesses.clear(); )*
                     }
 
+                    #[inline]
+                    fn len(&self) -> usize {
+                        #len_body
+                    }
+
                     fn add_value(&mut self, event: Self::Value) -> ::core::result::Result<(), Self::Value> {
                         match event {
                             #(#match_arms),*
                         }
                     }
 
-                    fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
+                    fn propagate(&self, mut propagator: impl FnMut(Self::Value)) {
                         #(#propagations)*
                     }
                 }

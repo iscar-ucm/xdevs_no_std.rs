@@ -1,5 +1,5 @@
 use super::common::{AtomicModel, Devstone, JobGenerator};
-use crate::{Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
+use crate::{Bag, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
 
 /// Output struct for HO models (ref version)
 #[derive(Debug, Default, crate::Bag)]

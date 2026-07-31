@@ -142,7 +142,7 @@ mod tests {
 
         ForwardChain::eic(&input, &mut comp_in);
         assert_eq!(
-            comp_in.components[0].get_values(),
+            comp_in.components[0].as_slice(),
             &[99],
             "value flows through input → 0"
         );
@@ -151,7 +151,7 @@ mod tests {
         comp_out.components[0].add_value(99).unwrap();
         ForwardChain::ic(&comp_out, &mut comp_in);
         assert_eq!(
-            comp_in.components[1].get_values(),
+            comp_in.components[1].as_slice(),
             &[99],
             "value flows through 0 → 1"
         );
@@ -159,7 +159,7 @@ mod tests {
         // Simulate children lambda again: populate comp_out[1]
         comp_out.components[1].add_value(99).unwrap();
         ForwardChain::eoc(&comp_out, &mut output);
-        assert_eq!(output.get_values(), &[99], "value flows through 1 → output");
+        assert_eq!(output.as_slice(), &[99], "value flows through 1 → output");
     }
 
     #[test]
@@ -173,7 +173,7 @@ mod tests {
 
         <&mut ForwardChain as Coupled>::eic(&input, &mut comp_in);
         assert_eq!(
-            comp_in.components[0].get_values(),
+            comp_in.components[0].as_slice(),
             &[99],
             "eic delegates through &mut T"
         );
@@ -181,14 +181,14 @@ mod tests {
         comp_out.components[0].add_value(99).unwrap();
         <&mut ForwardChain as Coupled>::ic(&comp_out, &mut comp_in);
         assert_eq!(
-            comp_in.components[1].get_values(),
+            comp_in.components[1].as_slice(),
             &[99],
             "ic delegates through &mut T"
         );
 
         comp_out.components[1].add_value(99).unwrap();
         <&mut ForwardChain as Coupled>::eoc(&comp_out, &mut output);
-        assert_eq!(output.get_values(), &[99], "eoc delegates through &mut T");
+        assert_eq!(output.as_slice(), &[99], "eoc delegates through &mut T");
 
         // PartialCoupled: get_components through &mut T blanket
         let mut model = ForwardChain::build([Processor::new(1.), Processor::new(1.)]);
@@ -222,7 +222,7 @@ mod tests {
 
         <Box<ForwardChain> as Coupled>::eic(&input, &mut comp_in);
         assert_eq!(
-            comp_in.components[0].get_values(),
+            comp_in.components[0].as_slice(),
             &[99],
             "eic delegates through Box<T>"
         );
@@ -230,14 +230,14 @@ mod tests {
         comp_out.components[0].add_value(99).unwrap();
         <Box<ForwardChain> as Coupled>::ic(&comp_out, &mut comp_in);
         assert_eq!(
-            comp_in.components[1].get_values(),
+            comp_in.components[1].as_slice(),
             &[99],
             "ic delegates through Box<T>"
         );
 
         comp_out.components[1].add_value(99).unwrap();
         <Box<ForwardChain> as Coupled>::eoc(&comp_out, &mut output);
-        assert_eq!(output.get_values(), &[99], "eoc delegates through Box<T>");
+        assert_eq!(output.as_slice(), &[99], "eoc delegates through Box<T>");
 
         // PartialCoupled: get_components through Box<T> blanket
         let mut model = Box::new(ForwardChain::build([

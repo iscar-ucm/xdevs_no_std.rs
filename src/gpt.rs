@@ -33,7 +33,7 @@ impl Atomic for Generator {
 
     fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
         self.sigma -= elapsed;
-        if let Some(&stop) = input.get_values().last() {
+        if let Some(&stop) = input.as_slice().last() {
             #[cfg(feature = "std")]
             std::println!("[G] received stop: {}", stop);
             if stop {
@@ -88,7 +88,7 @@ impl Atomic for Processor {
 
     fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
         self.sigma -= elapsed;
-        if let Some(&job) = input.get_values().last() {
+        if let Some(&job) = input.as_slice().last() {
             #[cfg(feature = "std")]
             std::print!("[P] received job {}", job);
             if self.job.is_none() {
@@ -159,8 +159,8 @@ impl Atomic for Transducer {
     fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
         self.sigma -= elapsed;
         self.clock += elapsed;
-        self.n_generated += input.in_generator.get_values().len();
-        self.n_processed += input.in_processor.get_values().len();
+        self.n_generated += input.in_generator.as_slice().len();
+        self.n_processed += input.in_processor.as_slice().len();
     }
 }
 
@@ -275,19 +275,19 @@ mod tests {
 
         let mut out = <Generator as Component>::Output::build();
         gen.lambda(&mut out);
-        assert_eq!(out.get_values(), &[0], "first job should be 0");
+        assert_eq!(out.as_slice(), &[0], "first job should be 0");
         gen.delta_int();
         assert_eq!(gen.ta(), 1.0, "ta should be the period after delta_int");
         out.clear();
 
         gen.lambda(&mut out);
-        assert_eq!(out.get_values(), &[1], "second job should be 1");
+        assert_eq!(out.as_slice(), &[1], "second job should be 1");
         gen.delta_int();
         assert_eq!(gen.ta(), 1.0, "ta should be the period after delta_int");
         out.clear();
 
         gen.lambda(&mut out);
-        assert_eq!(out.get_values(), &[2], "third job should be 2");
+        assert_eq!(out.as_slice(), &[2], "third job should be 2");
         gen.delta_int();
         assert_eq!(gen.ta(), 1.0, "ta should be the period after delta_int");
         out.clear();
@@ -357,7 +357,7 @@ mod tests {
         assert_eq!(proc.ta(), 2.5, "processor should be busy for 2.5 seconds");
 
         proc.lambda(&mut out);
-        assert_eq!(out.get_values(), &[99]);
+        assert_eq!(out.as_slice(), &[99]);
         proc.delta_int();
         assert_eq!(
             proc.ta(),
@@ -382,7 +382,7 @@ mod tests {
         let mut out = <Processor as Component>::Output::build();
         proc.lambda(&mut out);
         assert_eq!(
-            out.get_values(),
+            out.as_slice(),
             &[10],
             "should retain original job when busy"
         );
@@ -394,7 +394,7 @@ mod tests {
 
         let mut out = <Processor as Component>::Output::build();
         proc.lambda(&mut out);
-        assert_eq!(out.get_values(), &[30], "should accept new job after idle");
+        assert_eq!(out.as_slice(), &[30], "should accept new job after idle");
     }
 
     #[test]
@@ -435,7 +435,7 @@ mod tests {
         let trans = Transducer::new(10.0);
         let mut output = <Transducer as Component>::Output::build();
         trans.lambda(&mut output);
-        assert_eq!(output.get_values(), &[true], "should send stop signal");
+        assert_eq!(output.as_slice(), &[true], "should send stop signal");
     }
 
     #[test]
