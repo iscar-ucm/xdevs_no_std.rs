@@ -1,5 +1,5 @@
 use crate::{
-    port::Bag,
+    bag::Bag,
     simulation::{AsyncInput, Config},
 };
 use std::{

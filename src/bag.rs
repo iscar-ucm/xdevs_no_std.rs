@@ -168,10 +168,7 @@ unsafe impl Bag for () {
     }
 
     #[inline]
-    fn couple<B: Bag<Value = Self::Value>>(&self, _to: &mut B) -> Result<(), Self::Value>
-    where
-        Self::Value: Clone,
-    {
+    fn couple<B: Bag<Value = Self::Value>>(&self, _to: &mut B) -> Result<(), Self::Value> {
         Ok(())
     }
 

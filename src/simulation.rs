@@ -1,4 +1,4 @@
-use crate::{port::Bag, Component, ComponentsKind};
+use crate::{bag::Bag, Component, ComponentsKind};
 use core::{future::Future, time::Duration};
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
@@ -640,7 +640,7 @@ where
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::{
-        port::Port, Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
+        bag::Port, Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
         CoupledKind,
     };
 
@@ -740,8 +740,8 @@ pub(crate) mod test_utils {
 mod tests {
     use super::test_utils::{TestAtomic, TestCoupled, TestCoupledWithOption};
     use crate::{
+        bag::Port,
         component::coupled::PartialCoupled,
-        port::Port,
         prelude::*,
         simulation::{simulator::Simulator, Config},
         Component,

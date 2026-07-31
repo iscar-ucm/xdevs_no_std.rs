@@ -266,7 +266,7 @@ impl Coupled for EFP {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{port::Bag, prelude::*, Atomic, Component, Config};
+    use crate::{bag::Bag, prelude::*, Atomic, Component, Config};
 
     #[test]
     fn generator_emits_sequential_jobs() {

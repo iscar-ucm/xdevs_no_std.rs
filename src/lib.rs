@@ -5,22 +5,22 @@ extern crate self as xdevs;
 #[cfg(feature = "std")]
 extern crate std;
 
+pub mod bag;
 pub mod component;
 pub mod devstone;
 pub mod export;
 pub mod gpt;
-pub mod port;
 #[cfg(any(feature = "embassy", feature = "std"))]
 pub mod rt_engine;
 pub mod simulation;
 
+pub use bag::{Bag, Port};
 pub use component::{
     atomic::Atomic,
     coupled::{ComponentsInput, ComponentsOutput, Coupled},
     AtomicKind, Component, ComponentsKind, CoupledKind,
 };
 pub use embassy_time::{Duration, Instant};
-pub use port::{Bag, Port};
 pub use simulation::Config;
 pub use xdevs_no_std_macros::*;
 
@@ -30,6 +30,6 @@ pub use xdevs_no_std_macros::*;
 ///
 /// Intended to be imported with `use xdevs::prelude::*;`.
 pub mod prelude {
-    pub use crate::port::Bag;
+    pub use crate::bag::Bag;
     pub use crate::simulation::{AbstractSimulator, Simulable};
 }

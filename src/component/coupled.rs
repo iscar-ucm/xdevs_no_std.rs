@@ -103,9 +103,9 @@ mod tests {
 
     use super::{ComponentsInput, ComponentsOutput, Coupled, PartialCoupled};
     use crate::{
+        bag::{Bag, Port},
         component::CoupledKind,
         gpt::Processor,
-        port::{Bag, Port},
         Component,
     };
 

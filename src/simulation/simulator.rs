@@ -1,5 +1,5 @@
 use crate::{
-    port::Bag,
+    bag::Bag,
     simulation::{AbstractSimulator, Simulable},
     Atomic, AtomicKind,
 };
@@ -104,7 +104,7 @@ unsafe impl<T: Atomic> AbstractSimulator for Simulator<T> {
 mod tests {
     use super::*;
     use crate::{
-        port::{Bag, Port},
+        bag::{Bag, Port},
         simulation::test_utils::TestAtomic,
     };
 

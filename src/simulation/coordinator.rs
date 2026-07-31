@@ -1,5 +1,5 @@
 use crate::{
-    port::Bag,
+    bag::Bag,
     simulation::{AbstractSimulator, Simulable},
     ComponentsInput, ComponentsOutput, Coupled, CoupledKind,
 };
@@ -105,8 +105,8 @@ unsafe impl<T: Coupled> AbstractSimulator for Coordinator<T> {
 mod tests {
     use super::*;
     use crate::{
+        bag::{Bag, Port},
         component::coupled::PartialCoupled,
-        port::{Bag, Port},
         simulation::test_utils::{TestAtomic, TestCoupled},
     };
 

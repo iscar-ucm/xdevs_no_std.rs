@@ -30,7 +30,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
             "Bag cannot be derived for tuple structs",
         )),
         Fields::Unit => Ok(quote::quote! {
-            unsafe impl #impl_generics ::xdevs::port::Bag for #ident #ty_generics #where_clause {
+            unsafe impl #impl_generics ::xdevs::bag::Bag for #ident #ty_generics #where_clause {
                 type Value = ();
 
                 #[inline]
@@ -73,7 +73,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
             let build_fields = fields.named.iter().map(|field| {
                 let field_ident = field.ident.as_ref().expect("named field must have ident");
                 let field_ty = &field.ty;
-                quote::quote!(#field_ident: <#field_ty as ::xdevs::port::Bag>::build())
+                quote::quote!(#field_ident: <#field_ty as ::xdevs::bag::Bag>::build())
             });
 
             let is_empty_body = if accesses.is_empty() {
@@ -92,7 +92,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                         info.ident.as_ref().expect("named field must have ident"),
                     );
                     let ty = &info.ty;
-                    quote::quote! { #variant(<#ty as ::xdevs::port::Bag>::Value) }
+                    quote::quote! { #variant(<#ty as ::xdevs::bag::Bag>::Value) }
                 })
                 .collect();
 
@@ -125,7 +125,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                 .collect();
 
             Ok(quote::quote! {
-                unsafe impl #impl_generics ::xdevs::port::Bag for #ident #ty_generics #where_clause {
+                unsafe impl #impl_generics ::xdevs::bag::Bag for #ident #ty_generics #where_clause {
                     type Value = #private_mod_ident::PortMux #ty_generics;
 
                     #[inline]

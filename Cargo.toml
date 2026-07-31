@@ -31,7 +31,7 @@ criterion = "0.8.2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 
 [features]
-alloc = ["hashbrown"]
+alloc = ["dep:hashbrown"]
 embassy = ["embassy-sync", "xdevs-no-std-macros/embassy-backend"]
 rayon = ["std", "dep:rayon", "xdevs-no-std-macros/rayon-backend"]
 std = [
