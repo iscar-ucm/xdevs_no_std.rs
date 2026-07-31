@@ -1,10 +1,11 @@
 #[cfg(feature = "alloc")]
 pub mod alloc;
+pub mod heapless;
 #[cfg(feature = "std")]
 pub mod std;
 
 /// Port is an alias for a heapless::Vec.
-pub type Port<T, const N: usize> = heapless::Vec<T, N>;
+pub type Port<T, const N: usize> = ::heapless::Vec<T, N>;
 
 /// Trait that defines the methods that a DEVS event bag set must implement.
 ///
@@ -93,42 +94,6 @@ pub unsafe trait Bag {
 
     /// Propagates all events from the bag according to the provided closure.
     fn propagate(&self, propagator: impl FnMut(Self::Value));
-}
-
-unsafe impl<T: Clone, const N: usize> Bag for heapless::Vec<T, N> {
-    type Value = T;
-
-    #[inline]
-    fn build() -> Self {
-        Self::new()
-    }
-
-    #[inline]
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-
-    #[inline]
-    fn clear(&mut self) {
-        self.clear()
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        self.as_slice().len()
-    }
-
-    #[inline]
-    fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value> {
-        self.push(event)
-    }
-
-    #[inline]
-    fn propagate(&self, mut propagator: impl FnMut(Self::Value)) {
-        for value in self.iter() {
-            propagator(value.clone());
-        }
-    }
 }
 
 unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
@@ -344,173 +309,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn port_new_is_empty() {
-        let port: Port<u32, 5> = Port::new();
-        assert!(port.is_empty());
-        assert_eq!(port.len(), 0);
-    }
-
-    #[test]
-    fn port_add_value_and_get_values() {
-        let mut port: Port<u32, 5> = Port::new();
-        assert!(port.add_value(1).is_ok());
-        assert!(port.add_value(2).is_ok());
-        assert!(port.add_value(3).is_ok());
-        assert_eq!(port.as_slice(), &[1, 2, 3]);
-    }
-
-    #[test]
-    fn port_add_value_rejects_when_full() {
-        let mut port: Port<u32, 3> = Port::new();
-        assert!(port.add_value(10).is_ok());
-        assert!(port.add_value(20).is_ok());
-        assert!(port.add_value(30).is_ok());
-        assert!(port.is_full());
-        let result = port.add_value(40);
-        assert_eq!(result, Err(40));
-        assert_eq!(port.as_slice(), &[10, 20, 30]);
-    }
-
-    #[test]
-    fn port_add_values_from_slice() {
-        let mut port: Port<u32, 5> = Port::new();
-        assert!(port.add_values(&[10, 20, 30]).is_ok());
-        assert_eq!(port.len(), 3);
-        assert_eq!(port.as_slice(), &[10, 20, 30]);
-    }
-
-    #[test]
-    fn port_add_values_capacity_error() {
-        let mut port: Port<u32, 3> = Port::new();
-        port.add_values(&[1, 2, 3]).unwrap();
-        assert!(port.is_full());
-        let result = port.add_values(&[4]);
-        assert!(result.is_err());
-        assert_eq!(port.as_slice(), &[1, 2, 3]);
-    }
-
-    #[test]
-    fn port_clear_empties() {
-        let mut port: Port<u32, 5> = Port::new();
-        port.add_value(99).unwrap();
-        assert!(!port.is_empty());
-        port.clear();
-        assert!(port.is_empty());
-        assert_eq!(port.len(), 0);
-    }
-
-    #[test]
-    fn port_couple_copies_values() {
-        let mut src: Port<u32, 5> = Port::new();
-        src.add_values(&[1, 2, 3]).unwrap();
-        let mut dst: Port<u32, 5> = Port::new();
-        assert!(src.couple(&mut dst).is_ok());
-        assert_eq!(dst.as_slice(), &[1, 2, 3]);
-        assert_eq!(src.as_slice(), &[1, 2, 3]);
-    }
-
-    #[test]
-    fn port_couple_capacity_error() {
-        let mut src: Port<u32, 5> = Port::new();
-        src.add_values(&[1, 2, 3]).unwrap();
-        let mut dst: Port<u32, 2> = Port::new();
-        let result = src.couple(&mut dst);
-        assert!(result.is_err());
-        assert_eq!(src.as_slice(), &[1, 2, 3]);
-    }
-
-    #[test]
-    fn port_adapt_and_couple_transforms_values() {
-        let mut src: Port<u32, 5> = Port::new();
-        src.add_values(&[1, 2, 3]).unwrap();
-        let mut dst: Port<u64, 5> = Port::new();
-        // Adapter doubles each value and widens to u64.
-        assert!(src.adapt_and_couple(&mut dst, |v| v as u64 * 2).is_ok());
-        assert_eq!(dst.as_slice(), &[2, 4, 6]);
-        // Source is unchanged.
-        assert_eq!(src.as_slice(), &[1, 2, 3]);
-    }
-
-    #[test]
-    fn port_adapt_and_couple_capacity_error() {
-        let mut src: Port<u32, 5> = Port::new();
-        src.add_values(&[1, 2, 3]).unwrap();
-        let mut dst: Port<u64, 2> = Port::new();
-        let result = src.adapt_and_couple(&mut dst, |v| v as u64 * 2);
-        // The third adapted event (6) cannot be inserted.
-        assert_eq!(result, Err(6));
-        // The first two events were inserted before the failure.
-        assert_eq!(dst.as_slice(), &[2, 4]);
-        assert_eq!(src.as_slice(), &[1, 2, 3]);
-    }
-
-    #[test]
-    fn port_adapt_and_couple_empty_source() {
-        let src: Port<u32, 5> = Port::new();
-        let mut dst: Port<u64, 5> = Port::new();
-        assert!(src.adapt_and_couple(&mut dst, |v| v as u64 * 2).is_ok());
-        assert!(dst.is_empty());
-    }
-
-    #[test]
-    fn port_adapt_and_couple_type_conversion() {
-        let mut src: Port<u32, 5> = Port::new();
-        src.add_values(&[0, 1, 2]).unwrap();
-        let mut dst: Port<bool, 5> = Port::new();
-        // Adapter converts non-zero to true.
-        assert!(src.adapt_and_couple(&mut dst, |v| v != 0).is_ok());
-        assert_eq!(dst.as_slice(), &[false, true, true]);
-    }
-
-    #[test]
-    fn port_is_full_len_cycle() {
-        let mut port: Port<u32, 3> = Port::new();
-        assert_eq!(port.len(), 0);
-        assert!(port.is_empty());
-        assert!(!port.is_full());
-
-        port.add_value(1).unwrap();
-        assert_eq!(port.len(), 1);
-        assert!(!port.is_empty());
-        assert!(!port.is_full());
-
-        port.add_value(2).unwrap();
-        assert_eq!(port.len(), 2);
-
-        port.add_value(3).unwrap();
-        assert_eq!(port.len(), 3);
-        assert!(port.is_full());
-
-        port.clear();
-        assert_eq!(port.len(), 0);
-        assert!(port.is_empty());
-        assert!(!port.is_full());
-    }
-
-    #[test]
-    fn port_multiple_add_clear_cycle() {
-        let mut port: Port<u32, 3> = Port::new();
-        for _ in 0..3 {
-            port.add_value(99).unwrap();
-            assert_eq!(port.len(), 1);
-            port.clear();
-            assert!(port.is_empty());
-        }
-    }
-
-    #[test]
-    fn port_bag_impl_contract() {
-        let mut bag = <Port<u32, 5> as Bag>::build();
-        assert!(bag.is_empty());
-
-        bag.add_value(7).unwrap();
-        assert!(!bag.is_empty());
-
-        bag.clear();
-        assert!(bag.is_empty());
-    }
-
-    #[test]
     fn array_bag_impl_contract() {
         let mut bags = <[Port<u32, 1>; 3] as Bag>::build();
         assert!(bags.is_empty());
@@ -546,22 +344,6 @@ mod tests {
     }
 
     #[test]
-    fn port_bag_inject_eject_contract() {
-        let mut bag = <Port<u32, 2> as Bag>::build();
-        assert!(bag.is_empty());
-
-        assert!(bag.add_value(7).is_ok());
-        assert!(bag.add_value(99).is_ok());
-        assert_eq!(bag.add_value(42), Err(42));
-
-        let mut collected: heapless::Vec<u32, 4> = heapless::Vec::new();
-        bag.propagate(|v| {
-            let _ = collected.push(v);
-        });
-        assert_eq!(collected.as_slice(), &[7, 99]);
-    }
-
-    #[test]
     fn array_bag_inject_eject_contract() {
         let mut bags = <[Port<u32, 2>; 3] as Bag>::build();
         assert!(bags.is_empty());
@@ -574,7 +356,7 @@ mod tests {
         assert!(bags.add_value((0, 11)).is_ok());
         assert_eq!(bags.add_value((0, 12)), Err((0, 12)));
 
-        let mut collected: heapless::Vec<(usize, u32), 4> = heapless::Vec::new();
+        let mut collected: ::heapless::Vec<(usize, u32), 4> = ::heapless::Vec::new();
         bags.propagate(|(i, v)| {
             let _ = collected.push((i, v));
         });
@@ -665,7 +447,7 @@ mod tests {
         assert!(bag.add_value(7).is_ok());
         assert_eq!(bag.add_value(99), Err(99));
 
-        let mut collected: heapless::Vec<u32, 4> = heapless::Vec::new();
+        let mut collected: ::heapless::Vec<u32, 4> = ::heapless::Vec::new();
         bag.propagate(|v| {
             let _ = collected.push(v);
         });
@@ -674,7 +456,7 @@ mod tests {
         bag.clear();
         assert!(bag.is_empty());
 
-        let mut collected_after: heapless::Vec<u32, 4> = heapless::Vec::new();
+        let mut collected_after: ::heapless::Vec<u32, 4> = ::heapless::Vec::new();
         bag.propagate(|v| {
             let _ = collected_after.push(v);
         });
@@ -754,8 +536,8 @@ mod tests {
         assert!(bag.add_value((None, Some(true))).is_ok());
         assert_eq!(bag.add_value((Some(99u32), None)), Err((Some(99), None)));
 
-        let mut got_u32: heapless::Vec<u32, 4> = heapless::Vec::new();
-        let mut got_bool: heapless::Vec<bool, 4> = heapless::Vec::new();
+        let mut got_u32: ::heapless::Vec<u32, 4> = ::heapless::Vec::new();
+        let mut got_bool: ::heapless::Vec<bool, 4> = ::heapless::Vec::new();
         bag.propagate(|ev| match ev {
             (Some(v), None) => {
                 let _ = got_u32.push(v);
@@ -782,8 +564,8 @@ mod tests {
             Err((Some(7), Some(false)))
         );
 
-        let mut got_u32: heapless::Vec<u32, 4> = heapless::Vec::new();
-        let mut got_bool: heapless::Vec<bool, 4> = heapless::Vec::new();
+        let mut got_u32: ::heapless::Vec<u32, 4> = ::heapless::Vec::new();
+        let mut got_bool: ::heapless::Vec<bool, 4> = ::heapless::Vec::new();
         bag.propagate(|ev| match ev {
             (Some(v), None) => {
                 let _ = got_u32.push(v);
@@ -919,13 +701,6 @@ mod tests {
         assert!(bag.0.is_empty() && bag.1.is_empty() && bag.2.is_empty());
     }
 
-    #[test]
-    fn port_default_creates_empty() {
-        let port: Port<u32, 5> = Default::default();
-        assert!(port.is_empty());
-        assert_eq!(port.len(), 0);
-    }
-
     #[derive(crate::Bag)]
     struct InnerBag {
         a: Port<u32, 2>,
@@ -954,8 +729,8 @@ mod tests {
             .is_ok());
         assert_eq!(outer.len(), 2);
 
-        let mut got_a: heapless::Vec<u32, 4> = heapless::Vec::new();
-        let mut got_b: heapless::Vec<bool, 4> = heapless::Vec::new();
+        let mut got_a: ::heapless::Vec<u32, 4> = ::heapless::Vec::new();
+        let mut got_b: ::heapless::Vec<bool, 4> = ::heapless::Vec::new();
         outer.propagate(|ev| match ev {
             _xdevs_no_std_outer_bag_bag::PortMux::Inner(inner) => match inner {
                 _xdevs_no_std_inner_bag_bag::PortMux::A(v) => {
