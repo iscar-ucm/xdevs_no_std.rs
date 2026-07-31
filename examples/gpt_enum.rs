@@ -8,7 +8,7 @@ use xdevs::{
 };
 
 mod processor {
-    use xdevs::{AtomicKind, Port};
+    use xdevs::{prelude::*, AtomicKind, Port};
 
     pub struct FastProcessor {
         sigma: f64,

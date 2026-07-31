@@ -1,14 +1,14 @@
 /// This example demonstrates how the rt_engine can be used to simplify the DEVS simulation
 /// interaction with other tasks. An array is used for the input to showcase how the input enum
 /// would look like for an input array.
-use xdevs::{AtomicKind, Config, Port};
+use xdevs::{prelude::*, AtomicKind, Config, Port};
 
-#[derive(xdevs::Bag, xdevs::BagMux)]
+#[derive(xdevs::Bag)]
 pub struct TransparentInput {
     pub in_job: [Port<usize, 1>; 3],
 }
 
-#[derive(xdevs::Bag, xdevs::BagMux)]
+#[derive(xdevs::Bag)]
 pub struct TransparentOutput {
     pub out_job: Port<usize, 1>,
 }

@@ -111,7 +111,7 @@ impl<T: Atomic> Atomic for alloc::boxed::Box<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Atomic, AtomicKind, Component, Port};
+    use crate::{Atomic, AtomicKind, Bag, Component, Port};
 
     struct CallTracker {
         start: bool,

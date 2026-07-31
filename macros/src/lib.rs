@@ -91,15 +91,6 @@ pub fn derive_bag(input: TokenStream) -> TokenStream {
     }
 }
 
-#[proc_macro_derive(BagMux)]
-pub fn derive_bagmux(input: TokenStream) -> TokenStream {
-    let input: syn::DeriveInput = syn::parse_macro_input!(input);
-    match derive::derive_bagmux(input) {
-        Ok(tokens) => tokens.into(),
-        Err(err) => err.to_compile_error().into(),
-    }
-}
-
 // Function to combine errors when parsing
 pub(crate) fn combine_err(acc: &mut Option<Error>, err: Error) {
     match acc {

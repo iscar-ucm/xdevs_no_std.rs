@@ -1,7 +1,7 @@
 #[cfg(not(feature = "std"))]
 use crate::Instant;
 use crate::{
-    Atomic, AtomicKind, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind,
+    Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind,
     Duration, Port,
 };
 #[cfg(feature = "std")]

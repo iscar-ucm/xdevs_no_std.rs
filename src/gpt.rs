@@ -1,5 +1,6 @@
 use crate::{
-    Atomic, AtomicKind, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port,
+    Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind,
+    Port,
 };
 /// Generator that produces jobs at a fixed period until told to stop.
 pub struct Generator {

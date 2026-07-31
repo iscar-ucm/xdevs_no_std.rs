@@ -20,7 +20,7 @@ pub use component::{
     AtomicKind, Component, ComponentsKind, CoupledKind,
 };
 pub use embassy_time::{Duration, Instant};
-pub use port::Port;
+pub use port::{Bag, Port};
 pub use simulation::Config;
 pub use xdevs_no_std_macros::*;
 
@@ -30,5 +30,6 @@ pub use xdevs_no_std_macros::*;
 ///
 /// Intended to be imported with `use xdevs::prelude::*;`.
 pub mod prelude {
+    pub use crate::port::Bag;
     pub use crate::simulation::{AbstractSimulator, Simulable};
 }
