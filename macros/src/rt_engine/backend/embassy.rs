@@ -25,7 +25,7 @@ impl Backend for RtEngineBackend {
         let in_channel_size = args.in_channel_size;
 
         let channel_type = quote::quote! { ::xdevs::export::InputChannel<'static,
-            <Self as ::xdevs::port::AsPort>::Value,
+            <Self as ::xdevs::port::Bag>::Value,
             #in_channel_size
         > };
         let upper_name = model_ident.to_string().to_shouty_snake_case();
@@ -35,7 +35,7 @@ impl Backend for RtEngineBackend {
         let private_channel = quote::quote! {
             /// Auto-generated static input channel.
             pub static #channel_ident: ::xdevs::export::Channel<
-                <#input_ident as ::xdevs::port::AsPort>::Value,
+                <#input_ident as ::xdevs::port::Bag>::Value,
                 #in_channel_size
             > = ::xdevs::export::Channel::new();
         };
@@ -53,7 +53,7 @@ impl Backend for RtEngineBackend {
         let max_out_subs = args.max_out_subs;
 
         let channel_type = quote::quote! { ::xdevs::export::OutputChannel<'static,
-            <Self as ::xdevs::port::AsPort>::Value,
+            <Self as ::xdevs::port::Bag>::Value,
             #out_channel_size,
             #max_out_subs
         > };
@@ -64,7 +64,7 @@ impl Backend for RtEngineBackend {
         let private_channel = quote::quote! {
             /// Auto-generated static output PubSub channel.
             pub static #channel_ident: ::xdevs::export::PubSubChannel<
-                <#output_ident as ::xdevs::port::AsPort>::Value,
+                <#output_ident as ::xdevs::port::Bag>::Value,
                 #out_channel_size,
                 #max_out_subs,
             > = ::xdevs::export::PubSubChannel::new();

@@ -3,12 +3,12 @@
 /// would look like for an input array.
 use xdevs::{AtomicKind, Config, Port};
 
-#[derive(xdevs::Bag, xdevs::AsPort)]
+#[derive(xdevs::Bag)]
 pub struct TransparentInput {
     pub in_job: [Port<usize, 1>; 3],
 }
 
-#[derive(xdevs::Bag, xdevs::AsPort)]
+#[derive(xdevs::Bag)]
 pub struct TransparentOutput {
     pub out_job: Port<usize, 1>,
 }
