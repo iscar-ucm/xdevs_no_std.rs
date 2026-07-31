@@ -66,22 +66,27 @@ impl<T: Clone, const N: usize> Port<T, N> {
 unsafe impl<T: Clone, const N: usize> Bag for Port<T, N> {
     type Value = T;
 
+    #[inline]
     fn build() -> Self {
         Self::new()
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         self.is_empty()
     }
 
+    #[inline]
     fn clear(&mut self) {
         self.clear()
     }
 
+    #[inline]
     fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value> {
         self.0.push(event)
     }
 
+    #[inline]
     fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
         for value in self.get_values() {
             ejector(value.clone());
@@ -95,22 +100,24 @@ unsafe impl<T: Clone, const N: usize> Bag for Port<T, N> {
 ///
 /// This trait must be implemented via the [`Bag`] macro. Do not implement it manually.
 pub unsafe trait Bag {
-    /// The type that represents the event bags of the model.
+    /// The data type of the events stored in the event bag.
     type Value;
 
     /// Build a new instance of the bag.
     fn build() -> Self;
 
-    /// Returns `true` if the event bags are empty.
+    /// Returns `true` if the event bag is empty.
     fn is_empty(&self) -> bool;
 
-    /// Clears the event bags, removing all values.
+    /// Clears the event bag, removing all values.
     fn clear(&mut self);
 
-    /// Injects a value into the bag.
+    /// Adds a new value into the bag.
     fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value>;
 
-    /// Ejects all events from the bag. Mainly used internally by the [`RtEngine`](crate::rt_engine::RtEngine) to collect all events from the model.
+    /// Ejects all events from the bag.
+    ///
+    /// This function is mainly used internally by the [`RtEngine`](crate::rt_engine::RtEngine) to collect all events from the model.
     fn eject_events(&self, ejector: impl FnMut(Self::Value));
 }
 
@@ -151,19 +158,61 @@ unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
 unsafe impl Bag for () {
     type Value = ();
 
+    #[inline]
     fn build() -> Self {}
 
+    #[inline]
     fn is_empty(&self) -> bool {
         true
     }
 
+    #[inline]
     fn clear(&mut self) {}
 
+    #[inline]
     fn add_value(&mut self, _event: Self::Value) -> Result<(), Self::Value> {
         Ok(())
     }
 
+    #[inline]
     fn eject_events(&self, _ejector: impl FnMut(Self::Value)) {}
+}
+
+unsafe impl<T: Clone> Bag for Option<T> {
+    type Value = T;
+
+    #[inline]
+    fn build() -> Self {
+        None
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.is_none()
+    }
+
+    #[inline]
+    fn clear(&mut self) {
+        *self = None;
+    }
+
+    #[inline]
+    fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value> {
+        match self {
+            Some(_) => Err(event),
+            None => {
+                *self = Some(event);
+                Ok(())
+            }
+        }
+    }
+
+    #[inline]
+    fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
+        if let Some(value) = self {
+            ejector(value.clone());
+        }
+    }
 }
 
 macro_rules! impl_bag_for_tuple {
@@ -171,20 +220,24 @@ macro_rules! impl_bag_for_tuple {
         unsafe impl<$($T: Bag),+> Bag for ($($T,)+) {
             type Value = ($(Option<$T::Value>,)+);
 
+            #[inline]
             fn build() -> Self {
                 ($($T::build(),)+)
             }
 
+            #[inline]
             fn is_empty(&self) -> bool {
                 let mut empty = true;
                 $(empty = empty && self.$idx.is_empty();)+
                 empty
             }
 
+            #[inline]
             fn clear(&mut self) {
                 $(self.$idx.clear();)+
             }
 
+            #[inline]
             fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value> {
                 let mut event = event;
                 let mut had_error = false;
@@ -199,6 +252,7 @@ macro_rules! impl_bag_for_tuple {
                 if had_error { Err(event) } else { Ok(()) }
             }
 
+            #[inline]
             fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
                 $(
                     self.$idx.eject_events(|v| {
@@ -402,6 +456,42 @@ mod tests {
             let _ = collected.push((i, v));
         });
         assert_eq!(collected.as_slice(), &[(0, 10), (0, 11), (2, 30)]);
+    }
+
+    #[test]
+    fn option_bag_impl_contract() {
+        let mut bag = <Option<u32> as Bag>::build();
+        assert!(bag.is_empty());
+
+        assert!(bag.add_value(7).is_ok());
+        assert!(!bag.is_empty());
+
+        bag.clear();
+        assert!(bag.is_empty());
+    }
+
+    #[test]
+    fn option_bag_inject_eject_contract() {
+        let mut bag = <Option<u32> as Bag>::build();
+        assert!(bag.is_empty());
+
+        assert!(bag.add_value(7).is_ok());
+        assert_eq!(bag.add_value(99), Err(99));
+
+        let mut collected: heapless::Vec<u32, 4> = heapless::Vec::new();
+        bag.eject_events(|v| {
+            let _ = collected.push(v);
+        });
+        assert_eq!(collected.as_slice(), &[7]);
+
+        bag.clear();
+        assert!(bag.is_empty());
+
+        let mut collected_after: heapless::Vec<u32, 4> = heapless::Vec::new();
+        bag.eject_events(|v| {
+            let _ = collected_after.push(v);
+        });
+        assert!(collected_after.is_empty());
     }
 
     #[test]
