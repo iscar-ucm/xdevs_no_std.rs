@@ -139,7 +139,7 @@ mod tests {
         coord.start(0.0);
         let mut output = Port::<usize, 1>::new();
         coord.lambda(&mut output, 0.0);
-        assert_eq!(output.get_values(), &[99], "eoc copies a1 output");
+        assert_eq!(output.as_slice(), &[99], "eoc copies a1 output");
     }
 
     #[test]

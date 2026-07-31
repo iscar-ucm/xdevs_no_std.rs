@@ -49,7 +49,7 @@ impl xdevs::Atomic for Transparent {
             if !input.in_job[i].is_empty() {
                 println!("[Model] received job from processor {}", i);
                 self.next_processor = i;
-                self.next_value = *input.in_job[i].get_values().last().unwrap();
+                self.next_value = *input.in_job[i].as_slice().last().unwrap();
                 self.sigma = 0.0; // Immediate output
                 break;
             }

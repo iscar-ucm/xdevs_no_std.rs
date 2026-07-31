@@ -131,7 +131,7 @@ mod tests {
         sim.start(0.0);
         let mut output = Port::<usize, 1>::new();
         sim.lambda(&mut output, 3.0);
-        assert_eq!(output.get_values(), &[99], "lambda called at t = t_next");
+        assert_eq!(output.as_slice(), &[99], "lambda called at t = t_next");
     }
 
     #[test]
