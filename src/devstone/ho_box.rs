@@ -1,5 +1,5 @@
 use super::common::{AtomicModel, Devstone, JobGenerator};
-use crate::{Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
+use crate::{prelude::*, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
 use alloc::boxed::Box;
 
 /// Output struct for HO models
@@ -129,7 +129,6 @@ impl<const W: usize> Coupled for TopModel<W> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::prelude::*;
 
     fn expected_n_atomic(width: usize, depth: usize) -> usize {
         (width - 1) * (depth - 1) + 1

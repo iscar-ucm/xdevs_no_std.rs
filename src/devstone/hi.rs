@@ -1,5 +1,5 @@
 use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
-use crate::{Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
+use crate::{prelude::*, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
 /// HI model enum (ref version)
 #[crate::to_component]
 pub enum HIEnum<'a, const W: usize> {
@@ -83,7 +83,6 @@ impl<'a, const W: usize> Coupled for TopModel<'a, W> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::prelude::*;
 
     fn expected_n_atomic(width: usize, depth: usize) -> usize {
         (width - 1) * (depth - 1) + 1

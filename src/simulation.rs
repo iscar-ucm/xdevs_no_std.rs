@@ -822,14 +822,13 @@ mod tests {
             |_, t_until, _| t_until,
             |output| {
                 for v in output.get_values() {
-                    captured.add_value(*v).unwrap();
+                    captured.add_value(v).unwrap();
                 }
             },
         );
 
-        assert_eq!(
-            captured.get_values(),
-            &[99],
+        assert!(
+            captured.get_values().eq([99]),
             "propagate_output captures lambda output"
         );
     }
@@ -899,12 +898,12 @@ mod tests {
 
         sim.simulate_rt_async(&config, IdentityAsyncInput, |output| {
             for v in output.get_values() {
-                let _ = captured.add_value(*v);
+                let _ = captured.add_value(v);
             }
         })
         .await;
 
-        assert_eq!(captured.get_values(), &[99], "async propagate_output");
+        assert!(captured.get_values().eq([99]), "async propagate_output");
     }
 
     #[test]
@@ -930,8 +929,8 @@ mod tests {
         let mut output = [Port::<usize, 1>::new(), Port::<usize, 1>::new()];
         arr.lambda(&mut output, 0.0);
 
-        assert_eq!(output[0].get_values(), &[99], "first atomic lambda ran");
-        assert_eq!(output[1].get_values(), &[99], "second atomic lambda ran");
+        assert!(output[0].get_values().eq([99]), "first atomic lambda ran");
+        assert!(output[1].get_values().eq([99]), "second atomic lambda ran");
     }
 
     #[test]
@@ -980,7 +979,7 @@ mod tests {
 
         let mut output = Port::<usize, 1>::new();
         opt.lambda(&mut output, 0.0);
-        assert_eq!(output.get_values(), &[99], "Some lambda produces output");
+        assert!(output.get_values().eq([99]), "Some lambda produces output");
 
         let t = opt.delta(&mut Port::new(), &mut Port::new(), 0.0);
         assert_eq!(
@@ -1042,8 +1041,8 @@ mod tests {
         tup.start(0.0);
         let mut out = (Port::<usize, 1>::new(), Port::<usize, 1>::new());
         tup.lambda(&mut out, 0.0);
-        assert_eq!(out.0.get_values(), &[99], "lambda on tuple[0]");
-        assert_eq!(out.1.get_values(), &[99], "lambda on tuple[1]");
+        assert!(out.0.get_values().eq([99]), "lambda on tuple[0]");
+        assert!(out.1.get_values().eq([99]), "lambda on tuple[1]");
     }
 
     #[test]
