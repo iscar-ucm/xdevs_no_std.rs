@@ -1,3 +1,8 @@
+#[cfg(feature = "alloc")]
+pub mod alloc;
+#[cfg(feature = "std")]
+pub mod std;
+
 /// Port is an alias for a heapless::Vec.
 pub type Port<T, const N: usize> = heapless::Vec<T, N>;
 
