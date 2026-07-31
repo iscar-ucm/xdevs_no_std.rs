@@ -47,7 +47,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                 fn clear(&mut self) {}
 
                 #[inline]
-                fn inject_event(&mut self, _event: Self::Value) -> ::core::result::Result<(), Self::Value> {
+                fn add_value(&mut self, _event: Self::Value) -> ::core::result::Result<(), Self::Value> {
                     Ok(())
                 }
 
@@ -98,7 +98,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                     );
                     let field = info.ident.as_ref().expect("named field must have ident");
                     quote::quote! {
-                        Self::Value::#variant(value) => self.#field.inject_event(value).map_err(Self::Value::#variant)
+                        Self::Value::#variant(value) => self.#field.add_value(value).map_err(Self::Value::#variant)
                     }
                 })
                 .collect();
@@ -138,7 +138,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                         #( #accesses.clear(); )*
                     }
 
-                    fn inject_event(&mut self, event: Self::Value) -> ::core::result::Result<(), Self::Value> {
+                    fn add_value(&mut self, event: Self::Value) -> ::core::result::Result<(), Self::Value> {
                         match event {
                             #(#match_arms),*
                         }

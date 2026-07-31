@@ -223,7 +223,7 @@ pub fn expand(args: RtEngineArgs, item: ItemImpl) -> Result<TokenStream2> {
         let map_input_body = quote::quote! {
             let input = <Self::InputChannel as ::xdevs::rt_engine::RtEngineInputChannel>::recv(in_channel).await;
             // TODO: Return Result when embassy time is merged
-            let _ = <Self as ::xdevs::port::Bag>::inject_event(self, input);
+            let _ = <Self as ::xdevs::port::Bag>::add_value(self, input);
         };
 
         inject_input_impl = quote::quote! {

@@ -106,7 +106,7 @@ mod tests {
     use super::*;
     use crate::{
         component::coupled::PartialCoupled,
-        port::Port,
+        port::{Bag, Port},
         simulation::test_utils::{TestAtomic, TestCoupled},
     };
 

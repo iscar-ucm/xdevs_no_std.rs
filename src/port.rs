@@ -41,12 +41,6 @@ impl<T: Clone, const N: usize> Port<T, N> {
         self.0.clear()
     }
 
-    /// Adds a value to the port.
-    #[inline]
-    pub fn add_value(&mut self, item: T) -> Result<(), T> {
-        self.0.push(item)
-    }
-
     /// Adds multiple values to the port.
     #[inline]
     pub fn add_values(&mut self, items: &[T]) -> Result<(), heapless::CapacityError> {
@@ -84,8 +78,8 @@ unsafe impl<T: Clone, const N: usize> Bag for Port<T, N> {
         self.clear()
     }
 
-    fn inject_event(&mut self, event: Self::Value) -> Result<(), Self::Value> {
-        self.add_value(event)
+    fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value> {
+        self.0.push(event)
     }
 
     fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
@@ -99,53 +93,58 @@ unsafe impl<T: Clone, const N: usize> Bag for Port<T, N> {
 ///
 /// # Safety
 ///
-/// This trait must be implemented via the [`Bag`](crate::Bag) macro. Do not implement it manually.
+/// This trait must be implemented via the [`Bag`] macro. Do not implement it manually.
 pub unsafe trait Bag {
-    /// The type that represents the ports of the model. Each variant corresponds to a port.
+    /// The type that represents the event bags of the model.
     type Value;
 
     /// Build a new instance of the bag.
     fn build() -> Self;
 
-    /// Returns `true` if the ports are empty.
+    /// Returns `true` if the event bags are empty.
     fn is_empty(&self) -> bool;
 
-    /// Clears the ports, removing all values.
+    /// Clears the event bags, removing all values.
     fn clear(&mut self);
 
-    /// Maps the type to the corresponding port, allowing to inject events to the bag.
-    fn inject_event(&mut self, event: Self::Value) -> Result<(), Self::Value>;
+    /// Injects a value into the bag.
+    fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value>;
 
-    /// Maps the type to the corresponding port, allowing to receive events from the bag.
+    /// Ejects all events from the bag. Mainly used internally by the [`RtEngine`](crate::rt_engine::RtEngine) to collect all events from the model.
     fn eject_events(&self, ejector: impl FnMut(Self::Value));
 }
 
 unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
     type Value = (usize, T::Value); // Include index to identify which bag the value came from
 
+    #[inline]
     fn build() -> Self {
         core::array::from_fn(|_| T::build())
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         self.iter().all(|bag| bag.is_empty())
     }
 
+    #[inline]
     fn clear(&mut self) {
         self.iter_mut().for_each(|bag| bag.clear());
     }
 
-    fn inject_event(&mut self, (index, event): Self::Value) -> Result<(), Self::Value> {
+    #[inline]
+    fn add_value(&mut self, (index, event): Self::Value) -> Result<(), Self::Value> {
         match self.get_mut(index) {
-            Some(elem) => elem.inject_event(event).map_err(|err| (index, err)),
+            Some(elem) => elem.add_value(event).map_err(|err| (index, err)),
             None => Err((index, event)),
         }
     }
 
+    #[inline]
     fn eject_events(&self, mut ejector: impl FnMut(Self::Value)) {
-        for (index, elem) in self.iter().enumerate() {
+        self.iter().enumerate().for_each(|(index, elem)| {
             elem.eject_events(|v| ejector((index, v)));
-        }
+        });
     }
 }
 
@@ -160,7 +159,7 @@ unsafe impl Bag for () {
 
     fn clear(&mut self) {}
 
-    fn inject_event(&mut self, _event: Self::Value) -> Result<(), Self::Value> {
+    fn add_value(&mut self, _event: Self::Value) -> Result<(), Self::Value> {
         Ok(())
     }
 
@@ -186,12 +185,12 @@ macro_rules! impl_bag_for_tuple {
                 $(self.$idx.clear();)+
             }
 
-            fn inject_event(&mut self, event: Self::Value) -> Result<(), Self::Value> {
+            fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value> {
                 let mut event = event;
                 let mut had_error = false;
                 $(
                     if let Some(v) = event.$idx.take() {
-                        if let Err(e) = self.$idx.inject_event(v) {
+                        if let Err(e) = self.$idx.add_value(v) {
                             event.$idx = Some(e);
                             had_error = true;
                         }
@@ -374,9 +373,9 @@ mod tests {
         let mut bag = <Port<u32, 2> as Bag>::build();
         assert!(bag.is_empty());
 
-        assert!(bag.inject_event(7).is_ok());
-        assert!(bag.inject_event(99).is_ok());
-        assert_eq!(bag.inject_event(42), Err(42));
+        assert!(bag.add_value(7).is_ok());
+        assert!(bag.add_value(99).is_ok());
+        assert_eq!(bag.add_value(42), Err(42));
 
         let mut collected: heapless::Vec<u32, 4> = heapless::Vec::new();
         bag.eject_events(|v| {
@@ -390,13 +389,13 @@ mod tests {
         let mut bags = <[Port<u32, 2>; 3] as Bag>::build();
         assert!(bags.is_empty());
 
-        assert!(bags.inject_event((0, 10)).is_ok());
-        assert!(bags.inject_event((2, 30)).is_ok());
+        assert!(bags.add_value((0, 10)).is_ok());
+        assert!(bags.add_value((2, 30)).is_ok());
 
-        assert_eq!(bags.inject_event((5, 77)), Err((5, 77)));
+        assert_eq!(bags.add_value((5, 77)), Err((5, 77)));
 
-        assert!(bags.inject_event((0, 11)).is_ok());
-        assert_eq!(bags.inject_event((0, 12)), Err((0, 12)));
+        assert!(bags.add_value((0, 11)).is_ok());
+        assert_eq!(bags.add_value((0, 12)), Err((0, 12)));
 
         let mut collected: heapless::Vec<(usize, u32), 4> = heapless::Vec::new();
         bags.eject_events(|(i, v)| {
@@ -410,9 +409,9 @@ mod tests {
         let mut bag = <(Port<u32, 1>, Port<bool, 1>) as Bag>::build();
         assert!(bag.is_empty());
 
-        assert!(bag.inject_event((Some(7u32), None)).is_ok());
-        assert!(bag.inject_event((None, Some(true))).is_ok());
-        assert_eq!(bag.inject_event((Some(99u32), None)), Err((Some(99), None)));
+        assert!(bag.add_value((Some(7u32), None)).is_ok());
+        assert!(bag.add_value((None, Some(true))).is_ok());
+        assert_eq!(bag.add_value((Some(99u32), None)), Err((Some(99), None)));
 
         let mut got_u32: heapless::Vec<u32, 4> = heapless::Vec::new();
         let mut got_bool: heapless::Vec<bool, 4> = heapless::Vec::new();
@@ -432,16 +431,13 @@ mod tests {
     #[test]
     fn tuple_bag_inject_eject_full_preserves_failed_positions() {
         let mut bag = <(Port<u32, 1>, Port<bool, 1>) as Bag>::build();
-        bag.inject_event((Some(1u32), None)).unwrap();
-        bag.inject_event((None, Some(true))).unwrap();
+        bag.add_value((Some(1u32), None)).unwrap();
+        bag.add_value((None, Some(true))).unwrap();
 
-        assert_eq!(bag.inject_event((Some(7u32), None)), Err((Some(7), None)));
+        assert_eq!(bag.add_value((Some(7u32), None)), Err((Some(7), None)));
+        assert_eq!(bag.add_value((None, Some(false))), Err((None, Some(false))));
         assert_eq!(
-            bag.inject_event((None, Some(false))),
-            Err((None, Some(false)))
-        );
-        assert_eq!(
-            bag.inject_event((Some(7u32), Some(false))),
+            bag.add_value((Some(7u32), Some(false))),
             Err((Some(7), Some(false)))
         );
 
@@ -527,11 +523,11 @@ mod tests {
 
         let inner_event = _xdevs_no_std_inner_bag_bag::PortMux::A(42u32);
         let outer_inner = _xdevs_no_std_outer_bag_bag::PortMux::Inner(inner_event);
-        assert!(outer.inject_event(outer_inner).is_ok());
+        assert!(outer.add_value(outer_inner).is_ok());
         assert!(!outer.is_empty());
 
         assert!(outer
-            .inject_event(_xdevs_no_std_outer_bag_bag::PortMux::B(true))
+            .add_value(_xdevs_no_std_outer_bag_bag::PortMux::B(true))
             .is_ok());
 
         let mut got_a: heapless::Vec<u32, 4> = heapless::Vec::new();

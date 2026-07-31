@@ -640,7 +640,7 @@ where
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::{
-        port::Port, Atomic, AtomicKind, Component, ComponentsInput, ComponentsOutput, Coupled,
+        port::Port, Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
         CoupledKind,
     };
 
