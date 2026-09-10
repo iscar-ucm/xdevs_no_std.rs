@@ -270,7 +270,7 @@ pub fn expand(args: RtEngineArgs, item: ItemImpl) -> Result<TokenStream2> {
                     output,
                 );
             };
-            <Self as ::xdevs::port::Bag>::propagate(self, out_func);
+            ::xdevs::propagate(self, out_func);
         };
 
         eject_output_impl = quote::quote! {

@@ -1,5 +1,5 @@
 use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
-use crate::{prelude::*, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
+use crate::{couple, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
 /// LI model enum (ref version)
 #[crate::to_component]
 pub enum LIEnum<'a, const W: usize> {
@@ -27,14 +27,14 @@ impl<'a, const W: usize> Component for LIModel<'a, W> {
 impl<'a, const W: usize> Coupled for LIModel<'a, W> {
     fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
         for atom_ports in to.atomics.iter_mut() {
-            let _ = from.couple(atom_ports);
+            let _ = couple(from, atom_ports);
         }
 
-        let _ = from.couple(&mut to.inner);
+        let _ = couple(from, &mut to.inner);
     }
 
     fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
-        let _ = from.inner.couple(to);
+        let _ = couple(&from.inner, to);
     }
 }
 
@@ -70,13 +70,14 @@ impl<'a, const W: usize> Devstone for TopModel<'a, W> {
 
 impl<'a, const W: usize> Coupled for TopModel<'a, W> {
     fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-        let _ = from.generator.couple(&mut to.li_model);
+        let _ = couple(&from.generator, &mut to.li_model);
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::prelude::*;
 
     fn expected_n_atomic(width: usize, depth: usize) -> usize {
         (width - 1) * (depth - 1) + 1

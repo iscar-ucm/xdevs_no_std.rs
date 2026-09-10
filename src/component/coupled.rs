@@ -102,7 +102,7 @@ mod tests {
     use xdevs_no_std_macros::coupled;
 
     use super::{ComponentsInput, ComponentsOutput, Coupled, PartialCoupled};
-    use crate::{component::CoupledKind, gpt::Processor, port::Bag, Component, Port};
+    use crate::{component::CoupledKind, couple, gpt::Processor, port::Bag, Component, Port};
 
     #[coupled]
     struct ForwardChain {
@@ -117,13 +117,13 @@ mod tests {
 
     impl Coupled for ForwardChain {
         fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
-            let _ = from.couple(&mut to.components[0]);
+            let _ = couple(from, &mut to.components[0]);
         }
         fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-            let _ = from.components[0].couple(&mut to.components[1]);
+            let _ = couple(&from.components[0], &mut to.components[1]);
         }
         fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
-            let _ = from.components[1].couple(to);
+            let _ = couple(&from.components[1], to);
         }
     }
 

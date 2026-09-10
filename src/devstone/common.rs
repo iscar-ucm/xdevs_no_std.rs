@@ -1,8 +1,8 @@
 #[cfg(not(feature = "std"))]
 use crate::Instant;
 use crate::{
-    Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind,
-    Duration, Port,
+    couple, Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
+    CoupledKind, Duration, Port,
 };
 #[cfg(feature = "std")]
 use cpu_time::ThreadTime;
@@ -211,10 +211,10 @@ impl Default for LeafModel {
 
 impl Coupled for LeafModel {
     fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
-        let _ = from.couple(&mut to.atomic);
+        let _ = couple(from, &mut to.atomic);
     }
     fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
-        let _ = from.atomic.couple(to);
+        let _ = couple(&from.atomic, to);
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::{
-    Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind,
-    Port,
+    couple, Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
+    CoupledKind, Port,
 };
 /// Generator that produces jobs at a fixed period until told to stop.
 pub struct Generator {
@@ -206,14 +206,10 @@ impl Component for GPT {
 
 impl Coupled for GPT {
     fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-        from.generator.couple(&mut to.processor).unwrap();
-        from.processor
-            .couple(&mut to.transducer.in_processor)
-            .unwrap();
-        from.generator
-            .couple(&mut to.transducer.in_generator)
-            .unwrap();
-        from.transducer.couple(&mut to.generator).unwrap();
+        couple(&from.generator, &mut to.processor).unwrap();
+        couple(&from.processor, &mut to.transducer.in_processor).unwrap();
+        couple(&from.generator, &mut to.transducer.in_generator).unwrap();
+        couple(&from.transducer, &mut to.generator).unwrap();
     }
 }
 
@@ -231,16 +227,14 @@ impl Component for EF {
 
 impl Coupled for EF {
     fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-        from.generator
-            .couple(&mut to.transducer.in_generator)
-            .unwrap();
-        from.transducer.couple(&mut to.generator).unwrap();
+        couple(&from.generator, &mut to.transducer.in_generator).unwrap();
+        couple(&from.transducer, &mut to.generator).unwrap();
     }
     fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
-        from.couple(&mut to.transducer.in_processor).unwrap();
+        couple(from, &mut to.transducer.in_processor).unwrap();
     }
     fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
-        from.generator.couple(to).unwrap();
+        couple(&from.generator, to).unwrap();
     }
 }
 
@@ -258,8 +252,8 @@ impl Component for EFP {
 
 impl Coupled for EFP {
     fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-        from.ef.couple(&mut to.processor).unwrap();
-        from.processor.couple(&mut to.ef).unwrap();
+        couple(&from.ef, &mut to.processor).unwrap();
+        couple(&from.processor, &mut to.ef).unwrap();
     }
 }
 

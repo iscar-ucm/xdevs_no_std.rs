@@ -640,7 +640,7 @@ where
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::{
-        Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
+        couple, Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
         CoupledKind, Port,
     };
 
@@ -707,13 +707,13 @@ pub(crate) mod test_utils {
 
     impl Coupled for TestCoupled {
         fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
-            let _ = from.couple(&mut to.a0);
+            let _ = couple(from, &mut to.a0);
         }
         fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-            let _ = from.a0.couple(&mut to.a1);
+            let _ = couple(&from.a0, &mut to.a1);
         }
         fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
-            let _ = from.a1.couple(to);
+            let _ = couple(&from.a1, to);
         }
     }
 
@@ -731,7 +731,7 @@ pub(crate) mod test_utils {
 
     impl Coupled for TestCoupledWithOption {
         fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
-            let _ = from.couple(&mut to.a0);
+            let _ = couple(from, &mut to.a0);
         }
     }
 }
@@ -1124,7 +1124,7 @@ mod tests {
     #[test]
     fn simulate_vt_with_array() {
         // Coupled model with array of atomics
-        use crate::{ComponentsInput, ComponentsOutput, Coupled, CoupledKind};
+        use crate::{couple, ComponentsInput, ComponentsOutput, Coupled, CoupledKind};
 
         #[crate::to_component]
         struct ArrayCoupledComponents {
@@ -1153,11 +1153,11 @@ mod tests {
 
         impl Coupled for ArrayCoupled {
             fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
-                let _ = from.couple(&mut to.inner[0]);
+                let _ = couple(from, &mut to.inner[0]);
             }
             fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-                let _ = from.inner[0].couple(&mut to.inner[1]);
-                let _ = from.inner[1].couple(&mut to.inner[2]);
+                let _ = couple(&from.inner[0], &mut to.inner[1]);
+                let _ = couple(&from.inner[1], &mut to.inner[2]);
             }
         }
 

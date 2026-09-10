@@ -20,7 +20,7 @@ pub use component::{
     AtomicKind, Component, ComponentsKind, CoupledKind,
 };
 pub use embassy_time::{Duration, Instant};
-pub use port::Bag;
+pub use port::{adapt_and_couple, couple, propagate, Bag};
 pub use simulation::Config;
 pub use xdevs_no_std_macros::*;
 

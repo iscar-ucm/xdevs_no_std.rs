@@ -45,29 +45,29 @@ pub unsafe trait Bag {
         }
         Ok(())
     }
+}
 
-    /// Copies all events from this bag into another bag of the same event type.
-    ///
-    /// Returns the first event that cannot be inserted into `to`.
-    fn couple<B: Bag<Value = Self::Value>>(&self, to: &mut B) -> Result<(), Self::Value> {
-        to.add_values(self.get_values())
-    }
+/// Copies all events from one bag into another bag of the same event type.
+///
+/// Returns the first event that cannot be inserted into `to`.
+pub fn couple<S: Bag, B: Bag<Value = S::Value>>(from: &S, to: &mut B) -> Result<(), S::Value> {
+    to.add_values(from.get_values())
+}
 
-    /// Copies all events from this bag into another bag using an adapter closure.
-    ///
-    /// The adapter transforms each source event into the target bag event type.
-    /// Returns the first adapted event that cannot be inserted into `to`.
-    fn adapt_and_couple<B: Bag, F>(&self, to: &mut B, adapter: F) -> Result<(), B::Value>
-    where
-        F: FnMut(Self::Value) -> B::Value,
-    {
-        to.add_values(self.get_values().map(adapter))
-    }
+/// Copies all events from one bag into another bag using an adapter closure.
+///
+/// The adapter transforms each source event into the target bag event type.
+/// Returns the first adapted event that cannot be inserted into `to`.
+pub fn adapt_and_couple<S: Bag, B: Bag, F>(from: &S, to: &mut B, adapter: F) -> Result<(), B::Value>
+where
+    F: FnMut(S::Value) -> B::Value,
+{
+    to.add_values(from.get_values().map(adapter))
+}
 
-    /// Propagates all events from the bag according to the provided closure.
-    fn propagate(&self, propagator: impl FnMut(Self::Value)) {
-        self.get_values().for_each(propagator);
-    }
+/// Propagates all events from a bag according to the provided closure.
+pub fn propagate<S: Bag>(from: &S, propagator: impl FnMut(S::Value)) {
+    from.get_values().for_each(propagator)
 }
 
 unsafe impl<T: Clone, const N: usize> Bag for heapless::Vec<T, N> {
@@ -333,7 +333,7 @@ mod tests {
         let mut src: Port<u32, 5> = Port::new();
         src.add_values([1, 2, 3]).unwrap();
         let mut dst: Port<u32, 5> = Port::new();
-        assert!(src.couple(&mut dst).is_ok());
+        assert!(couple(&src, &mut dst).is_ok());
         assert_eq!(dst.as_slice(), &[1, 2, 3]);
         assert_eq!(src.as_slice(), &[1, 2, 3]);
     }
@@ -343,7 +343,7 @@ mod tests {
         let mut src: Port<u32, 5> = Port::new();
         src.add_values([1, 2, 3]).unwrap();
         let mut dst: Port<u32, 2> = Port::new();
-        let result = src.couple(&mut dst);
+        let result = couple(&src, &mut dst);
         assert!(result.is_err());
         assert_eq!(src.as_slice(), &[1, 2, 3]);
     }
@@ -354,7 +354,7 @@ mod tests {
         src.add_values([1, 2, 3]).unwrap();
         let mut dst: Port<u64, 5> = Port::new();
         // Adapter doubles each value and widens to u64.
-        assert!(src.adapt_and_couple(&mut dst, |v| v as u64 * 2).is_ok());
+        assert!(adapt_and_couple(&src, &mut dst, |v| v as u64 * 2).is_ok());
         assert_eq!(dst.as_slice(), &[2, 4, 6]);
         // Source is unchanged.
         assert_eq!(src.as_slice(), &[1, 2, 3]);
@@ -365,7 +365,7 @@ mod tests {
         let mut src: Port<u32, 5> = Port::new();
         src.add_values([1, 2, 3]).unwrap();
         let mut dst: Port<u64, 2> = Port::new();
-        let result = src.adapt_and_couple(&mut dst, |v| v as u64 * 2);
+        let result = adapt_and_couple(&src, &mut dst, |v| v as u64 * 2);
         // The third adapted event (6) cannot be inserted.
         assert_eq!(result, Err(6));
         // The first two events were inserted before the failure.
@@ -377,7 +377,7 @@ mod tests {
     fn port_adapt_and_couple_empty_source() {
         let src: Port<u32, 5> = Port::new();
         let mut dst: Port<u64, 5> = Port::new();
-        assert!(src.adapt_and_couple(&mut dst, |v| v as u64 * 2).is_ok());
+        assert!(adapt_and_couple(&src, &mut dst, |v| v as u64 * 2).is_ok());
         assert!(dst.is_empty());
     }
 
@@ -387,7 +387,7 @@ mod tests {
         src.add_values([0, 1, 2]).unwrap();
         let mut dst: Port<bool, 5> = Port::new();
         // Adapter converts non-zero to true.
-        assert!(src.adapt_and_couple(&mut dst, |v| v != 0).is_ok());
+        assert!(adapt_and_couple(&src, &mut dst, |v| v != 0).is_ok());
         assert_eq!(dst.as_slice(), &[false, true, true]);
     }
 
@@ -479,7 +479,7 @@ mod tests {
         assert_eq!(bag.add_value(42), Err(42));
 
         let mut collected: heapless::Vec<u32, 4> = heapless::Vec::new();
-        bag.propagate(|v| {
+        propagate(&bag, |v| {
             let _ = collected.push(v);
         });
         assert_eq!(collected.as_slice(), &[7, 99]);
@@ -499,7 +499,7 @@ mod tests {
         assert_eq!(bags.add_value((0, 12)), Err((0, 12)));
 
         let mut collected: heapless::Vec<(usize, u32), 4> = heapless::Vec::new();
-        bags.propagate(|(i, v)| {
+        propagate(&bags, |(i, v)| {
             let _ = collected.push((i, v));
         });
         assert_eq!(collected.as_slice(), &[(0, 10), (0, 11), (2, 30)]);
@@ -526,7 +526,7 @@ mod tests {
         src.add_value((0, 11)).unwrap();
         // Target is a Port of (index, value) tuples — same Value type.
         let mut dst: Port<(usize, u32), 5> = Port::new();
-        assert!(src.couple(&mut dst).is_ok());
+        assert!(couple(&src, &mut dst).is_ok());
         assert_eq!(dst.as_slice(), &[(0, 10), (0, 11), (1, 20)]);
     }
 
@@ -538,7 +538,7 @@ mod tests {
         src.add_value((0, 11)).unwrap();
         // Target too small: only fits 2 of the 3 events.
         let mut dst: Port<(usize, u32), 2> = Port::new();
-        let result = src.couple(&mut dst);
+        let result = couple(&src, &mut dst);
         // The third event that didn't fit is returned.
         assert_eq!(result, Err((1, 20)));
         assert_eq!(dst.as_slice(), &[(0, 10), (0, 11)]);
@@ -550,7 +550,7 @@ mod tests {
         src.add_value((0, 10)).unwrap();
         src.add_value((1, 20)).unwrap();
         let mut dst = <[Port<u32, 2>; 2] as Bag>::build();
-        assert!(src.couple(&mut dst).is_ok());
+        assert!(couple(&src, &mut dst).is_ok());
         assert_eq!(dst[0].as_slice(), &[10]);
         assert_eq!(dst[1].as_slice(), &[20]);
     }
@@ -562,7 +562,7 @@ mod tests {
         src.add_value((1, 20)).unwrap();
         // Target is a Port of (index, value) tuples.
         let mut dst: Port<(usize, u32), 5> = Port::new();
-        assert!(src.adapt_and_couple(&mut dst, |v| v).is_ok());
+        assert!(adapt_and_couple(&src, &mut dst, |v| v).is_ok());
         assert_eq!(dst.as_slice(), &[(0, 10), (1, 20)]);
     }
 
@@ -587,7 +587,7 @@ mod tests {
         assert_eq!(bag.add_value(99), Err(99));
 
         let mut collected: heapless::Vec<u32, 4> = heapless::Vec::new();
-        bag.propagate(|v| {
+        propagate(&bag, |v| {
             let _ = collected.push(v);
         });
         assert_eq!(collected.as_slice(), &[7]);
@@ -596,7 +596,7 @@ mod tests {
         assert!(bag.is_empty());
 
         let mut collected_after: heapless::Vec<u32, 4> = heapless::Vec::new();
-        bag.propagate(|v| {
+        propagate(&bag, |v| {
             let _ = collected_after.push(v);
         });
         assert!(collected_after.is_empty());
@@ -624,7 +624,7 @@ mod tests {
         let mut src = <Option<u32> as Bag>::build();
         src.add_value(42).unwrap();
         let mut dst: Port<u32, 5> = Port::new();
-        assert!(src.couple(&mut dst).is_ok());
+        assert!(couple(&src, &mut dst).is_ok());
         assert_eq!(dst.as_slice(), &[42]);
     }
 
@@ -635,7 +635,7 @@ mod tests {
         // Target is a full Port — the single event cannot be inserted.
         let mut dst: Port<u32, 1> = Port::new();
         dst.add_value(99).unwrap();
-        let result = src.couple(&mut dst);
+        let result = couple(&src, &mut dst);
         assert_eq!(result, Err(42));
         assert_eq!(dst.as_slice(), &[99]);
     }
@@ -644,7 +644,7 @@ mod tests {
     fn option_couple_empty_is_noop() {
         let src = <Option<u32> as Bag>::build();
         let mut dst: Port<u32, 5> = Port::new();
-        assert!(src.couple(&mut dst).is_ok());
+        assert!(couple(&src, &mut dst).is_ok());
         assert!(dst.is_empty());
     }
 
@@ -653,7 +653,7 @@ mod tests {
         let mut src = <Option<u32> as Bag>::build();
         src.add_value(42).unwrap();
         let mut dst: Port<u64, 5> = Port::new();
-        assert!(src.adapt_and_couple(&mut dst, |v| v as u64 + 100).is_ok());
+        assert!(adapt_and_couple(&src, &mut dst, |v| v as u64 + 100).is_ok());
         assert_eq!(dst.as_slice(), &[142]);
     }
 
@@ -661,7 +661,7 @@ mod tests {
     fn option_adapt_and_couple_empty_is_noop() {
         let src = <Option<u32> as Bag>::build();
         let mut dst: Port<u64, 5> = Port::new();
-        assert!(src.adapt_and_couple(&mut dst, |v| v as u64).is_ok());
+        assert!(adapt_and_couple(&src, &mut dst, |v| v as u64).is_ok());
         assert!(dst.is_empty());
     }
 
@@ -676,7 +676,7 @@ mod tests {
 
         let mut got_u32: heapless::Vec<u32, 4> = heapless::Vec::new();
         let mut got_bool: heapless::Vec<bool, 4> = heapless::Vec::new();
-        bag.propagate(|ev| match ev {
+        propagate(&bag, |ev| match ev {
             (Some(v), None) => {
                 let _ = got_u32.push(v);
             }
@@ -704,7 +704,7 @@ mod tests {
 
         let mut got_u32: heapless::Vec<u32, 4> = heapless::Vec::new();
         let mut got_bool: heapless::Vec<bool, 4> = heapless::Vec::new();
-        bag.propagate(|ev| match ev {
+        propagate(&bag, |ev| match ev {
             (Some(v), None) => {
                 let _ = got_u32.push(v);
             }
@@ -736,7 +736,7 @@ mod tests {
         src.add_value((None, Some(true))).unwrap();
         // Target is a Port of the mux value type — same Value type.
         let mut dst: Port<(Option<u32>, Option<bool>), 5> = Port::new();
-        assert!(src.couple(&mut dst).is_ok());
+        assert!(couple(&src, &mut dst).is_ok());
         assert_eq!(dst.as_slice(), &[(Some(7), None), (None, Some(true))]);
     }
 
@@ -747,7 +747,7 @@ mod tests {
         src.add_value((None, Some(true))).unwrap();
         // Target too small: only fits 1 of the 2 events.
         let mut dst: Port<(Option<u32>, Option<bool>), 1> = Port::new();
-        let result = src.couple(&mut dst);
+        let result = couple(&src, &mut dst);
         // The second event that didn't fit is returned.
         assert_eq!(result, Err((None, Some(true))));
         assert_eq!(dst.as_slice(), &[(Some(7), None)]);
@@ -759,7 +759,7 @@ mod tests {
         src.add_value((Some(7), None)).unwrap();
         src.add_value((None, Some(true))).unwrap();
         let mut dst = <(Port<u32, 2>, Port<bool, 2>) as Bag>::build();
-        assert!(src.couple(&mut dst).is_ok());
+        assert!(couple(&src, &mut dst).is_ok());
         assert_eq!(dst.0.as_slice(), &[7]);
         assert_eq!(dst.1.as_slice(), &[true]);
     }
@@ -771,7 +771,7 @@ mod tests {
         src.add_value((None, Some(true))).unwrap();
         // Flatten the mux into a single Port of an enum-like tuple.
         let mut dst: Port<(Option<u32>, Option<bool>), 5> = Port::new();
-        assert!(src.adapt_and_couple(&mut dst, |v| v).is_ok());
+        assert!(adapt_and_couple(&src, &mut dst, |v| v).is_ok());
         assert_eq!(dst.as_slice(), &[(Some(7), None), (None, Some(true))]);
     }
 
@@ -789,14 +789,14 @@ mod tests {
     fn unit_propagate_never_invokes_closure() {
         // () has no events, so the propagator closure must never be called.
         let mut called = false;
-        <() as Bag>::propagate(&(), |_| called = true);
+        propagate(&(), |_| called = true);
         assert!(!called, "propagate on () must not invoke the closure");
     }
 
     #[test]
     fn unit_couple_to_unit() {
         // () has no events, so coupling to another () is always Ok.
-        let result = <() as Bag>::couple(&(), &mut ());
+        let result = couple(&(), &mut ());
         assert!(result.is_ok());
     }
 
@@ -804,7 +804,7 @@ mod tests {
     fn unit_couple_to_port() {
         // () has no events, so coupling to a Port<()> is a no-op.
         let mut dst: Port<(), 5> = Port::new();
-        assert!(<() as Bag>::couple(&(), &mut dst).is_ok());
+        assert!(couple(&(), &mut dst).is_ok());
         assert!(dst.is_empty());
     }
 
@@ -812,7 +812,7 @@ mod tests {
     fn unit_adapt_and_couple_to_port() {
         // () has no events, so adapt_and_couple is a no-op regardless of adapter.
         let mut dst: Port<u32, 5> = Port::new();
-        assert!(<() as Bag>::adapt_and_couple(&(), &mut dst, |_| 42u32).is_ok());
+        assert!(adapt_and_couple(&(), &mut dst, |_| 42u32).is_ok());
         assert!(dst.is_empty());
     }
 
@@ -885,7 +885,7 @@ mod tests {
 
         let mut got_a: heapless::Vec<u32, 4> = heapless::Vec::new();
         let mut got_b: heapless::Vec<bool, 4> = heapless::Vec::new();
-        outer.propagate(|ev| match ev {
+        propagate(&outer, |ev| match ev {
             _xdevs_no_std_outer_bag_bag::PortMux::Inner(inner) => match inner {
                 _xdevs_no_std_inner_bag_bag::PortMux::A(v) => {
                     let _ = got_a.push(v);
