@@ -106,8 +106,9 @@ mod tests {
     use super::*;
     use crate::{
         component::coupled::PartialCoupled,
-        port::{Bag, Port},
+        port::Bag,
         simulation::test_utils::{TestAtomic, TestCoupled},
+        Port,
     };
 
     #[test]
@@ -139,7 +140,7 @@ mod tests {
         coord.start(0.0);
         let mut output = Port::<usize, 1>::new();
         coord.lambda(&mut output, 0.0);
-        assert!(output.get_values().eq([99]), "eoc copies a1 output");
+        assert_eq!(output.as_slice(), &[99], "eoc copies a1 output");
     }
 
     #[test]

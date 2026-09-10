@@ -103,10 +103,7 @@ unsafe impl<T: Atomic> AbstractSimulator for Simulator<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        port::{Bag, Port},
-        simulation::test_utils::TestAtomic,
-    };
+    use crate::{port::Bag, simulation::test_utils::TestAtomic, Port};
 
     #[test]
     fn start_sets_timing() {
@@ -131,7 +128,7 @@ mod tests {
         sim.start(0.0);
         let mut output = Port::<usize, 1>::new();
         sim.lambda(&mut output, 3.0);
-        assert!(output.get_values().eq([99]), "lambda called at t = t_next");
+        assert_eq!(output.as_slice(), &[99], "lambda called at t = t_next");
     }
 
     #[test]

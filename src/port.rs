@@ -1,6 +1,3 @@
-/// Port is an alias for a heapless::Vec.
-pub type Port<T, const N: usize> = heapless::Vec<T, N>;
-
 /// Trait that defines the methods that a DEVS event bag set must implement.
 ///
 /// # Safety
@@ -24,17 +21,16 @@ pub unsafe trait Bag {
 
     /// Returns an iterator over the events currently stored in the bag.
     ///
-    /// This is the pull-based counterpart of [`Bag::propagate`]: instead of
-    /// pushing every event into a closure, events are yielded lazily, one at a
-    /// time. Values are cloned out of the bag, so the bag is left untouched.
-    fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_;
-
-    /// Returns the number of events in the bag.
+    /// Events are yielded lazily, one at a time.
     ///
-    /// Implementations may override this method for better performance.
-    fn len(&self) -> usize {
-        self.get_values().count()
-    }
+    /// # Note
+    ///
+    /// Each value is cloned out of the bag, so the bag is left untouched.
+    /// Collections that implement [`Bag`] (e.g., [`crate::Port`], which is a
+    /// [`heapless::Vec`]) usually provide inherent methods that iterate over
+    /// values without cloning them (e.g., `iter`, `as_slice`). Prefer those in
+    /// your models when performance matters.
+    fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_;
 
     /// Adds multiple values to the bag.
     ///
@@ -100,18 +96,6 @@ unsafe impl<T: Clone, const N: usize> Bag for heapless::Vec<T, N> {
     fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_ {
         self.iter().cloned()
     }
-
-    #[inline]
-    fn len(&self) -> usize {
-        self.as_slice().len()
-    }
-
-    #[inline]
-    fn propagate(&self, mut propagator: impl FnMut(Self::Value)) {
-        for value in self.iter() {
-            propagator(value.clone());
-        }
-    }
 }
 
 unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
@@ -146,18 +130,6 @@ unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
             .enumerate()
             .flat_map(|(index, elem)| elem.get_values().map(move |v| (index, v)))
     }
-
-    #[inline]
-    fn len(&self) -> usize {
-        self.iter().map(|bag| bag.len()).sum()
-    }
-
-    #[inline]
-    fn propagate(&self, mut propagator: impl FnMut(Self::Value)) {
-        self.iter().enumerate().for_each(|(index, elem)| {
-            elem.propagate(|v| propagator((index, v)));
-        });
-    }
 }
 
 unsafe impl Bag for () {
@@ -185,36 +157,12 @@ unsafe impl Bag for () {
     }
 
     #[inline]
-    fn len(&self) -> usize {
-        0
-    }
-
-    #[inline]
     fn add_values(
         &mut self,
         _events: impl IntoIterator<Item = Self::Value>,
     ) -> Result<(), Self::Value> {
         Ok(())
     }
-
-    #[inline]
-    fn couple<B: Bag<Value = Self::Value>>(&self, _to: &mut B) -> Result<(), Self::Value>
-    where
-        Self::Value: Clone,
-    {
-        Ok(())
-    }
-
-    #[inline]
-    fn adapt_and_couple<B: Bag, F>(&self, _to: &mut B, _adapter: F) -> Result<(), B::Value>
-    where
-        F: FnMut(Self::Value) -> B::Value,
-    {
-        Ok(())
-    }
-
-    #[inline]
-    fn propagate(&self, _propagator: impl FnMut(Self::Value)) {}
 }
 
 unsafe impl<T: Clone> Bag for Option<T> {
@@ -249,22 +197,6 @@ unsafe impl<T: Clone> Bag for Option<T> {
     #[inline]
     fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_ {
         self.iter().cloned()
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        if self.is_some() {
-            1
-        } else {
-            0
-        }
-    }
-
-    #[inline]
-    fn propagate(&self, mut propagator: impl FnMut(Self::Value)) {
-        if let Some(value) = self {
-            propagator(value.clone());
-        }
     }
 }
 
@@ -319,24 +251,6 @@ macro_rules! impl_bag_for_tuple {
                     }))
                 )+
             }
-
-            #[inline]
-            fn len(&self) -> usize {
-                let mut len = 0;
-                $(len += self.$idx.len();)+
-                len
-            }
-
-            #[inline]
-            fn propagate(&self, mut propagator: impl FnMut(Self::Value)) {
-                $(
-                    self.$idx.propagate(|v| {
-                        let mut mux: Self::Value = Default::default();
-                        mux.$idx = Some(v);
-                        propagator(mux);
-                    });
-                )+
-            }
         }
     }
 }
@@ -356,7 +270,7 @@ impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::*;
 
     #[test]
     fn port_new_is_empty() {
@@ -371,7 +285,7 @@ mod tests {
         assert!(port.add_value(1).is_ok());
         assert!(port.add_value(2).is_ok());
         assert!(port.add_value(3).is_ok());
-        assert!(port.get_values().eq([1, 2, 3]));
+        assert_eq!(port.as_slice(), &[1, 2, 3]);
     }
 
     #[test]
@@ -556,26 +470,6 @@ mod tests {
     }
 
     #[test]
-    fn array_len_sums_sub_bags() {
-        let mut bags = <[Port<u32, 3>; 3] as Bag>::build();
-        assert_eq!(bags.len(), 0);
-
-        bags.add_value((0, 10)).unwrap();
-        assert_eq!(bags.len(), 1);
-
-        bags.add_value((2, 30)).unwrap();
-        bags.add_value((2, 31)).unwrap();
-        assert_eq!(bags.len(), 3);
-
-        // Clearing one sub-bag reduces the total.
-        bags[2].clear();
-        assert_eq!(bags.len(), 1);
-
-        bags.clear();
-        assert_eq!(bags.len(), 0);
-    }
-
-    #[test]
     fn port_bag_inject_eject_contract() {
         let mut bag = <Port<u32, 2> as Bag>::build();
         assert!(bag.is_empty());
@@ -685,22 +579,6 @@ mod tests {
     }
 
     #[test]
-    fn option_len_tracks_presence() {
-        let mut bag = <Option<u32> as Bag>::build();
-        assert_eq!(bag.len(), 0);
-
-        bag.add_value(7).unwrap();
-        assert_eq!(bag.len(), 1);
-
-        // A second value is rejected; len stays at 1.
-        assert_eq!(bag.add_value(99), Err(99));
-        assert_eq!(bag.len(), 1);
-
-        bag.clear();
-        assert_eq!(bag.len(), 0);
-    }
-
-    #[test]
     fn option_bag_inject_eject_contract() {
         let mut bag = <Option<u32> as Bag>::build();
         assert!(bag.is_empty());
@@ -785,24 +663,6 @@ mod tests {
         let mut dst: Port<u64, 5> = Port::new();
         assert!(src.adapt_and_couple(&mut dst, |v| v as u64).is_ok());
         assert!(dst.is_empty());
-    }
-
-    #[test]
-    fn tuple_len_sums_elements() {
-        let mut bag = <(Port<u32, 3>, Port<bool, 3>) as Bag>::build();
-        assert_eq!(bag.len(), 0);
-
-        bag.add_value((Some(1), None)).unwrap();
-        bag.add_value((Some(2), None)).unwrap();
-        bag.add_value((None, Some(true))).unwrap();
-        assert_eq!(bag.len(), 3);
-
-        // Clearing reduces the total.
-        bag.0.clear();
-        assert_eq!(bag.len(), 1);
-
-        bag.clear();
-        assert_eq!(bag.len(), 0);
     }
 
     #[test]
@@ -923,7 +783,6 @@ mod tests {
         <() as Bag>::clear(&mut ());
         assert!(<() as Bag>::add_value(&mut (), ()).is_ok());
         assert!(<() as Bag>::add_values(&mut (), [(), ()]).is_ok());
-        assert_eq!(<() as Bag>::len(&()), 0);
     }
 
     #[test]
@@ -1014,18 +873,15 @@ mod tests {
     fn nested_bag_impl() {
         let mut outer = <OuterBag as Bag>::build();
         assert!(outer.is_empty());
-        assert_eq!(outer.len(), 0);
 
         let inner_event = _xdevs_no_std_inner_bag_bag::PortMux::A(42u32);
         let outer_inner = _xdevs_no_std_outer_bag_bag::PortMux::Inner(inner_event);
         assert!(outer.add_value(outer_inner).is_ok());
         assert!(!outer.is_empty());
-        assert_eq!(outer.len(), 1);
 
         assert!(outer
             .add_value(_xdevs_no_std_outer_bag_bag::PortMux::B(true))
             .is_ok());
-        assert_eq!(outer.len(), 2);
 
         let mut got_a: heapless::Vec<u32, 4> = heapless::Vec::new();
         let mut got_b: heapless::Vec<bool, 4> = heapless::Vec::new();

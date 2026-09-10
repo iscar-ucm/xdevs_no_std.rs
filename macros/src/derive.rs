@@ -55,14 +55,6 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                 fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_ {
                     ::core::iter::empty()
                 }
-
-                #[inline]
-                fn len(&self) -> usize {
-                    0
-                }
-
-                #[inline]
-                fn propagate(&self, _propagator: impl FnMut(Self::Value)) {}
             }
         }),
         Fields::Named(fields) => {
@@ -87,8 +79,6 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                 quote::quote! { #(#accesses.is_empty())&&* }
             };
 
-            let len_body = quote::quote! { 0 #( + #accesses.len())* };
-
             let variants: Vec<TokenStream2> = fields
                 .named
                 .iter()
@@ -111,20 +101,6 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                     let field = info.ident.as_ref().expect("named field must have ident");
                     quote::quote! {
                         Self::Value::#variant(value) => self.#field.add_value(value).map_err(Self::Value::#variant)
-                    }
-                })
-                .collect();
-
-            let propagations: Vec<TokenStream2> = fields
-                .named
-                .iter()
-                .map(|info| {
-                    let variant = to_pascal_case_ident(
-                        info.ident.as_ref().expect("named field must have ident"),
-                    );
-                    let field = info.ident.as_ref().expect("named field must have ident");
-                    quote::quote! {
-                        self.#field.propagate(|v| propagator(Self::Value::#variant(v)));
                     }
                 })
                 .collect();
@@ -174,15 +150,6 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                     fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_ {
                         ::core::iter::empty::<Self::Value>()
                         #(#get_value_chains)*
-                    }
-
-                    #[inline]
-                    fn len(&self) -> usize {
-                        #len_body
-                    }
-
-                    fn propagate(&self, mut propagator: impl FnMut(Self::Value)) {
-                        #(#propagations)*
                     }
                 }
 

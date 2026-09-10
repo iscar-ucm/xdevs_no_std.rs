@@ -275,19 +275,19 @@ mod tests {
 
         let mut out = <Generator as Component>::Output::build();
         gen.lambda(&mut out);
-        assert!(out.get_values().eq([0]), "first job should be 0");
+        assert_eq!(out.as_slice(), &[0], "first job should be 0");
         gen.delta_int();
         assert_eq!(gen.ta(), 1.0, "ta should be the period after delta_int");
         out.clear();
 
         gen.lambda(&mut out);
-        assert!(out.get_values().eq([1]), "second job should be 1");
+        assert_eq!(out.as_slice(), &[1], "second job should be 1");
         gen.delta_int();
         assert_eq!(gen.ta(), 1.0, "ta should be the period after delta_int");
         out.clear();
 
         gen.lambda(&mut out);
-        assert!(out.get_values().eq([2]), "third job should be 2");
+        assert_eq!(out.as_slice(), &[2], "third job should be 2");
         gen.delta_int();
         assert_eq!(gen.ta(), 1.0, "ta should be the period after delta_int");
         out.clear();
@@ -357,10 +357,7 @@ mod tests {
         assert_eq!(proc.ta(), 2.5, "processor should be busy for 2.5 seconds");
 
         proc.lambda(&mut out);
-        assert!(
-            out.get_values().eq([99]),
-            "should receive the processed job"
-        );
+        assert_eq!(out.as_slice(), &[99], "should receive the processed job");
         proc.delta_int();
         assert_eq!(
             proc.ta(),
@@ -384,8 +381,9 @@ mod tests {
 
         let mut out = <Processor as Component>::Output::build();
         proc.lambda(&mut out);
-        assert!(
-            out.get_values().eq([10]),
+        assert_eq!(
+            out.as_slice(),
+            &[10],
             "should retain original job when busy"
         );
         proc.delta_int();
@@ -396,10 +394,7 @@ mod tests {
 
         let mut out = <Processor as Component>::Output::build();
         proc.lambda(&mut out);
-        assert!(
-            out.get_values().eq([30]),
-            "should accept new job after idle"
-        );
+        assert_eq!(out.as_slice(), &[30], "should accept new job after idle");
     }
 
     #[test]
@@ -440,7 +435,7 @@ mod tests {
         let trans = Transducer::new(10.0);
         let mut output = <Transducer as Component>::Output::build();
         trans.lambda(&mut output);
-        assert!(output.get_values().eq([true]), "should send stop signal");
+        assert_eq!(output.as_slice(), &[true], "should send stop signal");
     }
 
     #[test]
@@ -509,12 +504,12 @@ mod tests {
         let trans = &*sim.components.ef.components.transducer;
         let acceptance = trans.acceptance();
         let throughput = trans.throughput();
-        assert!(
-            acceptance == expected_acceptance,
+        assert_eq!(
+            acceptance, expected_acceptance,
             "acceptance: expected {expected_acceptance}, got {acceptance}",
         );
-        assert!(
-            throughput == expected_throughput,
+        assert_eq!(
+            throughput, expected_throughput,
             "throughput: expected {expected_throughput}, got {throughput}",
         );
     }

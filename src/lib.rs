@@ -20,9 +20,12 @@ pub use component::{
     AtomicKind, Component, ComponentsKind, CoupledKind,
 };
 pub use embassy_time::{Duration, Instant};
-pub use port::{Bag, Port};
+pub use port::Bag;
 pub use simulation::Config;
 pub use xdevs_no_std_macros::*;
+
+/// Port is an alias for a heapless::Vec.
+pub type Port<T, const N: usize> = heapless::Vec<T, N>;
 
 /// Prelude with the traits needed to call the high-level simulation methods
 /// (`.to_simulator()`, `.simulate_vt()`, `.simulate_rt()`, `.simulate_rt_async()`)

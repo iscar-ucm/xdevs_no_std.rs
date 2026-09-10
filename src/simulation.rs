@@ -640,8 +640,8 @@ where
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::{
-        port::Port, Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
-        CoupledKind,
+        Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
+        CoupledKind, Port,
     };
 
     pub(crate) struct TestAtomic {
@@ -741,10 +741,9 @@ mod tests {
     use super::test_utils::{TestAtomic, TestCoupled, TestCoupledWithOption};
     use crate::{
         component::coupled::PartialCoupled,
-        port::Port,
         prelude::*,
         simulation::{simulator::Simulator, Config},
-        Component,
+        Component, Port,
     };
     #[test]
     fn simulate_vt_single_event() {
@@ -827,8 +826,9 @@ mod tests {
             },
         );
 
-        assert!(
-            captured.get_values().eq([99]),
+        assert_eq!(
+            captured.as_slice(),
+            &[99],
             "propagate_output captures lambda output"
         );
     }
@@ -903,7 +903,7 @@ mod tests {
         })
         .await;
 
-        assert!(captured.get_values().eq([99]), "async propagate_output");
+        assert_eq!(captured.as_slice(), &[99], "async propagate_output");
     }
 
     #[test]
@@ -929,8 +929,8 @@ mod tests {
         let mut output = [Port::<usize, 1>::new(), Port::<usize, 1>::new()];
         arr.lambda(&mut output, 0.0);
 
-        assert!(output[0].get_values().eq([99]), "first atomic lambda ran");
-        assert!(output[1].get_values().eq([99]), "second atomic lambda ran");
+        assert_eq!(output[0].as_slice(), &[99], "first atomic lambda ran");
+        assert_eq!(output[1].as_slice(), &[99], "second atomic lambda ran");
     }
 
     #[test]
@@ -979,7 +979,7 @@ mod tests {
 
         let mut output = Port::<usize, 1>::new();
         opt.lambda(&mut output, 0.0);
-        assert!(output.get_values().eq([99]), "Some lambda produces output");
+        assert_eq!(output.as_slice(), &[99], "Some lambda produces output");
 
         let t = opt.delta(&mut Port::new(), &mut Port::new(), 0.0);
         assert_eq!(
@@ -1041,8 +1041,8 @@ mod tests {
         tup.start(0.0);
         let mut out = (Port::<usize, 1>::new(), Port::<usize, 1>::new());
         tup.lambda(&mut out, 0.0);
-        assert!(out.0.get_values().eq([99]), "lambda on tuple[0]");
-        assert!(out.1.get_values().eq([99]), "lambda on tuple[1]");
+        assert_eq!(out.0.as_slice(), &[99], "lambda on tuple[0]");
+        assert_eq!(out.1.as_slice(), &[99], "lambda on tuple[1]");
     }
 
     #[test]

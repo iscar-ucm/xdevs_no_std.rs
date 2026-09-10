@@ -163,7 +163,7 @@ mod tests {
         assert!(model.start, "start happened");
 
         model.lambda(&mut output);
-        assert!(output.get_values().eq([99]), "lambda happened");
+        assert_eq!(output.as_slice(), &[99], "lambda happened");
         output.clear();
         model.delta_int();
         assert!(model.delta_int, "delta_int happened");
@@ -177,7 +177,7 @@ mod tests {
         assert_eq!(model.ta(), 7.0, "ta with correct value");
 
         model.lambda(&mut output);
-        assert!(output.get_values().eq([99]), "lambda happened (2nd call)");
+        assert_eq!(output.as_slice(), &[99], "lambda happened (2nd call)");
         output.clear();
         model.delta_int = false;
         model.delta_conf(&());
@@ -207,8 +207,9 @@ mod tests {
         assert!(raw.start, "start delegates through &mut T blanket");
 
         <&mut CallTracker as Atomic>::lambda(&&mut raw, &mut output);
-        assert!(
-            output.get_values().eq([99]),
+        assert_eq!(
+            output.as_slice(),
+            &[99],
             "lambda delegates through &mut T blanket"
         );
         output.clear();
@@ -228,8 +229,9 @@ mod tests {
         );
 
         <&mut CallTracker as Atomic>::lambda(&&mut raw, &mut output);
-        assert!(
-            output.get_values().eq([99]),
+        assert_eq!(
+            output.as_slice(),
+            &[99],
             "lambda happened on second call through &mut T blanket"
         );
         output.clear();
@@ -265,8 +267,9 @@ mod tests {
         assert!(raw.start, "start delegates through Box<T>");
 
         <alloc::boxed::Box<CallTracker> as Atomic>::lambda(&raw, &mut output);
-        assert!(
-            output.get_values().eq([99]),
+        assert_eq!(
+            output.as_slice(),
+            &[99],
             "lambda delegates through Box<T> blanket"
         );
         output.clear();
@@ -286,8 +289,9 @@ mod tests {
         );
 
         <alloc::boxed::Box<CallTracker> as Atomic>::lambda(&raw, &mut output);
-        assert!(
-            output.get_values().eq([99]),
+        assert_eq!(
+            output.as_slice(),
+            &[99],
             "lambda delegates through Box<T> blanket"
         );
         output.clear();

@@ -348,10 +348,7 @@ mod test {
 
         let mut output = <JobGenerator as Component>::Output::default();
         gen.lambda(&mut output);
-        assert!(
-            output.get_values().eq([5]),
-            "generator should output its count"
-        );
+        assert_eq!(output.as_slice(), &[5], "generator should output its count");
     }
 
     #[test]
