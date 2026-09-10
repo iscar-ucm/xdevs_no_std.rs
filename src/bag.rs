@@ -19,19 +19,6 @@ pub unsafe trait Bag {
     /// Adds a new value into the bag.
     fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value>;
 
-    /// Returns an iterator over the events currently stored in the bag.
-    ///
-    /// Events are yielded lazily, one at a time.
-    ///
-    /// # Note
-    ///
-    /// Each value is cloned out of the bag, so the bag is left untouched.
-    /// Collections that implement [`Bag`] (e.g., [`crate::Port`], which is a
-    /// [`heapless::Vec`]) usually provide inherent methods that iterate over
-    /// values without cloning them (e.g., `iter`, `as_slice`). Prefer those in
-    /// your models when performance matters.
-    fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_;
-
     /// Adds multiple values to the bag.
     ///
     /// Returns the first event that cannot be inserted; any events not yet
@@ -45,6 +32,19 @@ pub unsafe trait Bag {
         }
         Ok(())
     }
+
+    /// Returns an iterator over the events currently stored in the bag.
+    ///
+    /// Events are yielded lazily, one at a time.
+    ///
+    /// # Note
+    ///
+    /// Each value is cloned out of the bag, so the bag is left untouched.
+    /// Collections that implement [`Bag`] (e.g., [`crate::Port`], which is a
+    /// [`heapless::Vec`]) usually provide inherent methods that iterate over
+    /// values without cloning them (e.g., `iter`, `as_slice`). Prefer those in
+    /// your models when performance matters.
+    fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_;
 }
 
 /// Copies all events from one bag into another bag of the same event type.
@@ -270,7 +270,7 @@ impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
+    use crate::{bag::propagate, *};
 
     #[test]
     fn port_new_is_empty() {

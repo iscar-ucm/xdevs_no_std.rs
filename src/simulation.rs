@@ -1,4 +1,4 @@
-use crate::{port::Bag, Component, ComponentsKind};
+use crate::{bag::Bag, Component, ComponentsKind};
 use core::{future::Future, time::Duration};
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;

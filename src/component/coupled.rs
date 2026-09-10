@@ -102,7 +102,7 @@ mod tests {
     use xdevs_no_std_macros::coupled;
 
     use super::{ComponentsInput, ComponentsOutput, Coupled, PartialCoupled};
-    use crate::{component::CoupledKind, couple, gpt::Processor, port::Bag, Component, Port};
+    use crate::{bag::Bag, component::CoupledKind, couple, gpt::Processor, Component, Port};
 
     #[coupled]
     struct ForwardChain {

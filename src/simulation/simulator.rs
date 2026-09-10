@@ -1,5 +1,5 @@
 use crate::{
-    port::Bag,
+    bag::Bag,
     simulation::{AbstractSimulator, Simulable},
     Atomic, AtomicKind,
 };
@@ -103,7 +103,7 @@ unsafe impl<T: Atomic> AbstractSimulator for Simulator<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{port::Bag, simulation::test_utils::TestAtomic, Port};
+    use crate::{bag::Bag, simulation::test_utils::TestAtomic, Port};
 
     #[test]
     fn start_sets_timing() {

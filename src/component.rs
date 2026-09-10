@@ -1,7 +1,7 @@
 pub mod atomic;
 pub mod coupled;
 
-use crate::port::Bag;
+use crate::bag::Bag;
 use sealed::Sealed;
 
 /// Marker type for atomic DEVS models.
