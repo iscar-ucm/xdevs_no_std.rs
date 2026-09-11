@@ -1,3 +1,5 @@
+mod heapless_impl;
+
 /// Trait that defines the methods that a DEVS event bag set must implement.
 ///
 /// # Safety
@@ -23,6 +25,7 @@ pub unsafe trait Bag {
     ///
     /// Returns the first event that cannot be inserted; any events not yet
     /// consumed from the iterator are dropped.
+    #[inline(always)]
     fn add_values(
         &mut self,
         events: impl IntoIterator<Item = Self::Value>,
@@ -70,68 +73,7 @@ pub fn propagate<S: Bag>(from: &S, propagator: impl FnMut(S::Value)) {
     from.get_values().for_each(propagator)
 }
 
-unsafe impl<T: Clone, const N: usize> Bag for heapless::Vec<T, N> {
-    type Value = T;
-
-    #[inline]
-    fn build() -> Self {
-        Self::new()
-    }
-
-    #[inline]
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-
-    #[inline]
-    fn clear(&mut self) {
-        self.clear()
-    }
-
-    #[inline]
-    fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value> {
-        self.push(event)
-    }
-
-    fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_ {
-        self.iter().cloned()
-    }
-}
-
-unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
-    type Value = (usize, T::Value); // Include index to identify which bag the value came from
-
-    #[inline]
-    fn build() -> Self {
-        core::array::from_fn(|_| T::build())
-    }
-
-    #[inline]
-    fn is_empty(&self) -> bool {
-        self.iter().all(|bag| bag.is_empty())
-    }
-
-    #[inline]
-    fn clear(&mut self) {
-        self.iter_mut().for_each(|bag| bag.clear());
-    }
-
-    #[inline]
-    fn add_value(&mut self, (index, event): Self::Value) -> Result<(), Self::Value> {
-        match self.get_mut(index) {
-            Some(elem) => elem.add_value(event).map_err(|err| (index, err)),
-            None => Err((index, event)),
-        }
-    }
-
-    #[inline]
-    fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_ {
-        self.iter()
-            .enumerate()
-            .flat_map(|(index, elem)| elem.get_values().map(move |v| (index, v)))
-    }
-}
-
+// Implement `Bag` for the unit type `()`, which represents an empty bag.
 unsafe impl Bag for () {
     type Value = ();
 
@@ -165,6 +107,7 @@ unsafe impl Bag for () {
     }
 }
 
+// Implement `Bag` for `Option<T>`, which can hold at most one value of type `T`.
 unsafe impl<T: Clone> Bag for Option<T> {
     type Value = T;
 
@@ -199,6 +142,43 @@ unsafe impl<T: Clone> Bag for Option<T> {
         self.iter().cloned()
     }
 }
+
+// Implement `Bag` for arrays of bags, where each element is a bag of the same type.
+unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
+    type Value = (usize, T::Value); // Include index to identify which bag the value came from
+
+    #[inline]
+    fn build() -> Self {
+        core::array::from_fn(|_| T::build())
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.iter().all(|bag| bag.is_empty())
+    }
+
+    #[inline]
+    fn clear(&mut self) {
+        self.iter_mut().for_each(|bag| bag.clear());
+    }
+
+    #[inline]
+    fn add_value(&mut self, (index, event): Self::Value) -> Result<(), Self::Value> {
+        match self.get_mut(index) {
+            Some(elem) => elem.add_value(event).map_err(|err| (index, err)),
+            None => Err((index, event)),
+        }
+    }
+
+    #[inline]
+    fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_ {
+        self.iter()
+            .enumerate()
+            .flat_map(|(index, elem)| elem.get_values().map(move |v| (index, v)))
+    }
+}
+
+// Implement `Bag` for tuples of bags, where each element is a bag of potentially different types.
 
 macro_rules! impl_bag_for_tuple {
     ($($idx:tt => $T:ident),+) => {
@@ -267,66 +247,11 @@ impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T
 impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9);
 impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10);
 impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10, 11 => T11);
+// We could go further, but 12-element tuples are already quite large and rare in practice.
 
 #[cfg(test)]
 mod tests {
     use crate::{bag::propagate, *};
-
-    #[test]
-    fn port_new_is_empty() {
-        let port: Port<u32, 5> = Port::new();
-        assert!(port.is_empty());
-        assert_eq!(port.len(), 0);
-    }
-
-    #[test]
-    fn port_add_value_and_get_values() {
-        let mut port: Port<u32, 5> = Port::new();
-        assert!(port.add_value(1).is_ok());
-        assert!(port.add_value(2).is_ok());
-        assert!(port.add_value(3).is_ok());
-        assert_eq!(port.as_slice(), &[1, 2, 3]);
-    }
-
-    #[test]
-    fn port_add_value_rejects_when_full() {
-        let mut port: Port<u32, 3> = Port::new();
-        assert!(port.add_value(10).is_ok());
-        assert!(port.add_value(20).is_ok());
-        assert!(port.add_value(30).is_ok());
-        assert!(port.is_full());
-        let result = port.add_value(40);
-        assert_eq!(result, Err(40));
-        assert_eq!(port.as_slice(), &[10, 20, 30]);
-    }
-
-    #[test]
-    fn port_add_values_from_slice() {
-        let mut port: Port<u32, 5> = Port::new();
-        assert!(port.add_values([10, 20, 30]).is_ok());
-        assert_eq!(port.len(), 3);
-        assert_eq!(port.as_slice(), &[10, 20, 30]);
-    }
-
-    #[test]
-    fn port_add_values_capacity_error() {
-        let mut port: Port<u32, 3> = Port::new();
-        port.add_values([1, 2, 3]).unwrap();
-        assert!(port.is_full());
-        let result = port.add_values([4]);
-        assert!(result.is_err());
-        assert_eq!(port.as_slice(), &[1, 2, 3]);
-    }
-
-    #[test]
-    fn port_clear_empties() {
-        let mut port: Port<u32, 5> = Port::new();
-        port.add_value(99).unwrap();
-        assert!(!port.is_empty());
-        port.clear();
-        assert!(port.is_empty());
-        assert_eq!(port.len(), 0);
-    }
 
     #[test]
     fn port_couple_copies_values() {
@@ -392,69 +317,6 @@ mod tests {
     }
 
     #[test]
-    fn port_is_full_len_cycle() {
-        let mut port: Port<u32, 3> = Port::new();
-        assert_eq!(port.len(), 0);
-        assert!(port.is_empty());
-        assert!(!port.is_full());
-
-        port.add_value(1).unwrap();
-        assert_eq!(port.len(), 1);
-        assert!(!port.is_empty());
-        assert!(!port.is_full());
-
-        port.add_value(2).unwrap();
-        assert_eq!(port.len(), 2);
-
-        port.add_value(3).unwrap();
-        assert_eq!(port.len(), 3);
-        assert!(port.is_full());
-
-        port.clear();
-        assert_eq!(port.len(), 0);
-        assert!(port.is_empty());
-        assert!(!port.is_full());
-    }
-
-    #[test]
-    fn port_multiple_add_clear_cycle() {
-        let mut port: Port<u32, 3> = Port::new();
-        for _ in 0..3 {
-            port.add_value(99).unwrap();
-            assert_eq!(port.len(), 1);
-            port.clear();
-            assert!(port.is_empty());
-        }
-    }
-
-    #[test]
-    fn port_bag_impl_contract() {
-        let mut bag = <Port<u32, 5> as Bag>::build();
-        assert!(bag.is_empty());
-
-        bag.add_value(7).unwrap();
-        assert!(!bag.is_empty());
-
-        bag.clear();
-        assert!(bag.is_empty());
-    }
-
-    #[test]
-    fn port_bag_get_values_yields_all_in_order() {
-        let mut bag: Port<u32, 5> = Port::new();
-        assert_eq!(bag.get_values().count(), 0);
-
-        bag.add_values([1, 2, 3]).unwrap();
-        let mut collected: ::heapless::Vec<u32, 4> = ::heapless::Vec::new();
-        for v in bag.get_values() {
-            let _ = collected.push(v);
-        }
-        assert_eq!(collected.as_slice(), &[1, 2, 3]);
-        // Source is untouched.
-        assert_eq!(bag.as_slice(), &[1, 2, 3]);
-    }
-
-    #[test]
     fn array_bag_impl_contract() {
         let mut bags = <[Port<u32, 1>; 3] as Bag>::build();
         assert!(bags.is_empty());
@@ -467,22 +329,6 @@ mod tests {
 
         bags.clear();
         assert!(bags.is_empty());
-    }
-
-    #[test]
-    fn port_bag_inject_eject_contract() {
-        let mut bag = <Port<u32, 2> as Bag>::build();
-        assert!(bag.is_empty());
-
-        assert!(bag.add_value(7).is_ok());
-        assert!(bag.add_value(99).is_ok());
-        assert_eq!(bag.add_value(42), Err(42));
-
-        let mut collected: heapless::Vec<u32, 4> = heapless::Vec::new();
-        propagate(&bag, |v| {
-            let _ = collected.push(v);
-        });
-        assert_eq!(collected.as_slice(), &[7, 99]);
     }
 
     #[test]
@@ -849,13 +695,6 @@ mod tests {
         bag.clear();
         assert!(bag.is_empty());
         assert!(bag.0.is_empty() && bag.1.is_empty() && bag.2.is_empty());
-    }
-
-    #[test]
-    fn port_default_creates_empty() {
-        let port: Port<u32, 5> = Default::default();
-        assert!(port.is_empty());
-        assert_eq!(port.len(), 0);
     }
 
     #[derive(crate::Bag)]
