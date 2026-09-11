@@ -3,6 +3,8 @@ mod alloc_impl;
 #[cfg(feature = "alloc")]
 mod hashbrown_impl;
 mod heapless_impl;
+#[cfg(feature = "std")]
+mod std_impl;
 
 /// Trait that defines the methods that a DEVS event bag set must implement.
 ///
