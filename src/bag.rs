@@ -1,3 +1,5 @@
+#[cfg(feature = "alloc")]
+mod alloc_impl;
 mod heapless_impl;
 
 /// Trait that defines the methods that a DEVS event bag set must implement.
