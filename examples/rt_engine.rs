@@ -46,10 +46,10 @@ impl xdevs::Atomic for Transparent {
     fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
         self.sigma -= elapsed;
         for i in 0..3 {
-            if !input.in_job[i].is_empty() {
+            if let Some(value) = input.in_job[i].last() {
                 println!("[Model] received job from processor {}", i);
                 self.next_processor = i;
-                self.next_value = *input.in_job[i].get_values().last().unwrap();
+                self.next_value = *value;
                 self.sigma = 0.0; // Immediate output
                 break;
             }

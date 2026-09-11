@@ -1,4 +1,4 @@
-use crate::{port::Bag, Component, ComponentsKind};
+use crate::{bag::Bag, Component, ComponentsKind};
 use core::{future::Future, time::Duration};
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
@@ -640,8 +640,8 @@ where
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::{
-        port::Port, Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
-        CoupledKind,
+        couple, Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
+        CoupledKind, Port,
     };
 
     pub(crate) struct TestAtomic {
@@ -707,13 +707,13 @@ pub(crate) mod test_utils {
 
     impl Coupled for TestCoupled {
         fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
-            let _ = from.couple(&mut to.a0);
+            let _ = couple(from, &mut to.a0);
         }
         fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-            let _ = from.a0.couple(&mut to.a1);
+            let _ = couple(&from.a0, &mut to.a1);
         }
         fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
-            let _ = from.a1.couple(to);
+            let _ = couple(&from.a1, to);
         }
     }
 
@@ -731,7 +731,7 @@ pub(crate) mod test_utils {
 
     impl Coupled for TestCoupledWithOption {
         fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
-            let _ = from.couple(&mut to.a0);
+            let _ = couple(from, &mut to.a0);
         }
     }
 }
@@ -741,10 +741,9 @@ mod tests {
     use super::test_utils::{TestAtomic, TestCoupled, TestCoupledWithOption};
     use crate::{
         component::coupled::PartialCoupled,
-        port::Port,
         prelude::*,
         simulation::{simulator::Simulator, Config},
-        Component,
+        Component, Port,
     };
     #[test]
     fn simulate_vt_single_event() {
@@ -822,13 +821,13 @@ mod tests {
             |_, t_until, _| t_until,
             |output| {
                 for v in output.get_values() {
-                    captured.add_value(*v).unwrap();
+                    captured.add_value(v).unwrap();
                 }
             },
         );
 
         assert_eq!(
-            captured.get_values(),
+            captured.as_slice(),
             &[99],
             "propagate_output captures lambda output"
         );
@@ -899,12 +898,12 @@ mod tests {
 
         sim.simulate_rt_async(&config, IdentityAsyncInput, |output| {
             for v in output.get_values() {
-                let _ = captured.add_value(*v);
+                let _ = captured.add_value(v);
             }
         })
         .await;
 
-        assert_eq!(captured.get_values(), &[99], "async propagate_output");
+        assert_eq!(captured.as_slice(), &[99], "async propagate_output");
     }
 
     #[test]
@@ -930,8 +929,8 @@ mod tests {
         let mut output = [Port::<usize, 1>::new(), Port::<usize, 1>::new()];
         arr.lambda(&mut output, 0.0);
 
-        assert_eq!(output[0].get_values(), &[99], "first atomic lambda ran");
-        assert_eq!(output[1].get_values(), &[99], "second atomic lambda ran");
+        assert_eq!(output[0].as_slice(), &[99], "first atomic lambda ran");
+        assert_eq!(output[1].as_slice(), &[99], "second atomic lambda ran");
     }
 
     #[test]
@@ -980,7 +979,7 @@ mod tests {
 
         let mut output = Port::<usize, 1>::new();
         opt.lambda(&mut output, 0.0);
-        assert_eq!(output.get_values(), &[99], "Some lambda produces output");
+        assert_eq!(output.as_slice(), &[99], "Some lambda produces output");
 
         let t = opt.delta(&mut Port::new(), &mut Port::new(), 0.0);
         assert_eq!(
@@ -1042,8 +1041,8 @@ mod tests {
         tup.start(0.0);
         let mut out = (Port::<usize, 1>::new(), Port::<usize, 1>::new());
         tup.lambda(&mut out, 0.0);
-        assert_eq!(out.0.get_values(), &[99], "lambda on tuple[0]");
-        assert_eq!(out.1.get_values(), &[99], "lambda on tuple[1]");
+        assert_eq!(out.0.as_slice(), &[99], "lambda on tuple[0]");
+        assert_eq!(out.1.as_slice(), &[99], "lambda on tuple[1]");
     }
 
     #[test]
@@ -1125,7 +1124,7 @@ mod tests {
     #[test]
     fn simulate_vt_with_array() {
         // Coupled model with array of atomics
-        use crate::{ComponentsInput, ComponentsOutput, Coupled, CoupledKind};
+        use crate::{couple, ComponentsInput, ComponentsOutput, Coupled, CoupledKind};
 
         #[crate::to_component]
         struct ArrayCoupledComponents {
@@ -1154,11 +1153,11 @@ mod tests {
 
         impl Coupled for ArrayCoupled {
             fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
-                let _ = from.couple(&mut to.inner[0]);
+                let _ = couple(from, &mut to.inner[0]);
             }
             fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-                let _ = from.inner[0].couple(&mut to.inner[1]);
-                let _ = from.inner[1].couple(&mut to.inner[2]);
+                let _ = couple(&from.inner[0], &mut to.inner[1]);
+                let _ = couple(&from.inner[1], &mut to.inner[2]);
             }
         }
 

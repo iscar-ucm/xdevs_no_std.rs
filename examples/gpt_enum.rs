@@ -2,6 +2,7 @@
 /// chosen at build time between a fast and a slow variant, without any
 /// conditional logic in the coupled model.
 use xdevs::{
+    couple,
     gpt::{Generator, Transducer},
     prelude::*,
     CoupledKind,
@@ -40,7 +41,7 @@ mod processor {
         }
         fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
             self.sigma -= elapsed;
-            if let Some(&job) = input.get_values().last() {
+            if let Some(&job) = input.last() {
                 if self.job.is_none() {
                     println!("[P-fast] received job {}", job);
                     self.job = Some(job);
@@ -90,7 +91,7 @@ mod processor {
         }
         fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
             self.sigma -= elapsed;
-            if let Some(&job) = input.get_values().last() {
+            if let Some(&job) = input.last() {
                 if self.job.is_none() {
                     println!("[P-slow] received job {}", job);
                     self.job = Some(job);
@@ -132,14 +133,10 @@ impl xdevs::Component for GPT {
 
 impl xdevs::Coupled for GPT {
     fn ic(from: &xdevs::ComponentsOutput<Self>, to: &mut xdevs::ComponentsInput<Self>) {
-        from.generator.couple(&mut to.processor).unwrap();
-        from.processor
-            .couple(&mut to.transducer.in_processor)
-            .unwrap();
-        from.generator
-            .couple(&mut to.transducer.in_generator)
-            .unwrap();
-        from.transducer.couple(&mut to.generator).unwrap();
+        couple(&from.generator, &mut to.processor).unwrap();
+        couple(&from.processor, &mut to.transducer.in_processor).unwrap();
+        couple(&from.generator, &mut to.transducer.in_generator).unwrap();
+        couple(&from.transducer, &mut to.generator).unwrap();
     }
 }
 

@@ -3,6 +3,7 @@
 /// Topology: one Generator feeds [Processor; N], each with its own Transducer.
 /// The last Transducer sends the stop signal back to the Generator.
 use xdevs::{
+    couple,
     gpt::{Generator, Processor, Transducer},
     prelude::*,
     ComponentsInput, ComponentsOutput, Config, CoupledKind,
@@ -25,16 +26,12 @@ impl<const N: usize> xdevs::Component for GPTArray<N> {
 impl<const N: usize> xdevs::Coupled for GPTArray<N> {
     fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
         for i in 0..N {
-            from.generator.couple(&mut to.processors[i]).unwrap();
-            from.processors[i]
-                .couple(&mut to.transducers[i].in_processor)
-                .unwrap();
-            from.generator
-                .couple(&mut to.transducers[i].in_generator)
-                .unwrap();
+            couple(&from.generator, &mut to.processors[i]).unwrap();
+            couple(&from.processors[i], &mut to.transducers[i].in_processor).unwrap();
+            couple(&from.generator, &mut to.transducers[i].in_generator).unwrap();
         }
         if N > 0 {
-            from.transducers[N - 1].couple(&mut to.generator).unwrap();
+            couple(&from.transducers[N - 1], &mut to.generator).unwrap();
         }
     }
 }

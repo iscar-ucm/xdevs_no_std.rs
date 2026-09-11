@@ -1,6 +1,6 @@
 use crate::{
-    Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind,
-    Port,
+    couple, Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
+    CoupledKind, Port,
 };
 /// Generator that produces jobs at a fixed period until told to stop.
 pub struct Generator {
@@ -33,7 +33,7 @@ impl Atomic for Generator {
 
     fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
         self.sigma -= elapsed;
-        if let Some(&stop) = input.get_values().last() {
+        if let Some(&stop) = input.last() {
             #[cfg(feature = "std")]
             std::println!("[G] received stop: {}", stop);
             if stop {
@@ -88,7 +88,7 @@ impl Atomic for Processor {
 
     fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
         self.sigma -= elapsed;
-        if let Some(&job) = input.get_values().last() {
+        if let Some(&job) = input.last() {
             #[cfg(feature = "std")]
             std::print!("[P] received job {}", job);
             if self.job.is_none() {
@@ -159,8 +159,8 @@ impl Atomic for Transducer {
     fn delta_ext(&mut self, elapsed: f64, input: &Self::Input) {
         self.sigma -= elapsed;
         self.clock += elapsed;
-        self.n_generated += input.in_generator.get_values().len();
-        self.n_processed += input.in_processor.get_values().len();
+        self.n_generated += input.in_generator.len();
+        self.n_processed += input.in_processor.len();
     }
 }
 
@@ -206,14 +206,10 @@ impl Component for GPT {
 
 impl Coupled for GPT {
     fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-        from.generator.couple(&mut to.processor).unwrap();
-        from.processor
-            .couple(&mut to.transducer.in_processor)
-            .unwrap();
-        from.generator
-            .couple(&mut to.transducer.in_generator)
-            .unwrap();
-        from.transducer.couple(&mut to.generator).unwrap();
+        couple(&from.generator, &mut to.processor).unwrap();
+        couple(&from.processor, &mut to.transducer.in_processor).unwrap();
+        couple(&from.generator, &mut to.transducer.in_generator).unwrap();
+        couple(&from.transducer, &mut to.generator).unwrap();
     }
 }
 
@@ -231,16 +227,14 @@ impl Component for EF {
 
 impl Coupled for EF {
     fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-        from.generator
-            .couple(&mut to.transducer.in_generator)
-            .unwrap();
-        from.transducer.couple(&mut to.generator).unwrap();
+        couple(&from.generator, &mut to.transducer.in_generator).unwrap();
+        couple(&from.transducer, &mut to.generator).unwrap();
     }
     fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
-        from.couple(&mut to.transducer.in_processor).unwrap();
+        couple(from, &mut to.transducer.in_processor).unwrap();
     }
     fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
-        from.generator.couple(to).unwrap();
+        couple(&from.generator, to).unwrap();
     }
 }
 
@@ -258,15 +252,15 @@ impl Component for EFP {
 
 impl Coupled for EFP {
     fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-        from.ef.couple(&mut to.processor).unwrap();
-        from.processor.couple(&mut to.ef).unwrap();
+        couple(&from.ef, &mut to.processor).unwrap();
+        couple(&from.processor, &mut to.ef).unwrap();
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{port::Bag, prelude::*, Atomic, Component, Config};
+    use crate::{bag::Bag, prelude::*, Atomic, Component, Config};
 
     #[test]
     fn generator_emits_sequential_jobs() {
@@ -275,19 +269,19 @@ mod tests {
 
         let mut out = <Generator as Component>::Output::build();
         gen.lambda(&mut out);
-        assert_eq!(out.get_values(), &[0], "first job should be 0");
+        assert_eq!(out.as_slice(), &[0], "first job should be 0");
         gen.delta_int();
         assert_eq!(gen.ta(), 1.0, "ta should be the period after delta_int");
         out.clear();
 
         gen.lambda(&mut out);
-        assert_eq!(out.get_values(), &[1], "second job should be 1");
+        assert_eq!(out.as_slice(), &[1], "second job should be 1");
         gen.delta_int();
         assert_eq!(gen.ta(), 1.0, "ta should be the period after delta_int");
         out.clear();
 
         gen.lambda(&mut out);
-        assert_eq!(out.get_values(), &[2], "third job should be 2");
+        assert_eq!(out.as_slice(), &[2], "third job should be 2");
         gen.delta_int();
         assert_eq!(gen.ta(), 1.0, "ta should be the period after delta_int");
         out.clear();
@@ -357,7 +351,7 @@ mod tests {
         assert_eq!(proc.ta(), 2.5, "processor should be busy for 2.5 seconds");
 
         proc.lambda(&mut out);
-        assert_eq!(out.get_values(), &[99]);
+        assert_eq!(out.as_slice(), &[99], "should receive the processed job");
         proc.delta_int();
         assert_eq!(
             proc.ta(),
@@ -382,7 +376,7 @@ mod tests {
         let mut out = <Processor as Component>::Output::build();
         proc.lambda(&mut out);
         assert_eq!(
-            out.get_values(),
+            out.as_slice(),
             &[10],
             "should retain original job when busy"
         );
@@ -394,7 +388,7 @@ mod tests {
 
         let mut out = <Processor as Component>::Output::build();
         proc.lambda(&mut out);
-        assert_eq!(out.get_values(), &[30], "should accept new job after idle");
+        assert_eq!(out.as_slice(), &[30], "should accept new job after idle");
     }
 
     #[test]
@@ -435,7 +429,7 @@ mod tests {
         let trans = Transducer::new(10.0);
         let mut output = <Transducer as Component>::Output::build();
         trans.lambda(&mut output);
-        assert_eq!(output.get_values(), &[true], "should send stop signal");
+        assert_eq!(output.as_slice(), &[true], "should send stop signal");
     }
 
     #[test]
@@ -504,12 +498,12 @@ mod tests {
         let trans = &*sim.components.ef.components.transducer;
         let acceptance = trans.acceptance();
         let throughput = trans.throughput();
-        assert!(
-            acceptance == expected_acceptance,
+        assert_eq!(
+            acceptance, expected_acceptance,
             "acceptance: expected {expected_acceptance}, got {acceptance}",
         );
-        assert!(
-            throughput == expected_throughput,
+        assert_eq!(
+            throughput, expected_throughput,
             "throughput: expected {expected_throughput}, got {throughput}",
         );
     }

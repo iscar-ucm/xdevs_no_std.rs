@@ -2,7 +2,7 @@ use core::future::Future;
 
 pub use crate::export::{RecvError, SubscribeError};
 use crate::{
-    port::Bag,
+    bag::Bag,
     simulation::{AbstractSimulator, AsyncInput, Simulable},
     Component, Duration, Instant,
 };

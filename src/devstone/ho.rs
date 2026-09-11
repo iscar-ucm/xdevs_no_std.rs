@@ -1,5 +1,5 @@
 use super::common::{AtomicModel, Devstone, JobGenerator};
-use crate::{Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
+use crate::{couple, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
 
 /// Output struct for HO models (ref version)
 #[derive(Debug, Default, crate::Bag)]
@@ -22,10 +22,10 @@ impl<const W: usize> Component for LeafModel<W> {
 
 impl<const W: usize> Coupled for LeafModel<W> {
     fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
-        let _ = from.couple(&mut to.atomic);
+        let _ = couple(from, &mut to.atomic);
     }
     fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
-        let _ = from.atomic.couple(&mut to.output_port_1);
+        let _ = couple(&from.atomic, &mut to.output_port_1);
     }
 }
 
@@ -84,22 +84,22 @@ impl<'a, const W: usize> Component for HOModel<'a, W> {
 
 impl<'a, const W: usize> Coupled for HOModel<'a, W> {
     fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
-        let _ = from.couple(&mut to.inner);
+        let _ = couple(from, &mut to.inner);
         for atom_ports in to.atomics.iter_mut() {
-            let _ = from.couple(atom_ports);
+            let _ = couple(from, atom_ports);
         }
     }
 
     fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
-        let _ = from.inner.output_port_1.couple(&mut to.output_port_1);
+        let _ = couple(&from.inner.output_port_1, &mut to.output_port_1);
         for atom_output_ports in from.atomics.iter() {
-            let _ = atom_output_ports.couple(&mut to.output_port_2);
+            let _ = couple(atom_output_ports, &mut to.output_port_2);
         }
     }
 
     fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
         for i in 0..(W.saturating_sub(1)) {
-            let _ = from.atomics[i].couple(&mut to.atomics[i + 1]);
+            let _ = couple(&from.atomics[i], &mut to.atomics[i + 1]);
         }
     }
 }
@@ -123,7 +123,7 @@ impl<'a, const W: usize> Devstone for TopModel<'a, W> {
 
 impl<'a, const W: usize> Coupled for TopModel<'a, W> {
     fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-        let _ = from.generator.couple(&mut to.ho_model);
+        let _ = couple(&from.generator, &mut to.ho_model);
     }
 }
 

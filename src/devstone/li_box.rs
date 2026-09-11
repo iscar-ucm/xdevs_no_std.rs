@@ -1,5 +1,5 @@
 use super::common::{AtomicModel, Devstone, JobGenerator, LeafModel};
-use crate::{Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
+use crate::{couple, Component, ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Port};
 use alloc::boxed::Box;
 
 #[crate::to_component]
@@ -28,14 +28,14 @@ impl<const W: usize> Component for LIModel<W> {
 impl<const W: usize> Coupled for LIModel<W> {
     fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
         for atom_ports in to.atomics.iter_mut() {
-            let _ = from.couple(atom_ports);
+            let _ = couple(from, atom_ports);
         }
 
-        let _ = from.couple(&mut to.inner);
+        let _ = couple(from, &mut to.inner);
     }
 
     fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {
-        let _ = from.inner.couple(to);
+        let _ = couple(&from.inner, to);
     }
 }
 
@@ -71,7 +71,7 @@ impl<const W: usize> Devstone for TopModel<W> {
 
 impl<const W: usize> Coupled for TopModel<W> {
     fn ic(from: &ComponentsOutput<Self>, to: &mut ComponentsInput<Self>) {
-        let _ = from.generator.couple(&mut to.li_model);
+        let _ = couple(&from.generator, &mut to.li_model);
     }
 }
 
