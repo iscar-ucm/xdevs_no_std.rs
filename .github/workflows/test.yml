@@ -29,7 +29,18 @@ jobs:
           - stable
           - nightly
         cargo_flags:
+          - "--no-default-features"
+          - "--features alloc"
+          - "--features embassy"
+          - "--features alloc,embassy"
           - "--features std"
+        exclude: # For some reason, alloc + embassy fails on Windows, so we exclude that combination.
+          - os: windows-latest
+            toolchain: stable
+            cargo_flags: "--features alloc,embassy"
+          - os: windows-latest
+            toolchain: nightly
+            cargo_flags: "--features alloc,embassy"
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
