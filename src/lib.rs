@@ -33,6 +33,14 @@ pub type Port<T, const N: usize> = heapless::Vec<T, N>;
 ///
 /// Intended to be imported with `use xdevs::prelude::*;`.
 pub mod prelude {
-    pub use crate::bag::Bag;
-    pub use crate::simulation::{AbstractSimulator, Simulable};
+    pub use crate::{
+        bag::{adapt_and_couple, couple, Bag},
+        component::{
+            atomic::Atomic,
+            coupled::{ComponentsInput, ComponentsOutput, Coupled},
+            AtomicKind, Component, ComponentsKind, CoupledKind,
+        },
+        simulation::{AbstractSimulator, Config, Simulable},
+        Port,
+    };
 }
