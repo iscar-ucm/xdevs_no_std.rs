@@ -26,11 +26,8 @@ pub mod simulator;
 /// Configuration for the DEVS simulator.
 #[derive(Debug, Clone, Copy)]
 pub struct Config {
-    /// The start time of the simulation.
-    pub t_start: Instant,
-
-    /// The stop time of the simulation.
-    pub t_stop: Instant,
+    /// The duration of the simulation.
+    pub duration: Duration,
 
     /// The time multiplier for the simulation.
     ///
@@ -47,10 +44,9 @@ pub struct Config {
 impl Config {
     /// Creates a new `SimulatorConfig` with the specified parameters.
     #[inline]
-    pub fn new(t_start: Instant, t_stop: Instant, mult: u64, max_jitter: Option<Duration>) -> Self {
+    pub fn new(duration: Duration, mult: u64, max_jitter: Option<Duration>) -> Self {
         Self {
-            t_start,
-            t_stop,
+            duration,
             mult,
             max_jitter,
         }
@@ -58,11 +54,11 @@ impl Config {
 }
 
 impl Default for Config {
-    /// Default configuration runs from time 0 to infinity, with a
+    /// Default configuration runs for an infinite duration, with a
     /// time scale of 1 (real-time simulation) and no maximum jitter.
     #[inline]
     fn default() -> Self {
-        Self::new(Instant::from_secs(0), Instant::MAX, 1, None)
+        Self::new(Duration::MAX, 1, None)
     }
 }
 
@@ -87,15 +83,16 @@ pub unsafe trait AbstractSimulator {
 
     fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: Instant) -> Instant;
 
-    /// Executes simulation from `t_start` to `t_stop` with a virtual clock.
+    /// Executes simulation from time 0 to `config.duration` with a virtual clock.
     #[inline]
     fn simulate_vt(&mut self, config: &Config) {
-        let mut t = config.t_start;
+        let t_stop = Instant::from_ticks(config.duration.as_ticks());
+        let mut t = Instant::MIN;
         let mut t_next_internal = self.start(t);
         let mut component_input = <Self::Input>::build();
         let mut component_output = <Self::Output>::build();
-        while t < config.t_stop {
-            let t_until = Instant::min(t_next_internal, config.t_stop);
+        while t < t_stop {
+            let t_until = Instant::min(t_next_internal, t_stop);
             t = t_until;
             if t >= t_next_internal {
                 t = t_next_internal;
@@ -110,8 +107,8 @@ pub unsafe trait AbstractSimulator {
         self.stop();
     }
 
-    /// Executes simulation from `t_start` to `t_stop` with a real-time clock and
-    /// asynchronous input handling.
+    /// Executes simulation for `config.duration` with a real-time
+    /// clock and asynchronous input handling.
     fn simulate_rt(
         &mut self,
         config: &Config,
@@ -119,18 +116,22 @@ pub unsafe trait AbstractSimulator {
         mut propagate_output: impl FnMut(&Self::Output),
     ) -> impl Future<Output = ()> {
         async move {
-            let mut t = config.t_start;
+            let t0 = Instant::now();
+            let t_stop = Instant::from_ticks(config.duration.as_ticks());
+            let mut t = Instant::from_secs(0);
             let mut t_next_internal = self.start(t);
             let mut component_input = <Self::Input>::build();
             let mut component_output = <Self::Output>::build();
-            while t < config.t_stop {
-                let t_until = Instant::min(t_next_internal, config.t_stop);
+            while t < t_stop {
+                let t_until = Instant::min(t_next_internal, t_stop);
+                let deadline = t0.saturating_add(Duration::from_ticks(t_until.as_ticks()));
                 let future = input_handler.handle(&mut component_input);
-                let _ = embassy_time::with_deadline(t_until, future).await;
-                t = Instant::now();
+                let _ = embassy_time::with_deadline(deadline, future).await;
+                let now = Instant::now();
+                t = Instant::from_ticks(now.duration_since(t0).as_ticks());
                 if t >= t_next_internal {
                     if let Some(max_jitter) = config.max_jitter {
-                        let jitter = t.duration_since(t_next_internal);
+                        let jitter = now.saturating_duration_since(deadline);
                         if jitter > max_jitter {
                             panic!("Jitter too high: {:?} > {:?}", jitter, max_jitter);
                         }
@@ -757,7 +758,7 @@ mod tests {
     #[test]
     fn simulate_vt_single_event() {
         let mut sim = TestAtomic::oneshot(Duration::from_secs(5)).to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_secs(20), 1, None);
+        let config = Config::new(Duration::from_secs(20), 1, None);
         sim.simulate_vt(&config);
 
         assert_eq!(sim.int_calls, 1, "one internal transition");
@@ -768,7 +769,7 @@ mod tests {
     fn simulate_vt_multiple_events() {
         let mut sim =
             TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(2)).to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_secs(9), 1, None);
+        let config = Config::new(Duration::from_secs(9), 1, None);
         sim.simulate_vt(&config);
 
         assert_eq!(sim.int_calls, 5, "expected 5 internal transitions in 9s");
@@ -778,7 +779,7 @@ mod tests {
     #[test]
     fn simulate_vt_no_spurious_transitions() {
         let mut sim = TestAtomic::oneshot(Duration::MAX).to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_secs(10), 1, None);
+        let config = Config::new(Duration::from_secs(10), 1, None);
         sim.simulate_vt(&config);
 
         assert_eq!(sim.int_calls, 0, "no internal events");
@@ -788,7 +789,7 @@ mod tests {
     #[tokio::test]
     async fn simulate_rt_single_event() {
         let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
+        let config = Config::new(Duration::from_millis(10), 1, None);
         sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
         assert_eq!(sim.int_calls, 1, "rt single event");
         assert_eq!(sim.ext_calls, 0, "no external transitions");
@@ -797,7 +798,7 @@ mod tests {
     #[tokio::test]
     async fn simulate_rt_injects_external_input() {
         let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
+        let config = Config::new(Duration::from_millis(10), 1, None);
 
         struct InjectInput {
             injected: bool,
@@ -823,7 +824,7 @@ mod tests {
     #[tokio::test]
     async fn simulate_rt_propagate_output() {
         let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
+        let config = Config::new(Duration::from_millis(10), 1, None);
         let mut captured = Port::<usize, 1>::new();
 
         sim.simulate_rt(&config, IdentityAsyncInput, |output| {
@@ -852,7 +853,7 @@ mod tests {
     #[tokio::test]
     async fn simulate_rt_single_event_async() {
         let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
+        let config = Config::new(Duration::from_millis(10), 1, None);
         sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
         assert_eq!(sim.int_calls, 1, "async single event");
         assert_eq!(sim.ext_calls, 0, "no external transitions");
@@ -861,7 +862,7 @@ mod tests {
     #[tokio::test]
     async fn simulate_rt_external_input_async() {
         let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
+        let config = Config::new(Duration::from_millis(10), 1, None);
 
         struct InjectInput {
             injected: bool,
@@ -886,7 +887,7 @@ mod tests {
     #[tokio::test]
     async fn simulate_rt_propagate_output_async() {
         let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_millis(10), 1, None);
+        let config = Config::new(Duration::from_millis(10), 1, None);
         let mut captured = Port::<usize, 1>::new();
 
         sim.simulate_rt(&config, IdentityAsyncInput, |output| {
@@ -897,6 +898,22 @@ mod tests {
         .await;
 
         assert_eq!(captured.as_slice(), &[99], "async propagate_output");
+    }
+
+    #[tokio::test]
+    async fn simulate_rt_respects_duration() {
+        let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
+        let config = Config::new(Duration::from_millis(20), 1, None);
+
+        let start = Instant::now();
+        sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
+        let elapsed = Instant::now().duration_since(start);
+
+        assert!(
+            elapsed >= Duration::from_millis(20) && elapsed < Duration::from_millis(30),
+            "rt simulation must run for the whole duration, elapsed: {:?}",
+            elapsed
+        );
     }
 
     #[test]
@@ -1108,7 +1125,7 @@ mod tests {
         let a1 = TestAtomic::oneshot(Duration::MAX); // passive, expects external
         let model = TestCoupled::build(a0, a1);
         let mut coord = model.to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_secs(5), 1, None);
+        let config = Config::new(Duration::from_secs(5), 1, None);
         coord.simulate_vt(&config);
 
         let comps = <TestCoupled as PartialCoupled>::get_components(&coord);
@@ -1124,7 +1141,7 @@ mod tests {
         let a0 = TestAtomic::oneshot(Duration::from_secs(1));
         let model = TestCoupledWithOption::build(a0, None);
         let mut coord = model.to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_secs(3), 1, None);
+        let config = Config::new(Duration::from_secs(3), 1, None);
         coord.simulate_vt(&config);
 
         let comps = <TestCoupledWithOption as PartialCoupled>::get_components(&coord);
@@ -1189,7 +1206,7 @@ mod tests {
         );
 
         let mut coord = model.to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_secs(5), 1, None);
+        let config = Config::new(Duration::from_secs(5), 1, None);
         coord.simulate_vt(&config);
 
         let arr = &coord.components.inner;
@@ -1207,22 +1224,15 @@ mod tests {
     #[test]
     fn config_default() {
         let c = Config::default();
-        assert_eq!(c.t_start, Instant::from_secs(0));
-        assert_eq!(c.t_stop, Instant::MAX);
+        assert_eq!(c.duration, Duration::MAX);
         assert_eq!(c.mult, 1);
         assert!(c.max_jitter.is_none());
     }
 
     #[test]
     fn config_custom() {
-        let c = Config::new(
-            Instant::from_secs(1),
-            Instant::from_secs(10),
-            2,
-            Some(Duration::from_millis(100)),
-        );
-        assert_eq!(c.t_start, Instant::from_secs(1));
-        assert_eq!(c.t_stop, Instant::from_secs(10));
+        let c = Config::new(Duration::from_secs(10), 2, Some(Duration::from_millis(100)));
+        assert_eq!(c.duration, Duration::from_secs(10));
         assert_eq!(c.mult, 2);
         assert_eq!(c.max_jitter, Some(Duration::from_millis(100)));
     }

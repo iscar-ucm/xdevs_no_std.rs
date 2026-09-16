@@ -2,7 +2,7 @@
 use xdevs::{
     gpt::{Generator, Processor, Transducer, EF, EFP},
     prelude::*,
-    Config, Duration, Instant,
+    Config, Duration,
 };
 
 fn main() {
@@ -18,6 +18,6 @@ fn main() {
     let efp = EFP::build(ef, processor);
 
     let mut simulator = efp.to_simulator();
-    let config = Config::new(Instant::from_secs(0), Instant::from_secs(14), 1, None);
+    let config = Config::new(Duration::from_secs(14), 1, None);
     simulator.simulate_vt(&config);
 }

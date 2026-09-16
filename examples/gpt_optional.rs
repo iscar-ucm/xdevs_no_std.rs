@@ -3,7 +3,7 @@ use xdevs::{
     couple,
     gpt::{Generator, Processor, Transducer},
     prelude::*,
-    ComponentsInput, ComponentsOutput, CoupledKind, Duration, Instant,
+    ComponentsInput, ComponentsOutput, CoupledKind, Duration,
 };
 
 /// Coupled model with an optional processor, demonstrates
@@ -47,7 +47,7 @@ fn run_gpt(some_processor: bool) {
     println!("\n--- GPT with {} processor ---", label);
     let gpt = GPTOptional::build(Generator::new(period), processor, Transducer::new(obs_time));
     let mut simulator = gpt.to_simulator();
-    let config = xdevs::Config::new(Instant::from_secs(0), Instant::from_secs(14), 1, None);
+    let config = xdevs::Config::new(Duration::from_secs(14), 1, None);
     simulator.simulate_vt(&config);
 }
 

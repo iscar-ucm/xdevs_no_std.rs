@@ -3,7 +3,7 @@ use xdevs::{
     gpt::{Generator, Processor, Transducer, GPT},
     prelude::*,
     simulation::SleepAsync,
-    Config, Duration, Instant,
+    Config, Duration,
 };
 
 #[tokio::main]
@@ -19,7 +19,7 @@ async fn main() {
     let gpt = GPT::build(generator, processor, transducer);
 
     let mut simulator = gpt.to_simulator();
-    let config = Config::new(Instant::from_secs(0), Instant::from_secs(14), 1, None);
+    let config = Config::new(Duration::from_secs(14), 1, None);
     let input_handler = SleepAsync::new();
 
     simulator.simulate_rt(&config, input_handler, |_| {}).await;

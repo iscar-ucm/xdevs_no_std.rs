@@ -260,7 +260,7 @@ impl Coupled for EFP {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{bag::Bag, prelude::*, Atomic, Component, Config, Instant};
+    use crate::{bag::Bag, prelude::*, Atomic, Component, Config};
 
     #[test]
     fn generator_emits_sequential_jobs() {
@@ -484,7 +484,7 @@ mod tests {
         let trans = Transducer::new(obs_time);
         let model = GPT::build(gen, proc, trans);
         let mut sim = model.to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_secs(20), 1, None);
+        let config = Config::new(Duration::from_secs(20), 1, None);
         sim.simulate_vt(&config);
 
         let trans = &*sim.components.transducer;
@@ -527,7 +527,7 @@ mod tests {
         let ef = EF::build(gen, Transducer::new(obs_time));
         let efp = EFP::build(ef, proc);
         let mut sim = efp.to_simulator();
-        let config = Config::new(Instant::from_secs(0), Instant::from_secs(20), 1, None);
+        let config = Config::new(Duration::from_secs(20), 1, None);
         sim.simulate_vt(&config);
 
         let trans = &*sim.components.ef.components.transducer;

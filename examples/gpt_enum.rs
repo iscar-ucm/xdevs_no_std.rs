@@ -5,7 +5,7 @@ use xdevs::{
     couple,
     gpt::{Generator, Transducer},
     prelude::*,
-    CoupledKind, Duration, Instant,
+    CoupledKind, Duration,
 };
 
 mod processor {
@@ -151,7 +151,7 @@ fn run_gpt(processor: processor::Processor) {
     println!("\n--- GPT with {} processor ---", label);
     let gpt = GPT::build(Generator::new(period), processor, Transducer::new(obs_time));
     let mut simulator = gpt.to_simulator();
-    let config = xdevs::Config::new(Instant::from_secs(0), Instant::from_secs(14), 1, None);
+    let config = xdevs::Config::new(Duration::from_secs(14), 1, None);
     simulator.simulate_vt(&config);
 }
 

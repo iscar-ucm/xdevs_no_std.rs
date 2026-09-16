@@ -6,7 +6,7 @@ use xdevs::{
     couple,
     gpt::{Generator, Processor, Transducer},
     prelude::*,
-    ComponentsInput, ComponentsOutput, Config, CoupledKind, Duration, Instant,
+    ComponentsInput, ComponentsOutput, Config, CoupledKind, Duration,
 };
 
 /// Coupled model with an array of processor-transducer pairs.
@@ -49,6 +49,6 @@ fn main() {
     let model = GPTArray::<N>::build(generator, processors, transducers);
 
     let mut simulator = model.to_simulator();
-    let config = Config::new(Instant::from_secs(0), Instant::from_secs(14), 1, None);
+    let config = Config::new(Duration::from_secs(14), 1, None);
     simulator.simulate_vt(&config);
 }
