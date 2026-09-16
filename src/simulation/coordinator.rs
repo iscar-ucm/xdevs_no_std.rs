@@ -79,25 +79,22 @@ unsafe impl<T: Coupled> AbstractSimulator for Coordinator<T> {
 
     #[inline(always)]
     fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: f64) -> f64 {
-        let t_next = self.t_next;
-        if t < t_next && input.is_empty() {
-            return t_next;
+        if t < self.t_next && input.is_empty() {
+            return self.t_next;
         }
 
         T::eic(input, &mut self.components_input);
         T::ic(&self.components_output, &mut self.components_input);
-        let t_next = self.component.get_components_mut().delta(
+        self.t_next = self.component.get_components_mut().delta(
             &mut self.components_input,
             &mut self.components_output,
             t,
         );
 
-        self.t_next = t_next;
-
         input.clear();
         output.clear();
 
-        t_next
+        self.t_next
     }
 }
 

@@ -1143,10 +1143,10 @@ mod tests {
 
         impl crate::component::coupled::PartialCoupled for ArrayCoupled {
             type Components = ArrayCoupledComponents;
-            fn get_components(&self) -> &crate::component::coupled::Components<Self> {
+            fn get_components(&self) -> &Self::Components {
                 &self.components
             }
-            fn get_components_mut(&mut self) -> &mut crate::component::coupled::Components<Self> {
+            fn get_components_mut(&mut self) -> &mut Self::Components {
                 &mut self.components
             }
         }
