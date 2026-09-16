@@ -1,7 +1,7 @@
 //! Implementations of the `Bag` trait for various types of the `heapless` crate.
 
 use super::Bag;
-use heapless::Vec;
+use heapless::{binary_heap, BinaryHeap, Deque, HistoryBuf, Vec};
 
 unsafe impl<T: Clone, const N: usize> Bag for Vec<T, N> {
     type Value = T;
@@ -32,10 +32,110 @@ unsafe impl<T: Clone, const N: usize> Bag for Vec<T, N> {
     }
 }
 
+unsafe impl<T: Clone, const N: usize> Bag for Deque<T, N> {
+    type Value = T;
+
+    #[inline]
+    fn build() -> Self {
+        Self::new()
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+
+    #[inline]
+    fn clear(&mut self) {
+        self.clear()
+    }
+
+    #[inline]
+    fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value> {
+        self.push_back(event)
+    }
+
+    #[inline]
+    fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_ {
+        self.iter().cloned()
+    }
+}
+
+unsafe impl<T: Clone, const N: usize> Bag for HistoryBuf<T, N> {
+    type Value = T;
+
+    #[inline]
+    fn build() -> Self {
+        Self::new()
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+
+    #[inline]
+    fn clear(&mut self) {
+        self.clear()
+    }
+
+    #[inline]
+    fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value> {
+        self.write(event);
+        Ok(())
+    }
+
+    #[inline]
+    fn add_values(
+        &mut self,
+        events: impl IntoIterator<Item = Self::Value>,
+    ) -> Result<(), Self::Value> {
+        self.extend(events);
+        Ok(())
+    }
+
+    #[inline]
+    fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_ {
+        self.iter().cloned()
+    }
+}
+
+unsafe impl<T: Clone + Ord, K: binary_heap::Kind, const N: usize> Bag for BinaryHeap<T, K, N> {
+    type Value = T;
+
+    #[inline]
+    fn build() -> Self {
+        Self::new()
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.is_empty()
+    }
+
+    #[inline]
+    fn clear(&mut self) {
+        self.clear()
+    }
+
+    #[inline]
+    fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value> {
+        self.push(event)
+    }
+
+    /// Note: The order of values returned by `get_values` is not guaranteed to be
+    /// sorted, as `BinaryHeap` does not maintain a sorted order for iteration.
+    #[inline]
+    fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_ {
+        self.iter().cloned()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::bag::propagate;
+    use heapless::binary_heap::Max;
 
     #[test]
     fn vec_new_is_empty() {
@@ -177,5 +277,93 @@ mod tests {
         let vec: Vec<u32, 5> = Default::default();
         assert!(vec.is_empty());
         assert_eq!(vec.len(), 0);
+    }
+
+    #[test]
+    fn deque_bag_impl() {
+        let mut bag = Deque::build();
+        assert!(<Deque<usize, 5> as Bag>::is_empty(&bag)); // to force the trait method is used
+        assert_eq!(bag.len(), 0);
+
+        for i in 0..5 {
+            assert!(bag.add_value(i).is_ok());
+            assert!(!bag.is_empty());
+            assert_eq!(bag.len(), i + 1);
+        }
+
+        assert!(bag.add_value(5).is_err_and(|e| e == 5));
+        assert!(!bag.is_empty());
+        assert_eq!(bag.len(), 5);
+
+        for (i, v) in bag.get_values().enumerate() {
+            assert_eq!(i, v);
+        }
+        assert!(!bag.is_empty());
+        assert_eq!(bag.len(), 5);
+
+        <Deque<usize, 5> as Bag>::clear(&mut bag); // to force the trait method is used
+        assert!(bag.is_empty());
+    }
+
+    #[test]
+    fn historybuf_bag_impl() {
+        let mut bag = HistoryBuf::build();
+        assert!(<HistoryBuf<usize, 5> as Bag>::is_empty(&bag)); // to force the trait method is used
+        assert_eq!(bag.len(), 0);
+
+        for i in 0..5 {
+            for j in 0..5 {
+                let expected_len = if i == 0 { j + 1 } else { 5 };
+
+                assert!(bag.add_value(i * 5 + j).is_ok());
+                assert!(!bag.is_empty());
+                assert_eq!(bag.len(), expected_len);
+            }
+            for (k, v) in bag.get_values().enumerate() {
+                let expected_value = if i == 0 { k } else { i * 5 + k };
+                assert_eq!(v, expected_value);
+            }
+        }
+
+        <HistoryBuf<usize, 5> as Bag>::clear(&mut bag); // to force the trait method is used
+        assert!(bag.is_empty());
+        assert_eq!(bag.len(), 0);
+
+        for i in 0..5 {
+            assert!(bag.add_values(i * 5..i * 5 + 5).is_ok());
+            assert!(!bag.is_empty());
+            assert_eq!(bag.len(), 5);
+            for (k, v) in bag.get_values().enumerate() {
+                let expected_value = i * 5 + k;
+                assert_eq!(v, expected_value);
+            }
+        }
+    }
+
+    #[test]
+    fn binaryheap_bag_impl() {
+        let mut bag = BinaryHeap::<usize, Max, 5>::build();
+        assert!(<BinaryHeap<usize, Max, 5> as Bag>::is_empty(&bag)); // to force the trait method is used
+        assert_eq!(bag.len(), 0);
+
+        for i in 0..5 {
+            assert!(bag.add_value(i).is_ok());
+            assert!(!bag.is_empty());
+            assert_eq!(bag.len(), i + 1);
+        }
+
+        assert!(bag.add_value(5).is_err_and(|e| e == 5));
+        assert!(!bag.is_empty());
+        assert_eq!(bag.len(), 5);
+
+        let vals = bag.get_values().collect::<heapless::Vec<usize, 5>>();
+        assert_eq!(vals.len(), 5);
+        for v in 0..5 {
+            assert!(vals.contains(&v));
+        }
+        assert!(!bag.is_empty());
+
+        <BinaryHeap<usize, Max, 5> as Bag>::clear(&mut bag); // to force the trait method is used
+        assert!(bag.is_empty());
     }
 }
