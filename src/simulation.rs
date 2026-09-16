@@ -31,7 +31,9 @@ pub struct Config {
 
     /// The time multiplier for the simulation.
     ///
-    /// If `mult` is greater than 1, the simulation runs faster than real time.
+    /// Model time advances `mult` times faster than the wall clock. Since
+    /// `duration` is measured in model time, the wall-clock run time is
+    /// `duration / mult`. A value of 0 is treated as 1. Ignored by `simulate_vt`.
     pub mult: u64,
 
     /// The maximum jitter duration allowed in the simulation.
@@ -107,8 +109,9 @@ pub unsafe trait AbstractSimulator {
         self.stop();
     }
 
-    /// Executes simulation for `config.duration` with a real-time
-    /// clock and asynchronous input handling.
+    /// Executes simulation for `config.duration` of model time with a real-time
+    /// clock and asynchronous input handling. Model time advances `config.mult`
+    /// times faster than the wall clock.
     fn simulate_rt(
         &mut self,
         config: &Config,
@@ -116,6 +119,7 @@ pub unsafe trait AbstractSimulator {
         mut propagate_output: impl FnMut(&Self::Output),
     ) -> impl Future<Output = ()> {
         async move {
+            let mult = config.mult.max(1);
             let t0 = Instant::now();
             let t_stop = Instant::from_ticks(config.duration.as_ticks());
             let mut t = Instant::from_secs(0);
@@ -124,11 +128,12 @@ pub unsafe trait AbstractSimulator {
             let mut component_output = <Self::Output>::build();
             while t < t_stop {
                 let t_until = Instant::min(t_next_internal, t_stop);
-                let deadline = t0.saturating_add(Duration::from_ticks(t_until.as_ticks()));
+                let wall_offset = Duration::from_ticks(t_until.as_ticks().div_ceil(mult));
+                let deadline = t0.saturating_add(wall_offset);
                 let future = input_handler.handle(&mut component_input);
                 let _ = embassy_time::with_deadline(deadline, future).await;
                 let now = Instant::now();
-                t = Instant::from_ticks(now.duration_since(t0).as_ticks());
+                t = Instant::from_ticks(now.duration_since(t0).as_ticks().saturating_mul(mult));
                 if t >= t_next_internal {
                     if let Some(max_jitter) = config.max_jitter {
                         let jitter = now.saturating_duration_since(deadline);
@@ -912,6 +917,40 @@ mod tests {
         assert!(
             elapsed >= Duration::from_millis(20) && elapsed < Duration::from_millis(30),
             "rt simulation must run for the whole duration, elapsed: {:?}",
+            elapsed
+        );
+    }
+
+    #[tokio::test]
+    async fn simulate_rt_mult_speeds_up_wall_time() {
+        let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
+        let config = Config::new(Duration::from_millis(200), 4, None);
+
+        let start = Instant::now();
+        sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
+        let elapsed = Instant::now().duration_since(start);
+
+        assert_eq!(sim.int_calls, 1, "internal event fires");
+        assert!(
+            elapsed >= Duration::from_millis(50) && elapsed < Duration::from_millis(60),
+            "mult 4 must run 200ms of model time in ~50ms wall time, elapsed: {:?}",
+            elapsed
+        );
+    }
+
+    #[tokio::test]
+    async fn simulate_rt_mult_zero_clamped_to_one() {
+        let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
+        let config = Config::new(Duration::from_millis(20), 0, None);
+
+        let start = Instant::now();
+        sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
+        let elapsed = Instant::now().duration_since(start);
+
+        assert_eq!(sim.int_calls, 1, "internal event fires");
+        assert!(
+            elapsed >= Duration::from_millis(20),
+            "mult 0 must behave as real time, elapsed: {:?}",
             elapsed
         );
     }
