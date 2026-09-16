@@ -4,24 +4,14 @@ use crate::{simulation::AbstractSimulator, Component, CoupledKind};
 pub trait PartialCoupled: Component<Kind = CoupledKind> {
     /// Type of the inner components of this coupled model.
     type Components: Component
-        + AbstractSimulator<
-            Input = <<Self as PartialCoupled>::Components as Component>::Input,
-            Output = <<Self as PartialCoupled>::Components as Component>::Output,
-        >;
+        + AbstractSimulator<Input = ComponentsInput<Self>, Output = ComponentsOutput<Self>>;
 
-    fn get_components(&self) -> &Components<Self>;
+    /// Returns a reference to the inner components of this coupled model.
+    fn get_components(&self) -> &Self::Components;
 
-    fn get_components_mut(&mut self) -> &mut Components<Self>;
+    /// Returns a mutable reference to the inner components of this coupled model.
+    fn get_components_mut(&mut self) -> &mut Self::Components;
 }
-
-/// Type alias for the inner components of a coupled model.
-pub type Components<T> = <T as PartialCoupled>::Components;
-
-/// Type alias for the input of the inner components of a coupled model.
-pub type ComponentsInput<T> = <<T as PartialCoupled>::Components as Component>::Input;
-
-/// Type alias for the output of the inner components of a coupled model.
-pub type ComponentsOutput<T> = <<T as PartialCoupled>::Components as Component>::Output;
 
 /// Interface for DEVS coupled models. All DEVS coupled models must implement this trait.
 pub trait Coupled: PartialCoupled {
@@ -41,14 +31,20 @@ pub trait Coupled: PartialCoupled {
     fn eoc(from: &ComponentsOutput<Self>, to: &mut Self::Output) {}
 }
 
+/// Type alias for the input of the inner components of a coupled model.
+pub type ComponentsInput<T> = <<T as PartialCoupled>::Components as Component>::Input;
+
+/// Type alias for the output of the inner components of a coupled model.
+pub type ComponentsOutput<T> = <<T as PartialCoupled>::Components as Component>::Output;
+
 impl<T: PartialCoupled> PartialCoupled for &mut T {
     type Components = T::Components;
 
-    fn get_components(&self) -> &Components<Self> {
+    fn get_components(&self) -> &Self::Components {
         T::get_components(&**self)
     }
 
-    fn get_components_mut(&mut self) -> &mut Components<Self> {
+    fn get_components_mut(&mut self) -> &mut Self::Components {
         T::get_components_mut(&mut **self)
     }
 }
@@ -72,11 +68,11 @@ impl<T: Coupled> Coupled for &mut T {
 impl<T: PartialCoupled> PartialCoupled for alloc::boxed::Box<T> {
     type Components = T::Components;
 
-    fn get_components(&self) -> &Components<Self> {
+    fn get_components(&self) -> &Self::Components {
         T::get_components(&**self)
     }
 
-    fn get_components_mut(&mut self) -> &mut Components<Self> {
+    fn get_components_mut(&mut self) -> &mut Self::Components {
         T::get_components_mut(&mut **self)
     }
 }
