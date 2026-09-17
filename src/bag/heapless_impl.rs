@@ -79,12 +79,16 @@ unsafe impl<T: Clone, const N: usize> Bag for HistoryBuf<T, N> {
         self.clear()
     }
 
+    /// Exception: unlike other bags, this never returns `Err`. When the buffer is
+    /// full, the oldest value is overwritten, so events are silently dropped
+    /// instead of rejected.
     #[inline]
     fn add_value(&mut self, event: Self::Value) -> Result<(), Self::Value> {
         self.write(event);
         Ok(())
     }
 
+    /// Always returns `Ok`; see [`Self::add_value`] for the overflow behavior.
     #[inline]
     fn add_values(
         &mut self,
@@ -123,11 +127,24 @@ unsafe impl<T: Clone + Ord, K: binary_heap::Kind, const N: usize> Bag for Binary
         self.push(event)
     }
 
-    /// Note: The order of values returned by `get_values` is not guaranteed to be
-    /// sorted, as `BinaryHeap` does not maintain a sorted order for iteration.
-    #[inline]
-    fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_ {
-        self.iter().cloned()
+    /// Values are yielded in priority order.
+    ///
+    /// # Warning
+    ///
+    /// This `get_values` implementation costs `O(n^2)` per full drain; avoid it in performance-critical code.
+    fn get_values(&self) -> impl Iterator<Item = T> + '_ {
+        let desc = K::ordering() == core::cmp::Ordering::Greater;
+        let mut used = [false; N];
+        (0..self.len()).map(move |_| {
+            let (i, v) = self
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| !used[*i])
+                .min_by(|a, b| if desc { b.1.cmp(a.1) } else { a.1.cmp(b.1) })
+                .unwrap();
+            used[i] = true;
+            v.clone()
+        })
     }
 }
 
@@ -357,13 +374,49 @@ mod tests {
         assert_eq!(bag.len(), 5);
 
         let vals = bag.get_values().collect::<heapless::Vec<usize, 5>>();
-        assert_eq!(vals.len(), 5);
-        for v in 0..5 {
-            assert!(vals.contains(&v));
-        }
+        assert_eq!(vals.as_slice(), &[4, 3, 2, 1, 0]);
         assert!(!bag.is_empty());
 
         <BinaryHeap<usize, Max, 5> as Bag>::clear(&mut bag); // to force the trait method is used
         assert!(bag.is_empty());
+    }
+
+    #[test]
+    fn binaryheap_get_values_is_ordered_and_non_destructive() {
+        let mut bag = BinaryHeap::<usize, Max, 8>::build();
+        for v in [3, 1, 4, 1, 5, 9, 2, 6] {
+            bag.add_value(v).unwrap();
+        }
+
+        let first = bag.get_values().collect::<heapless::Vec<usize, 8>>();
+        let second = bag.get_values().collect::<heapless::Vec<usize, 8>>();
+        assert_eq!(first.as_slice(), &[9, 6, 5, 4, 3, 2, 1, 1]);
+        assert_eq!(second.as_slice(), first.as_slice());
+        assert_eq!(bag.len(), 8);
+    }
+
+    #[test]
+    fn binaryheap_min_get_values_is_ascending() {
+        use heapless::binary_heap::Min;
+
+        let mut bag = BinaryHeap::<usize, Min, 8>::build();
+        for v in [3, 1, 4, 1, 5, 9, 2, 6] {
+            bag.add_value(v).unwrap();
+        }
+
+        let vals = bag.get_values().collect::<heapless::Vec<usize, 8>>();
+        assert_eq!(vals.as_slice(), &[1, 1, 2, 3, 4, 5, 6, 9]);
+    }
+
+    #[test]
+    fn binaryheap_couple_preserves_priority_order() {
+        let mut heap = BinaryHeap::<usize, Max, 5>::build();
+        for v in [2, 4, 1, 5, 3] {
+            heap.add_value(v).unwrap();
+        }
+
+        let mut port: heapless::Vec<usize, 5> = heapless::Vec::new();
+        crate::bag::couple(&heap, &mut port).unwrap();
+        assert_eq!(port.as_slice(), &[5, 4, 3, 2, 1]);
     }
 }
