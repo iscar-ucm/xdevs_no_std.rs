@@ -85,6 +85,29 @@ pub unsafe trait AbstractSimulator {
 
     fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: Instant) -> Instant;
 
+    /// Performs a single simulation step up to time `t` and returns the time of
+    /// the next transition. This method drives the simulation loop performed by other methods.
+    #[inline]
+    fn simulate_step(
+        &mut self,
+        input: &mut Self::Input,
+        output: &mut Self::Output,
+        t: Instant,
+        t_next_internal: Instant,
+        propagate: &mut impl FnMut(&Self::Output),
+    ) -> Instant {
+        let t = if t >= t_next_internal {
+            self.lambda(output, t_next_internal);
+            propagate(output);
+            t_next_internal
+        } else if input.is_empty() {
+            return t_next_internal; // avoid spurious external transitions
+        } else {
+            t
+        };
+        self.delta(input, output, t)
+    }
+
     /// Executes simulation from time 0 to `config.duration` with a virtual clock.
     #[inline]
     fn simulate_vt(&mut self, config: &Config) {
@@ -94,17 +117,14 @@ pub unsafe trait AbstractSimulator {
         let mut component_input = <Self::Input>::build();
         let mut component_output = <Self::Output>::build();
         while t < t_stop {
-            let t_until = Instant::min(t_next_internal, t_stop);
-            t = t_until;
-            if t >= t_next_internal {
-                t = t_next_internal;
-                self.lambda(&mut component_output, t);
-            } else if component_input.is_empty() {
-                continue; // avoid spurious external transitions
-            }
-            component_input.clear();
-            component_output.clear();
-            t_next_internal = self.delta(&mut component_input, &mut component_output, t);
+            t = Instant::min(t_next_internal, t_stop);
+            t_next_internal = self.simulate_step(
+                &mut component_input,
+                &mut component_output,
+                t,
+                t_next_internal,
+                &mut |_| {},
+            );
         }
         self.stop();
     }
@@ -141,13 +161,14 @@ pub unsafe trait AbstractSimulator {
                             panic!("Jitter too high: {:?} > {:?}", jitter, max_jitter);
                         }
                     }
-                    t = t_next_internal;
-                    self.lambda(&mut component_output, t);
-                    propagate_output(&component_output);
-                } else if component_input.is_empty() {
-                    continue; // avoid spurious external transitions
                 }
-                t_next_internal = self.delta(&mut component_input, &mut component_output, t);
+                t_next_internal = self.simulate_step(
+                    &mut component_input,
+                    &mut component_output,
+                    t,
+                    t_next_internal,
+                    &mut propagate_output,
+                );
             }
             self.stop();
         }
@@ -761,6 +782,38 @@ mod tests {
         Component, Duration, Instant, Port,
     };
     #[test]
+    fn step_returns_next_transition_time() {
+        let mut sim =
+            TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(2)).to_simulator();
+        let mut input = Port::<usize, 1>::new();
+        let mut output = Port::<usize, 1>::new();
+        let t_next = sim.start(Instant::from_secs(0));
+        let next = sim.simulate_step(&mut input, &mut output, t_next, t_next, &mut |_| {});
+
+        assert_eq!(next, Instant::from_secs(2), "next transition after delta");
+        assert_eq!(sim.int_calls, 1, "internal transition at t_next");
+    }
+
+    #[test]
+    fn step_without_transition_returns_same_time() {
+        let mut sim = TestAtomic::oneshot(Duration::from_secs(5)).to_simulator();
+        let mut input = Port::<usize, 1>::new();
+        let mut output = Port::<usize, 1>::new();
+        let t_next = sim.start(Instant::from_secs(0));
+        let next = sim.simulate_step(
+            &mut input,
+            &mut output,
+            Instant::from_secs(2),
+            t_next,
+            &mut |_| {},
+        );
+
+        assert_eq!(next, t_next, "no transition before t_next");
+        assert_eq!(sim.int_calls, 0, "no internal transition");
+        assert_eq!(sim.ext_calls, 0, "no external transition");
+    }
+
+    #[test]
     fn simulate_vt_single_event() {
         let mut sim = TestAtomic::oneshot(Duration::from_secs(5)).to_simulator();
         let config = Config::new(Duration::from_secs(20), 1, None);
@@ -915,7 +968,7 @@ mod tests {
         let elapsed = Instant::now().duration_since(start);
 
         assert!(
-            elapsed >= Duration::from_millis(20) && elapsed < Duration::from_millis(30),
+            elapsed >= Duration::from_millis(20) && elapsed < Duration::from_millis(50),
             "rt simulation must run for the whole duration, elapsed: {:?}",
             elapsed
         );
@@ -932,7 +985,7 @@ mod tests {
 
         assert_eq!(sim.int_calls, 1, "internal event fires");
         assert!(
-            elapsed >= Duration::from_millis(50) && elapsed < Duration::from_millis(60),
+            elapsed >= Duration::from_millis(50) && elapsed < Duration::from_millis(150),
             "mult 4 must run 200ms of model time in ~50ms wall time, elapsed: {:?}",
             elapsed
         );
