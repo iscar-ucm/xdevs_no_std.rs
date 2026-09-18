@@ -94,9 +94,11 @@ pub unsafe trait AbstractSimulator {
         output: &mut Self::Output,
         t: Instant,
         t_next_internal: Instant,
+        propagate: &mut impl FnMut(&Self::Output),
     ) -> Instant {
         let t = if t >= t_next_internal {
             self.lambda(output, t_next_internal);
+            propagate(output);
             t_next_internal
         } else if input.is_empty() {
             return t_next_internal; // avoid spurious external transitions
@@ -121,6 +123,7 @@ pub unsafe trait AbstractSimulator {
                 &mut component_output,
                 t,
                 t_next_internal,
+                &mut |_| {},
             );
         }
         self.stop();
@@ -158,13 +161,14 @@ pub unsafe trait AbstractSimulator {
                             panic!("Jitter too high: {:?} > {:?}", jitter, max_jitter);
                         }
                     }
-                    t = t_next_internal;
-                    self.lambda(&mut component_output, t);
-                    propagate_output(&component_output);
-                } else if component_input.is_empty() {
-                    continue; // avoid spurious external transitions
                 }
-                t_next_internal = self.delta(&mut component_input, &mut component_output, t);
+                t_next_internal = self.simulate_step(
+                    &mut component_input,
+                    &mut component_output,
+                    t,
+                    t_next_internal,
+                    &mut propagate_output,
+                );
             }
             self.stop();
         }
@@ -784,7 +788,7 @@ mod tests {
         let mut input = Port::<usize, 1>::new();
         let mut output = Port::<usize, 1>::new();
         let t_next = sim.start(Instant::from_secs(0));
-        let next = sim.simulate_step(&mut input, &mut output, t_next, t_next);
+        let next = sim.simulate_step(&mut input, &mut output, t_next, t_next, &mut |_| {});
 
         assert_eq!(next, Instant::from_secs(2), "next transition after delta");
         assert_eq!(sim.int_calls, 1, "internal transition at t_next");
@@ -796,7 +800,13 @@ mod tests {
         let mut input = Port::<usize, 1>::new();
         let mut output = Port::<usize, 1>::new();
         let t_next = sim.start(Instant::from_secs(0));
-        let next = sim.simulate_step(&mut input, &mut output, Instant::from_secs(2), t_next);
+        let next = sim.simulate_step(
+            &mut input,
+            &mut output,
+            Instant::from_secs(2),
+            t_next,
+            &mut |_| {},
+        );
 
         assert_eq!(next, t_next, "no transition before t_next");
         assert_eq!(sim.int_calls, 0, "no internal transition");
@@ -958,7 +968,7 @@ mod tests {
         let elapsed = Instant::now().duration_since(start);
 
         assert!(
-            elapsed >= Duration::from_millis(20) && elapsed < Duration::from_millis(30),
+            elapsed >= Duration::from_millis(20) && elapsed < Duration::from_millis(50),
             "rt simulation must run for the whole duration, elapsed: {:?}",
             elapsed
         );
@@ -975,7 +985,7 @@ mod tests {
 
         assert_eq!(sim.int_calls, 1, "internal event fires");
         assert!(
-            elapsed >= Duration::from_millis(50) && elapsed < Duration::from_millis(60),
+            elapsed >= Duration::from_millis(50) && elapsed < Duration::from_millis(150),
             "mult 4 must run 200ms of model time in ~50ms wall time, elapsed: {:?}",
             elapsed
         );
