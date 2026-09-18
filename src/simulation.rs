@@ -102,8 +102,6 @@ pub unsafe trait AbstractSimulator {
             } else if component_input.is_empty() {
                 continue; // avoid spurious external transitions
             }
-            component_input.clear();
-            component_output.clear();
             t_next_internal = self.delta(&mut component_input, &mut component_output, t);
         }
         self.stop();
