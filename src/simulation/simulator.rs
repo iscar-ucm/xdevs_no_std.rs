@@ -1,15 +1,15 @@
 use crate::{
     bag::Bag,
     simulation::{AbstractSimulator, Simulable},
-    Atomic, AtomicKind, Instant,
+    Atomic, AtomicKind, Duration,
 };
 use core::ops::{Deref, DerefMut};
 
 /// Processor that wraps a DEVS component and implements the logic for simulating it.
 pub struct Simulator<T: Atomic> {
     component: T,
-    t_last: Instant,
-    t_next: Instant,
+    t_last: Duration,
+    t_next: Duration,
 }
 
 impl<T: Atomic> Simulator<T> {
@@ -18,8 +18,8 @@ impl<T: Atomic> Simulator<T> {
     pub const fn new(component: T) -> Self {
         Self {
             component,
-            t_last: Instant::MAX,
-            t_next: Instant::MAX,
+            t_last: Duration::MAX,
+            t_next: Duration::MAX,
         }
     }
 }
@@ -55,10 +55,10 @@ unsafe impl<T: Atomic> AbstractSimulator for Simulator<T> {
     type Output = T::Output;
 
     #[inline(always)]
-    fn start(&mut self, t_start: Instant) -> Instant {
-        self.t_last = t_start;
+    fn start(&mut self) -> Duration {
+        self.t_last = Duration::MIN;
         self.component.start();
-        let t_next = t_start.saturating_add(self.component.ta());
+        let t_next = self.component.ta();
         self.t_next = t_next;
         t_next
     }
@@ -69,21 +69,26 @@ unsafe impl<T: Atomic> AbstractSimulator for Simulator<T> {
     }
 
     #[inline(always)]
-    fn lambda(&mut self, output: &mut Self::Output, t: Instant) {
+    fn lambda(&mut self, output: &mut Self::Output, t: Duration) {
         if t >= self.t_next {
             self.component.lambda(output);
         }
     }
 
     #[inline(always)]
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: Instant) -> Instant {
+    fn delta(
+        &mut self,
+        input: &mut Self::Input,
+        output: &mut Self::Output,
+        t: Duration,
+    ) -> Duration {
         let t_next = self.t_next;
         if !input.is_empty() {
             if t >= t_next {
                 self.component.delta_conf(input);
                 output.clear();
             } else {
-                let e = t.saturating_duration_since(self.t_last);
+                let e = t.checked_sub(self.t_last).unwrap_or(Duration::MIN);
                 self.component.delta_ext(e, input);
             }
             input.clear();
@@ -93,7 +98,7 @@ unsafe impl<T: Atomic> AbstractSimulator for Simulator<T> {
         } else {
             return t_next;
         }
-        let t_next = t.saturating_add(self.component.ta());
+        let t_next = t.checked_add(self.component.ta()).unwrap_or(Duration::MAX);
         self.t_last = t;
         self.t_next = t_next;
         t_next
@@ -108,16 +113,16 @@ mod tests {
     #[test]
     fn start_sets_timing() {
         let mut sim = Simulator::new(TestAtomic::oneshot(Duration::from_secs(3)));
-        let t_next = sim.start(Instant::from_secs(0));
-        assert_eq!(sim.t_last, Instant::from_secs(0), "t_last = t_start");
-        assert_eq!(sim.t_next, Instant::from_secs(3), "t_next = t_start + ta()");
-        assert_eq!(t_next, Instant::from_secs(3), "start returns t_next");
+        let t_next = sim.start();
+        assert_eq!(sim.t_last, Duration::from_secs(0), "t_last starts at zero");
+        assert_eq!(sim.t_next, Duration::from_secs(3), "t_next = ta()");
+        assert_eq!(t_next, Duration::from_secs(3), "start returns t_next");
     }
 
     #[test]
     fn stop_called() {
         let mut sim = Simulator::new(TestAtomic::oneshot(Duration::from_secs(5)));
-        sim.start(Instant::from_secs(0));
+        sim.start();
         sim.stop();
         // No panic = pass
     }
@@ -125,18 +130,18 @@ mod tests {
     #[test]
     fn lambda_called_on_internal() {
         let mut sim = Simulator::new(TestAtomic::oneshot(Duration::from_secs(3)));
-        sim.start(Instant::from_secs(0));
+        sim.start();
         let mut output = Port::<usize, 1>::new();
-        sim.lambda(&mut output, Instant::from_secs(3));
+        sim.lambda(&mut output, Duration::from_secs(3));
         assert_eq!(output.as_slice(), &[99], "lambda called at t = t_next");
     }
 
     #[test]
     fn lambda_not_called_before_internal() {
         let mut sim = Simulator::new(TestAtomic::oneshot(Duration::from_secs(5)));
-        sim.start(Instant::from_secs(0));
+        sim.start();
         let mut output = Port::<usize, 1>::new();
-        sim.lambda(&mut output, Instant::from_secs(2));
+        sim.lambda(&mut output, Duration::from_secs(2));
         assert!(output.is_empty(), "lambda skipped before t_next");
     }
 
@@ -146,10 +151,10 @@ mod tests {
             Duration::from_secs(0),
             Duration::from_secs(2),
         ));
-        sim.start(Instant::from_secs(0));
+        sim.start();
         let mut output = Port::<usize, 1>::new();
         output.add_value(99).unwrap();
-        sim.delta(&mut Port::new(), &mut output, Instant::from_secs(0));
+        sim.delta(&mut Port::new(), &mut output, Duration::from_secs(0));
         assert_eq!(sim.component.int_calls, 1, "delta_int called");
         assert!(output.is_empty(), "output cleared after delta_int");
     }
@@ -157,11 +162,11 @@ mod tests {
     #[test]
     fn delta_external_transition() {
         let mut sim = Simulator::new(TestAtomic::oneshot(Duration::from_secs(5)));
-        sim.start(Instant::from_secs(0));
+        sim.start();
         let mut input = Port::<usize, 1>::new();
         input.add_value(99).unwrap();
         let mut output = Port::<usize, 1>::new();
-        sim.delta(&mut input, &mut output, Instant::from_secs(2));
+        sim.delta(&mut input, &mut output, Duration::from_secs(2));
         assert_eq!(sim.component.ext_calls, 1, "delta_ext called");
         assert_eq!(
             sim.component.last_elapsed,
@@ -177,12 +182,12 @@ mod tests {
             Duration::from_secs(0),
             Duration::from_secs(5),
         ));
-        sim.start(Instant::from_secs(0));
+        sim.start();
         let mut input = Port::<usize, 1>::new();
         input.add_value(99).unwrap();
         let mut output = Port::<usize, 1>::new();
         output.add_value(99).unwrap();
-        sim.delta(&mut input, &mut output, Instant::from_secs(0));
+        sim.delta(&mut input, &mut output, Duration::from_secs(0));
         assert_eq!(
             sim.component.int_calls, 1,
             "delta_int called (via delta_conf)"
@@ -198,9 +203,9 @@ mod tests {
     #[test]
     fn delta_no_transition() {
         let mut sim = Simulator::new(TestAtomic::oneshot(Duration::from_secs(5)));
-        sim.start(Instant::from_secs(0));
-        let t_next = sim.delta(&mut Port::new(), &mut Port::new(), Instant::from_secs(2));
-        assert_eq!(t_next, Instant::from_secs(5), "returns unchanged t_next");
+        sim.start();
+        let t_next = sim.delta(&mut Port::new(), &mut Port::new(), Duration::from_secs(2));
+        assert_eq!(t_next, Duration::from_secs(5), "returns unchanged t_next");
         assert_eq!(sim.component.int_calls, 0, "no delta_int");
         assert_eq!(sim.component.ext_calls, 0, "no delta_ext");
     }
@@ -211,12 +216,12 @@ mod tests {
             Duration::from_secs(0),
             Duration::from_secs(3),
         ));
-        sim.start(Instant::from_secs(0));
-        sim.delta(&mut Port::new(), &mut Port::new(), Instant::from_secs(0));
-        assert_eq!(sim.t_last, Instant::from_secs(0), "t_last = t");
+        sim.start();
+        sim.delta(&mut Port::new(), &mut Port::new(), Duration::from_secs(0));
+        assert_eq!(sim.t_last, Duration::from_secs(0), "t_last = t");
         assert_eq!(
             sim.t_next,
-            Instant::from_secs(3),
+            Duration::from_secs(3),
             "t_next = t + ta() (= period)"
         );
     }

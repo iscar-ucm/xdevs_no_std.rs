@@ -1,7 +1,7 @@
 use crate::{
     bag::Bag,
     simulation::{AbstractSimulator, Simulable},
-    ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Instant,
+    ComponentsInput, ComponentsOutput, Coupled, CoupledKind, Duration,
 };
 use core::ops::{Deref, DerefMut};
 
@@ -10,7 +10,7 @@ pub struct Coordinator<T: Coupled> {
     component: T,
     components_input: ComponentsInput<T>,
     components_output: ComponentsOutput<T>,
-    t_next: Instant,
+    t_next: Duration,
 }
 
 impl<T: Coupled> Coordinator<T> {
@@ -21,7 +21,7 @@ impl<T: Coupled> Coordinator<T> {
             component,
             components_input: ComponentsInput::<T>::build(),
             components_output: ComponentsOutput::<T>::build(),
-            t_next: Instant::MAX,
+            t_next: Duration::MAX,
         }
     }
 }
@@ -56,8 +56,8 @@ unsafe impl<T: Coupled> AbstractSimulator for Coordinator<T> {
     type Output = T::Output;
 
     #[inline(always)]
-    fn start(&mut self, t_start: Instant) -> Instant {
-        let t_next = self.component.get_components_mut().start(t_start);
+    fn start(&mut self) -> Duration {
+        let t_next = self.component.get_components_mut().start();
         self.t_next = t_next;
         t_next
     }
@@ -68,7 +68,7 @@ unsafe impl<T: Coupled> AbstractSimulator for Coordinator<T> {
     }
 
     #[inline(always)]
-    fn lambda(&mut self, output: &mut Self::Output, t: Instant) {
+    fn lambda(&mut self, output: &mut Self::Output, t: Duration) {
         if t >= self.t_next {
             self.component
                 .get_components_mut()
@@ -78,7 +78,12 @@ unsafe impl<T: Coupled> AbstractSimulator for Coordinator<T> {
     }
 
     #[inline(always)]
-    fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: Instant) -> Instant {
+    fn delta(
+        &mut self,
+        input: &mut Self::Input,
+        output: &mut Self::Output,
+        t: Duration,
+    ) -> Duration {
         if t < self.t_next && input.is_empty() {
             return self.t_next;
         }
@@ -114,8 +119,8 @@ mod tests {
         let a1 = TestAtomic::oneshot(Duration::from_secs(7));
         let model = TestCoupled::build(a0, a1);
         let mut coord = Coordinator::new(model);
-        let t = coord.start(Instant::from_secs(0));
-        assert_eq!(t, Instant::from_secs(3), "start returns min t_next");
+        let t = coord.start();
+        assert_eq!(t, Duration::from_secs(3), "start returns min t_next");
     }
 
     #[test]
@@ -125,7 +130,7 @@ mod tests {
             TestAtomic::oneshot(Duration::from_secs(1)),
         );
         let mut coord = Coordinator::new(model);
-        coord.start(Instant::from_secs(0));
+        coord.start();
         coord.stop();
         // No panic = pass
     }
@@ -137,9 +142,9 @@ mod tests {
             TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(1)),
         );
         let mut coord = Coordinator::new(model);
-        coord.start(Instant::from_secs(0));
+        coord.start();
         let mut output = Port::<usize, 1>::new();
-        coord.lambda(&mut output, Instant::from_secs(0));
+        coord.lambda(&mut output, Duration::from_secs(0));
         assert_eq!(output.as_slice(), &[99], "eoc copies a1 output");
     }
 
@@ -150,9 +155,9 @@ mod tests {
             TestAtomic::oneshot(Duration::MAX),
         );
         let mut coord = Coordinator::new(model);
-        coord.start(Instant::from_secs(0));
+        coord.start();
         let mut output = Port::<usize, 1>::new();
-        coord.lambda(&mut output, Instant::from_secs(0));
+        coord.lambda(&mut output, Duration::from_secs(0));
         assert!(output.is_empty(), "lambda no-op before t_next");
     }
 
@@ -163,9 +168,9 @@ mod tests {
             TestAtomic::oneshot(Duration::MAX),
         );
         let mut coord = Coordinator::new(model);
-        coord.start(Instant::from_secs(0));
-        let t = coord.delta(&mut Port::new(), &mut Port::new(), Instant::from_secs(0));
-        assert_eq!(t, Instant::MAX, "early return when no work");
+        coord.start();
+        let t = coord.delta(&mut Port::new(), &mut Port::new(), Duration::from_secs(0));
+        assert_eq!(t, Duration::MAX, "early return when no work");
     }
 
     #[test]
@@ -174,11 +179,11 @@ mod tests {
         let a1 = TestAtomic::oneshot(Duration::MAX);
         let model = TestCoupled::build(a0, a1);
         let mut coord = Coordinator::new(model);
-        coord.start(Instant::from_secs(0));
+        coord.start();
 
         let mut input = Port::<usize, 1>::new();
         input.add_value(99).unwrap();
-        coord.delta(&mut input, &mut Port::new(), Instant::from_secs(3));
+        coord.delta(&mut input, &mut Port::new(), Duration::from_secs(3));
 
         let comps = <TestCoupled as PartialCoupled>::get_components(&coord);
         assert_eq!(comps.a0.ext_calls, 1, "eic copies external input to a0");
@@ -200,12 +205,12 @@ mod tests {
         let a1 = TestAtomic::oneshot(Duration::MAX);
         let model = TestCoupled::build(a0, a1);
         let mut coord = Coordinator::new(model);
-        coord.start(Instant::from_secs(0));
+        coord.start();
 
         // Lambda: a0 writes 99 to components_output[0]
-        coord.lambda(&mut Port::new(), Instant::from_secs(0));
+        coord.lambda(&mut Port::new(), Duration::from_secs(0));
         // Delta: ic copies components_output[0] → components_input[1] → a1 delta_ext
-        coord.delta(&mut Port::new(), &mut Port::new(), Instant::from_secs(0));
+        coord.delta(&mut Port::new(), &mut Port::new(), Duration::from_secs(0));
 
         let comps = <TestCoupled as PartialCoupled>::get_components(&coord);
         assert_eq!(comps.a1.ext_calls, 1, "ic routes a0's output to a1's input");

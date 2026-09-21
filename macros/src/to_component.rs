@@ -16,10 +16,10 @@ fn sim_send_predicates(item_tys: &[syn::Type]) -> Vec<TokenStream2> {
         .collect()
 }
 
-// Recursive helper: balanced rayon::join tree that returns xdevs::Instant (start/delta).
+// Recursive helper: balanced rayon::join tree that returns xdevs::Duration (start/delta).
 fn join_min_tree(fields: &[&Ident], make_leaf: &dyn Fn(&Ident) -> TokenStream2) -> TokenStream2 {
     match fields.len() {
-        0 => quote::quote! { ::xdevs::Instant::MAX },
+        0 => quote::quote! { ::xdevs::Duration::MAX },
         1 => make_leaf(fields[0]),
         n => {
             let mid = n / 2;
@@ -30,7 +30,7 @@ fn join_min_tree(fields: &[&Ident], make_leaf: &dyn Fn(&Ident) -> TokenStream2) 
                     || { #left },
                     || { #right },
                 );
-                ::xdevs::Instant::min(l, r)
+                ::xdevs::Duration::min(l, r)
             }}
         }
     }
@@ -112,7 +112,7 @@ pub fn expand_struct(item: ItemStruct) -> Result<TokenStream2> {
 
         let par_start_leaf = |f: &Ident| {
             quote::quote! {
-                ::xdevs::simulation::AbstractSimulator::start(&mut self.#f, t_start)
+                ::xdevs::simulation::AbstractSimulator::start(&mut self.#f)
             }
         };
         let par_start = join_min_tree(&refs, &par_start_leaf);
@@ -145,7 +145,7 @@ pub fn expand_struct(item: ItemStruct) -> Result<TokenStream2> {
                 type Output = <Self as ::xdevs::Component>::Output;
 
                 #[inline(always)]
-                fn start(&mut self, t_start: ::xdevs::Instant) -> ::xdevs::Instant {
+                fn start(&mut self) -> ::xdevs::Duration {
                     #par_start
                 }
 
@@ -155,12 +155,12 @@ pub fn expand_struct(item: ItemStruct) -> Result<TokenStream2> {
                 }
 
                 #[inline(always)]
-                fn lambda(&mut self, output: &mut Self::Output, t: ::xdevs::Instant) {
+                fn lambda(&mut self, output: &mut Self::Output, t: ::xdevs::Duration) {
                     #par_lambda
                 }
 
                 #[inline(always)]
-                fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: ::xdevs::Instant) -> ::xdevs::Instant {
+                fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: ::xdevs::Duration) -> ::xdevs::Duration {
                     #par_delta
                 }
             }
@@ -173,9 +173,9 @@ pub fn expand_struct(item: ItemStruct) -> Result<TokenStream2> {
                     type Output = <Self as ::xdevs::Component>::Output;
 
                 #[inline(always)]
-                fn start(&mut self, t_start: ::xdevs::Instant) -> ::xdevs::Instant {
-                    let mut t_next = ::xdevs::Instant::MAX;
-                    #(t_next = ::xdevs::Instant::min(t_next, ::xdevs::simulation::AbstractSimulator::start(&mut self.#item_fields, t_start));)*
+                fn start(&mut self) -> ::xdevs::Duration {
+                    let mut t_next = ::xdevs::Duration::MAX;
+                    #(t_next = ::xdevs::Duration::min(t_next, ::xdevs::simulation::AbstractSimulator::start(&mut self.#item_fields));)*
                     t_next
                 }
 
@@ -185,14 +185,14 @@ pub fn expand_struct(item: ItemStruct) -> Result<TokenStream2> {
                     }
 
                 #[inline(always)]
-                fn lambda(&mut self, output: &mut Self::Output, t: ::xdevs::Instant) {
+                fn lambda(&mut self, output: &mut Self::Output, t: ::xdevs::Duration) {
                     #(::xdevs::simulation::AbstractSimulator::lambda(&mut self.#item_fields, &mut output.#item_fields, t);)*
                 }
 
                 #[inline(always)]
-                fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: ::xdevs::Instant) -> ::xdevs::Instant {
-                    let mut t_next = ::xdevs::Instant::MAX;
-                    #(t_next = ::xdevs::Instant::min(t_next, ::xdevs::simulation::AbstractSimulator::delta(
+                fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: ::xdevs::Duration) -> ::xdevs::Duration {
+                    let mut t_next = ::xdevs::Duration::MAX;
+                    #(t_next = ::xdevs::Duration::min(t_next, ::xdevs::simulation::AbstractSimulator::delta(
                             &mut self.#item_fields,
                             &mut input.#item_fields,
                             &mut output.#item_fields,
@@ -286,7 +286,7 @@ pub fn expand_enum(mut item: ItemEnum) -> Result<TokenStream2> {
 
     let start_arms = variant_idents.iter().map(|ident| {
         quote::quote! {
-            #item_ident::#ident(inner) => ::xdevs::simulation::AbstractSimulator::start(inner, t_start)
+            #item_ident::#ident(inner) => ::xdevs::simulation::AbstractSimulator::start(inner)
         }
     });
 
@@ -322,7 +322,7 @@ pub fn expand_enum(mut item: ItemEnum) -> Result<TokenStream2> {
             type Output = <#first_variant_ty as ::xdevs::Component>::Output;
 
             #[inline(always)]
-            fn start(&mut self, t_start: ::xdevs::Instant) -> ::xdevs::Instant {
+            fn start(&mut self) -> ::xdevs::Duration {
                 match self {
                     #(#start_arms),*
                 }
@@ -336,14 +336,14 @@ pub fn expand_enum(mut item: ItemEnum) -> Result<TokenStream2> {
             }
 
             #[inline(always)]
-            fn lambda(&mut self, output: &mut Self::Output, t: ::xdevs::Instant) {
+            fn lambda(&mut self, output: &mut Self::Output, t: ::xdevs::Duration) {
                 match self {
                     #(#lambda_arms),*
                 }
             }
 
             #[inline(always)]
-            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: ::xdevs::Instant) -> ::xdevs::Instant {
+            fn delta(&mut self, input: &mut Self::Input, output: &mut Self::Output, t: ::xdevs::Duration) -> ::xdevs::Duration {
                 match self {
                     #(#delta_arms),*
                 }
