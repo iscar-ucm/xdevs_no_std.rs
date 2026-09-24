@@ -56,7 +56,7 @@ unsafe impl<T: Atomic> AbstractSimulator for Simulator<T> {
 
     #[inline(always)]
     fn start(&mut self) -> Duration {
-        self.t_last = Duration::MIN;
+        self.t_last = Duration::ZERO;
         self.component.start();
         let t_next = self.component.ta();
         self.t_next = t_next;
@@ -88,7 +88,7 @@ unsafe impl<T: Atomic> AbstractSimulator for Simulator<T> {
                 self.component.delta_conf(input);
                 output.clear();
             } else {
-                let e = t.checked_sub(self.t_last).unwrap_or(Duration::MIN);
+                let e = t.checked_sub(self.t_last).unwrap_or(Duration::ZERO);
                 self.component.delta_ext(e, input);
             }
             input.clear();

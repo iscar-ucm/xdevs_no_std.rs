@@ -463,19 +463,19 @@ mod tests {
         let processing_time = Duration::from_millis(2500);
         let obs_time = Duration::from_secs(10);
 
-        let obs_ticks = obs_time.as_ticks();
-        let period_ticks = period.as_ticks();
-        let proc_ticks = processing_time.as_ticks();
+        let obs_us = obs_time.as_micros();
+        let period_us = period.as_micros();
+        let proc_us = processing_time.as_micros();
 
-        let n_generated = (obs_ticks / period_ticks) as usize + 1;
-        let k = proc_ticks.div_ceil(period_ticks) as usize;
+        let n_generated = (obs_us / period_us) + 1;
+        let k = proc_us.div_ceil(period_us);
         let n_processed = 1 + (n_generated - 1) / k;
-        let last_completion_ticks = ((n_processed - 1) * k) as u64 * period_ticks + proc_ticks;
-        let clock_ticks = last_completion_ticks.max(obs_ticks);
+        let last_completion_us = ((n_processed - 1) * k) * period_us + proc_us;
+        let clock_us = last_completion_us.max(obs_us);
 
         let expected_acceptance = n_processed as f64 / n_generated as f64;
 
-        let clock_secs = (clock_ticks / embassy_time::TICK_HZ) as f64;
+        let clock_secs = (clock_us / 1_000_000) as f64;
 
         let expected_throughput = n_processed as f64 / clock_secs;
 
@@ -506,19 +506,19 @@ mod tests {
         let processing_time = Duration::from_millis(2500);
         let obs_time = Duration::from_secs(10);
 
-        let obs_ticks = obs_time.as_ticks();
-        let period_ticks = period.as_ticks();
-        let proc_ticks = processing_time.as_ticks();
+        let obs_us = obs_time.as_micros();
+        let period_us = period.as_micros();
+        let proc_us = processing_time.as_micros();
 
-        let n_generated = (obs_ticks / period_ticks) as usize + 1;
-        let k = proc_ticks.div_ceil(period_ticks) as usize;
+        let n_generated = (obs_us / period_us) + 1;
+        let k = proc_us.div_ceil(period_us);
         let n_processed = 1 + (n_generated - 1) / k;
-        let last_completion_ticks = ((n_processed - 1) * k) as u64 * period_ticks + proc_ticks;
-        let clock_ticks = last_completion_ticks.max(obs_ticks);
+        let last_completion_us = ((n_processed - 1) * k) * period_us + proc_us;
+        let clock_us = last_completion_us.max(obs_us);
 
         let expected_acceptance = n_processed as f64 / n_generated as f64;
 
-        let clock_secs = (clock_ticks / embassy_time::TICK_HZ) as f64;
+        let clock_secs = (clock_us / 1_000_000) as f64;
 
         let expected_throughput = n_processed as f64 / clock_secs;
 
