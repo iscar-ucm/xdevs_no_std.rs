@@ -20,7 +20,9 @@ pub use component::{
     coupled::{ComponentsInput, ComponentsOutput, Coupled},
     AtomicKind, Component, ComponentsKind, CoupledKind,
 };
-pub use embassy_time::{Duration, Instant};
+/// Simulation time, stored as a whole number of microseconds.
+pub type Duration = fugit::MicrosDurationU64;
+pub use embassy_time::Instant;
 pub use simulation::Config;
 pub use xdevs_no_std_macros::*;
 

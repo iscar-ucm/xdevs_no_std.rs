@@ -117,7 +117,7 @@ pub unsafe trait AbstractSimulator {
     #[inline]
     fn simulate_vt(&mut self, config: &Config) {
         let t_stop = config.duration;
-        let mut t = Duration::MIN;
+        let mut t = Duration::ZERO;
         let mut t_next_internal = self.start();
         let mut component_input = <Self::Input>::build();
         let mut component_output = <Self::Output>::build();
@@ -147,25 +147,28 @@ pub unsafe trait AbstractSimulator {
             let mult = config.mult.max(1);
             let t0 = Instant::now();
             let t_stop = config.duration;
-            let mut t = Duration::MIN;
+            let mut t = Duration::ZERO;
             let mut t_next_internal = self.start();
             let mut component_input = <Self::Input>::build();
             let mut component_output = <Self::Output>::build();
             while t < t_stop {
                 let t_until = Duration::min(t_next_internal, t_stop);
-                let wall_offset = Duration::from_ticks(t_until.as_ticks().div_ceil(mult));
+                let wall_offset =
+                    embassy_time::Duration::from_micros(t_until.as_micros().div_ceil(mult));
                 let deadline = t0.saturating_add(wall_offset);
                 let future = input_handler.handle(&mut component_input);
                 let _ = embassy_time::with_deadline(deadline, future).await;
                 let now = Instant::now();
-                t = Duration::from_ticks(
+                t = Duration::from_micros(
                     now.saturating_duration_since(t0)
-                        .as_ticks()
+                        .as_micros()
                         .saturating_mul(mult),
                 );
                 if t >= t_next_internal {
                     if let Some(max_jitter) = config.max_jitter {
-                        let jitter = now.saturating_duration_since(deadline);
+                        let jitter = Duration::from_micros(
+                            now.saturating_duration_since(deadline).as_micros(),
+                        );
                         if jitter > max_jitter {
                             panic!("Jitter too high: {:?} > {:?}", jitter, max_jitter);
                         }
@@ -994,7 +997,7 @@ mod tests {
 
         let start = Instant::now();
         sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
-        let elapsed = Instant::now().duration_since(start);
+        let elapsed = Duration::from_micros(Instant::now().duration_since(start).as_micros());
 
         assert!(
             elapsed >= Duration::from_millis(20) && elapsed < Duration::from_millis(100),
@@ -1010,7 +1013,7 @@ mod tests {
 
         let start = Instant::now();
         sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
-        let elapsed = Instant::now().duration_since(start);
+        let elapsed = Duration::from_micros(Instant::now().duration_since(start).as_micros());
 
         assert_eq!(sim.int_calls, 1, "internal event fires");
         assert!(
@@ -1027,7 +1030,7 @@ mod tests {
 
         let start = Instant::now();
         sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
-        let elapsed = Instant::now().duration_since(start);
+        let elapsed = Duration::from_micros(Instant::now().duration_since(start).as_micros());
 
         assert_eq!(sim.int_calls, 1, "internal event fires");
         assert!(
