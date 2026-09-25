@@ -1,5 +1,8 @@
-use crate::rt_engine::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel};
-use core::convert::Infallible;
+use crate::{
+    rt_engine::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel},
+    Duration,
+};
+use core::{convert::Infallible, future::Future};
 use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex as Mutex;
 
 pub type Channel<T, const N: usize> = embassy_sync::channel::Channel<Mutex, T, N>;
@@ -105,3 +108,50 @@ impl<'a, O: Clone, const CAP: usize, const SUBS: usize> RtEngineOutputChannel
     }
 }
 impl<'a, O: Clone, const CAP: usize, const SUBS: usize> Sealed for OutputChannel<'a, O, CAP, SUBS> {}
+
+pub struct Clock;
+impl crate::clock::Clock for Clock {
+    type Instant = embassy_time::Instant;
+
+    #[inline(always)]
+    fn now() -> Self::Instant {
+        Self::Instant::now()
+    }
+
+    async fn wait_until(
+        t0: &Self::Instant,
+        t_until: Duration,
+        input_handler: impl Future<Output = ()>,
+        mult: u64,
+    ) -> Duration {
+        let wall_offset = embassy_time::Duration::from_micros(t_until.as_micros().div_ceil(mult));
+        let deadline = t0.saturating_add(wall_offset);
+        let _ = embassy_time::with_deadline(deadline, input_handler).await;
+        let now = Self::Instant::now();
+
+        Duration::from_micros(
+            now.saturating_duration_since(*t0)
+                .as_micros()
+                .saturating_mul(mult),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::clock::Clock as _;
+
+    #[tokio::test]
+    async fn wait_until_scales_elapsed_model_time() {
+        let t0 = Clock::now();
+        let one_sec = Duration::from_secs(1);
+        let t = Clock::wait_until(&t0, one_sec, core::future::pending(), 1000).await;
+        assert!(t >= Duration::from_secs(1), "{t:?}");
+        assert!(t < Duration::from_secs(3), "{t:?}");
+
+        let t0 = Clock::now();
+        let t = Clock::wait_until(&t0, one_sec, core::future::ready(()), 1).await;
+        assert!(t < Duration::from_millis(1), "{t:?}");
+    }
+}

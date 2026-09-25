@@ -1,4 +1,8 @@
-use crate::rt_engine::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel};
+use crate::{
+    rt_engine::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel},
+    Duration,
+};
+use core::future::Future;
 
 pub use tokio::sync::broadcast::error::RecvError;
 pub type SubscribeError = core::convert::Infallible;
@@ -94,3 +98,47 @@ impl<O: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<O, N> {
 }
 
 impl<O: Clone, const N: usize> Sealed for OutputChannel<O, N> {}
+
+pub struct Clock;
+impl crate::clock::Clock for Clock {
+    type Instant = tokio::time::Instant;
+
+    #[inline(always)]
+    fn now() -> Self::Instant {
+        Self::Instant::now()
+    }
+
+    async fn wait_until(
+        t0: &Self::Instant,
+        t_until: Duration,
+        input_handler: impl Future<Output = ()>,
+        mult: u64,
+    ) -> Duration {
+        let wall_offset = std::time::Duration::from_micros(t_until.as_micros().div_ceil(mult));
+        let deadline = *t0 + wall_offset;
+        let _ = tokio::time::timeout_at(deadline, input_handler).await;
+        let now = Self::Instant::now();
+        let elapsed =
+            u64::try_from(now.saturating_duration_since(*t0).as_micros()).unwrap_or(u64::MAX);
+        Duration::from_micros(elapsed.saturating_mul(mult))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::clock::Clock as _;
+
+    #[tokio::test]
+    async fn wait_until_scales_elapsed_model_time() {
+        let t0 = Clock::now();
+        let one_sec = Duration::from_secs(1);
+        let t = Clock::wait_until(&t0, one_sec, core::future::pending(), 1000).await;
+        assert!(t >= Duration::from_secs(1), "{t:?}");
+        assert!(t < Duration::from_secs(3), "{t:?}");
+
+        let t0 = Clock::now();
+        let t = Clock::wait_until(&t0, one_sec, core::future::ready(()), 1).await;
+        assert!(t < Duration::from_millis(1), "{t:?}");
+    }
+}

@@ -6,6 +6,7 @@ extern crate self as xdevs;
 extern crate std;
 
 pub mod bag;
+pub mod clock;
 pub mod component;
 pub mod devstone;
 pub mod export;

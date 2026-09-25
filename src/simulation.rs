@@ -1,4 +1,4 @@
-use crate::{bag::Bag, Component, ComponentsKind, Duration, Instant};
+use crate::{bag::Bag, Component, ComponentsKind, Duration};
 use core::future::Future;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
@@ -137,15 +137,29 @@ pub unsafe trait AbstractSimulator {
     /// Executes simulation for `config.duration` of model time with a real-time
     /// clock and asynchronous input handling. Model time advances `config.mult`
     /// times faster than the wall clock.
+    /// By default, this method uses the `Clock` implementation provided by the `xdevs::export` module.
+    #[inline(always)]
     fn simulate_rt(
+        &mut self,
+        config: &Config,
+        input_handler: impl AsyncInput<Input = Self::Input>,
+        propagate_output: impl FnMut(&Self::Output),
+    ) -> impl Future<Output = ()> {
+        self.simulate_rt_clocked::<crate::export::Clock>(config, input_handler, propagate_output)
+    }
+
+    /// Executes simulation for `config.duration` of model time with a real-time
+    /// clock and asynchronous input handling. Model time advances `config.mult`
+    /// times faster than the wall clock.
+    fn simulate_rt_clocked<C: crate::clock::Clock>(
         &mut self,
         config: &Config,
         mut input_handler: impl AsyncInput<Input = Self::Input>,
         mut propagate_output: impl FnMut(&Self::Output),
     ) -> impl Future<Output = ()> {
         async move {
+            let t0 = C::now();
             let mult = config.mult.max(1);
-            let t0 = Instant::now();
             let t_stop = config.duration;
             let mut t = Duration::ZERO;
             let mut t_next_internal = self.start();
@@ -153,22 +167,12 @@ pub unsafe trait AbstractSimulator {
             let mut component_output = <Self::Output>::build();
             while t < t_stop {
                 let t_until = Duration::min(t_next_internal, t_stop);
-                let wall_offset =
-                    embassy_time::Duration::from_micros(t_until.as_micros().div_ceil(mult));
-                let deadline = t0.saturating_add(wall_offset);
                 let future = input_handler.handle(&mut component_input);
-                let _ = embassy_time::with_deadline(deadline, future).await;
-                let now = Instant::now();
-                t = Duration::from_micros(
-                    now.saturating_duration_since(t0)
-                        .as_micros()
-                        .saturating_mul(mult),
-                );
+                t = C::wait_until(&t0, t_until, future, mult).await;
                 if t >= t_next_internal {
                     if let Some(max_jitter) = config.max_jitter {
-                        let jitter = Duration::from_micros(
-                            now.saturating_duration_since(deadline).as_micros(),
-                        );
+                        let jitter =
+                            Duration::from_micros(t.saturating_sub(t_until).as_micros() / mult);
                         if jitter > max_jitter {
                             panic!("Jitter too high: {:?} > {:?}", jitter, max_jitter);
                         }
