@@ -35,15 +35,13 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 embassy-time = { version = "0.5.0", features = ["std", "generic-queue-8"] }
 
 [features]
-alloc = ["hashbrown"]
+alloc = ["dep:hashbrown"]
 embassy = ["embassy-sync", "xdevs-no-std-macros/embassy-backend"]
 rayon = ["std", "dep:rayon", "xdevs-no-std-macros/rayon-backend"]
 std = [
     "alloc",
     "tokio/time",
     "xdevs-no-std-macros/std-backend",
-    "embassy-time/std",
-    "embassy-time/generic-queue-8",
     "cpu-time",
 ]
 

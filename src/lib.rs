@@ -23,7 +23,6 @@ pub use component::{
 };
 /// Simulation time, stored as a whole number of microseconds.
 pub type Duration = fugit::MicrosDurationU64;
-pub use embassy_time::Instant;
 pub use simulation::Config;
 pub use xdevs_no_std_macros::*;
 

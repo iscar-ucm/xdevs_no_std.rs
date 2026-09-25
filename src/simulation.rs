@@ -815,8 +815,9 @@ mod tests {
         component::coupled::PartialCoupled,
         prelude::*,
         simulation::{simulator::Simulator, Config},
-        Component, Duration, Instant, Port,
+        Component, Duration, Port,
     };
+    use embassy_time::Instant;
     #[test]
     fn step_returns_next_transition_time() {
         let mut sim =
