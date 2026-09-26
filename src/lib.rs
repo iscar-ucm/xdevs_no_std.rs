@@ -6,11 +6,12 @@ extern crate self as xdevs;
 extern crate std;
 
 pub mod bag;
+pub mod clock;
 pub mod component;
 pub mod devstone;
 pub mod export;
 pub mod gpt;
-#[cfg(any(feature = "embassy", feature = "std"))]
+#[cfg(any(feature = "embassy", feature = "tokio"))]
 pub mod rt_engine;
 pub mod simulation;
 
@@ -22,7 +23,6 @@ pub use component::{
 };
 /// Simulation time, stored as a whole number of microseconds.
 pub type Duration = fugit::MicrosDurationU64;
-pub use embassy_time::Instant;
 pub use simulation::Config;
 pub use xdevs_no_std_macros::*;
 

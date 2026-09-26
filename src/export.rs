@@ -4,8 +4,8 @@ mod embassy;
 #[cfg(feature = "embassy")]
 pub use embassy::*;
 
-#[cfg(feature = "std")]
+#[cfg(feature = "tokio")]
 mod tokio;
 
-#[cfg(feature = "std")]
+#[cfg(feature = "tokio")]
 pub use tokio::*;

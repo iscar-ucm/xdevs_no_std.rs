@@ -42,8 +42,8 @@ jobs:
       matrix:
         cargo_flags:
           - "--no-default-features"
-          - "--features std"
-          - "--features std,rayon"
+          - "--features tokio"
+          - "--features tokio,rayon"
           - "--features embassy"
           - "--features embassy,alloc"
     steps:
