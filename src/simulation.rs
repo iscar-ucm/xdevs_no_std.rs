@@ -1360,4 +1360,113 @@ mod tests {
         assert_eq!(c.mult, 2);
         assert_eq!(c.max_jitter, Some(Duration::from_millis(100)));
     }
+    /// Deterministic tests for the generic real-time loop. A mock clock
+    /// replaces the wall clock, so these run under any feature set.
+    mod rt_clocked {
+        use super::*;
+        use crate::clock::Clock;
+
+        struct MockClock;
+
+        impl Clock for MockClock {
+            type Instant = ();
+
+            fn now() {}
+
+            async fn wait_until(
+                _t0: &Self::Instant,
+                t_until: Duration,
+                input_handler: impl core::future::Future<Output = ()>,
+                _mult: u64,
+            ) -> Duration {
+                let mut input_handler = core::pin::pin!(input_handler);
+                let mut cx = core::task::Context::from_waker(core::task::Waker::noop());
+                let _ = input_handler.as_mut().poll(&mut cx);
+                t_until
+            }
+        }
+
+        struct JitterClock;
+
+        impl Clock for JitterClock {
+            type Instant = ();
+
+            fn now() {}
+
+            async fn wait_until(
+                _t0: &Self::Instant,
+                t_until: Duration,
+                _input_handler: impl core::future::Future<Output = ()>,
+                _mult: u64,
+            ) -> Duration {
+                t_until.saturating_add(Duration::from_millis(10))
+            }
+        }
+
+        fn block_on<F: core::future::Future>(future: F) -> F::Output {
+            let mut future = core::pin::pin!(future);
+            let mut cx = core::task::Context::from_waker(core::task::Waker::noop());
+            loop {
+                if let core::task::Poll::Ready(output) = future.as_mut().poll(&mut cx) {
+                    return output;
+                }
+            }
+        }
+
+        struct NoInput;
+
+        impl crate::simulation::AsyncInput for NoInput {
+            type Input = Port<usize, 1>;
+
+            async fn handle(&mut self, _input: &mut Self::Input) {
+                core::future::pending::<()>().await
+            }
+        }
+
+        #[test]
+        fn mock_clock_runs_full_duration() {
+            let mut sim =
+                TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(2)).to_simulator();
+            let config = Config::new(Duration::from_secs(9), 1, None);
+            block_on(sim.simulate_rt_clocked::<MockClock>(&config, NoInput, |_| {}));
+            assert_eq!(sim.int_calls, 5, "expected 5 internal transitions in 9s");
+            assert_eq!(sim.ext_calls, 0, "no external transitions");
+        }
+
+        #[test]
+        fn mock_clock_injects_external_input() {
+            struct InjectOnce {
+                injected: bool,
+            }
+
+            impl crate::simulation::AsyncInput for InjectOnce {
+                type Input = Port<usize, 1>;
+
+                async fn handle(&mut self, input: &mut Self::Input) {
+                    if !self.injected {
+                        self.injected = true;
+                        input.add_value(99).unwrap();
+                    }
+                    core::future::pending::<()>().await
+                }
+            }
+
+            let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
+            let config = Config::new(Duration::from_millis(10), 1, None);
+            block_on(sim.simulate_rt_clocked::<MockClock>(
+                &config,
+                InjectOnce { injected: false },
+                |_| {},
+            ));
+            assert_eq!(sim.ext_calls, 1, "external transition via input_handler");
+        }
+
+        #[test]
+        #[should_panic(expected = "Jitter too high")]
+        fn clock_overshoot_above_max_jitter_panics() {
+            let mut sim = TestAtomic::oneshot(Duration::from_secs(1)).to_simulator();
+            let config = Config::new(Duration::from_secs(1), 1, Some(Duration::from_millis(1)));
+            block_on(sim.simulate_rt_clocked::<JitterClock>(&config, NoInput, |_| {}));
+        }
+    }
 }
