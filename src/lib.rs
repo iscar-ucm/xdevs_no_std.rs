@@ -11,7 +11,7 @@ pub mod component;
 pub mod devstone;
 pub mod export;
 pub mod gpt;
-#[cfg(any(feature = "embassy", feature = "std"))]
+#[cfg(any(feature = "embassy", feature = "tokio"))]
 pub mod rt_engine;
 pub mod simulation;
 

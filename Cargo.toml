@@ -20,7 +20,7 @@ path = "src/lib.rs"
 fugit = "0.6"
 heapless = "0.9"
 xdevs-no-std-macros = { path = "macros", version = "0.2.0" }
-tokio = { version = "1.0", optional = true, features = ["sync"] }
+tokio = { version = "1.0", optional = true, features = ["sync", "time"] }
 embassy-time = { version = "0.5.0" }
 embassy-sync = { version = "0.8.0", optional = true }
 rayon = { version = "1.12", optional = true }
@@ -40,10 +40,10 @@ embassy = ["embassy-sync", "xdevs-no-std-macros/embassy-backend"]
 rayon = ["std", "dep:rayon", "xdevs-no-std-macros/rayon-backend"]
 std = [
     "alloc",
-    "tokio/time",
     "xdevs-no-std-macros/std-backend",
     "cpu-time",
 ]
+tokio = ["std", "dep:tokio"]
 
 [[bench]]
 name = "ho"
@@ -59,7 +59,7 @@ harness = false
 
 [[example]]
 name = "gpt_async"
-required-features = ["std"]
+required-features = ["tokio"]
 
 [[example]]
 name = "gpt_optional"
@@ -79,7 +79,7 @@ required-features = ["std"]
 
 [[example]]
 name = "rt_engine"
-required-features = ["std"]
+required-features = ["tokio"]
 
 [[bin]]
 name = "devstone_generator"
