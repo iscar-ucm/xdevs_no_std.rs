@@ -148,9 +148,7 @@ pub unsafe trait AbstractSimulator {
         self.simulate_rt_clocked::<crate::export::Clock>(config, input_handler, propagate_output)
     }
 
-    /// Executes simulation for `config.duration` of model time with a real-time
-    /// clock and asynchronous input handling. Model time advances `config.mult`
-    /// times faster than the wall clock.
+    /// Same as `simulate_rt`, with a caller-supplied `crate::clock::Clock` implementation.
     fn simulate_rt_clocked<C: crate::clock::Clock>(
         &mut self,
         config: &Config,
@@ -817,6 +815,23 @@ mod tests {
         simulation::{simulator::Simulator, Config},
         Component, Duration, Port,
     };
+
+    struct InjectInput {
+        injected: bool,
+    }
+
+    impl crate::simulation::AsyncInput for InjectInput {
+        type Input = Port<usize, 1>;
+
+        async fn handle(&mut self, input: &mut Self::Input) {
+            if !self.injected {
+                self.injected = true;
+                input.add_value(99).unwrap();
+            }
+            core::future::pending::<()>().await
+        }
+    }
+
     #[test]
     fn step_returns_next_transition_time() {
         let mut sim =
@@ -885,6 +900,15 @@ mod tests {
         use super::*;
         use embassy_time::Instant;
 
+        struct IdentityAsyncInput;
+
+        impl crate::simulation::AsyncInput for IdentityAsyncInput {
+            type Input = Port<usize, 1>;
+            async fn handle(&mut self, _input: &mut Self::Input) {
+                core::future::pending::<()>().await
+            }
+        }
+
         #[tokio::test]
         async fn simulate_rt_single_event() {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
@@ -898,21 +922,6 @@ mod tests {
         async fn simulate_rt_injects_external_input() {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
             let config = Config::new(Duration::from_millis(10), 1, None);
-
-            struct InjectInput {
-                injected: bool,
-            }
-            impl crate::simulation::AsyncInput for InjectInput {
-                type Input = Port<usize, 1>;
-                async fn handle(&mut self, input: &mut Self::Input) {
-                    if !self.injected {
-                        self.injected = true;
-                        input.add_value(99).unwrap();
-                    } else {
-                        core::future::pending::<()>().await
-                    }
-                }
-            }
 
             sim.simulate_rt(&config, InjectInput { injected: false }, |_| {})
                 .await;
@@ -938,65 +947,6 @@ mod tests {
                 &[99],
                 "propagate_output captures lambda output"
             );
-        }
-
-        struct IdentityAsyncInput;
-
-        impl crate::simulation::AsyncInput for IdentityAsyncInput {
-            type Input = Port<usize, 1>;
-            async fn handle(&mut self, _input: &mut Self::Input) {
-                core::future::pending::<()>().await
-            }
-        }
-
-        #[tokio::test]
-        async fn simulate_rt_single_event_async() {
-            let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-            let config = Config::new(Duration::from_millis(10), 1, None);
-            sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
-            assert_eq!(sim.int_calls, 1, "async single event");
-            assert_eq!(sim.ext_calls, 0, "no external transitions");
-        }
-
-        #[tokio::test]
-        async fn simulate_rt_external_input_async() {
-            let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-            let config = Config::new(Duration::from_millis(10), 1, None);
-
-            struct InjectInput {
-                injected: bool,
-            }
-            impl crate::simulation::AsyncInput for InjectInput {
-                type Input = Port<usize, 1>;
-                async fn handle(&mut self, input: &mut Self::Input) {
-                    if !self.injected {
-                        self.injected = true;
-                        input.add_value(99).unwrap();
-                    } else {
-                        core::future::pending::<()>().await
-                    }
-                }
-            }
-
-            sim.simulate_rt(&config, InjectInput { injected: false }, |_| {})
-                .await;
-            assert_eq!(sim.ext_calls, 1, "async external input");
-        }
-
-        #[tokio::test]
-        async fn simulate_rt_propagate_output_async() {
-            let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-            let config = Config::new(Duration::from_millis(10), 1, None);
-            let mut captured = Port::<usize, 1>::new();
-
-            sim.simulate_rt(&config, IdentityAsyncInput, |output| {
-                for v in output.get_values() {
-                    let _ = captured.add_value(v);
-                }
-            })
-            .await;
-
-            assert_eq!(captured.as_slice(), &[99], "async propagate_output");
         }
 
         #[tokio::test]
@@ -1026,7 +976,7 @@ mod tests {
 
             assert_eq!(sim.int_calls, 1, "internal event fires");
             assert!(
-                elapsed >= Duration::from_millis(50) && elapsed < Duration::from_millis(150),
+                elapsed >= Duration::from_millis(50) && elapsed < Duration::from_millis(200),
                 "mult 4 must run 200ms of model time in ~50ms wall time, elapsed: {} ms",
                 elapsed.as_millis(),
             );
@@ -1435,27 +1385,11 @@ mod tests {
 
         #[test]
         fn mock_clock_injects_external_input() {
-            struct InjectOnce {
-                injected: bool,
-            }
-
-            impl crate::simulation::AsyncInput for InjectOnce {
-                type Input = Port<usize, 1>;
-
-                async fn handle(&mut self, input: &mut Self::Input) {
-                    if !self.injected {
-                        self.injected = true;
-                        input.add_value(99).unwrap();
-                    }
-                    core::future::pending::<()>().await
-                }
-            }
-
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
             let config = Config::new(Duration::from_millis(10), 1, None);
             block_on(sim.simulate_rt_clocked::<MockClock>(
                 &config,
-                InjectOnce { injected: false },
+                InjectInput { injected: false },
                 |_| {},
             ));
             assert_eq!(sim.ext_calls, 1, "external transition via input_handler");

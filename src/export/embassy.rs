@@ -143,15 +143,52 @@ mod tests {
     use crate::clock::Clock as _;
 
     #[tokio::test]
-    async fn wait_until_scales_elapsed_model_time() {
+    async fn wait_until_scales_wall_time_by_multiplier() {
+        let wall_t0 = embassy_time::Instant::now();
         let t0 = Clock::now();
-        let one_sec = Duration::from_secs(1);
-        let t = Clock::wait_until(&t0, one_sec, core::future::pending(), 1000).await;
+        let t = Clock::wait_until(&t0, Duration::from_secs(1), core::future::pending(), 10).await;
+        let elapsed = embassy_time::Instant::now().saturating_duration_since(wall_t0);
+        assert!(
+            elapsed >= embassy_time::Duration::from_millis(100),
+            "{elapsed:?}"
+        );
+        assert!(
+            elapsed <= embassy_time::Duration::from_millis(500),
+            "{elapsed:?}"
+        );
         assert!(t >= Duration::from_secs(1), "{t:?}");
-        assert!(t < Duration::from_secs(3), "{t:?}");
+        assert!(t <= Duration::from_secs(5), "{t:?}");
+    }
 
+    #[tokio::test]
+    async fn wait_until_returns_early_when_input_is_ready() {
+        let wall_t0 = embassy_time::Instant::now();
         let t0 = Clock::now();
-        let t = Clock::wait_until(&t0, one_sec, core::future::ready(()), 1).await;
-        assert!(t < Duration::from_millis(1), "{t:?}");
+        let t = Clock::wait_until(&t0, Duration::from_secs(1), core::future::ready(()), 1).await;
+        let elapsed = embassy_time::Instant::now().saturating_duration_since(wall_t0);
+        assert!(
+            elapsed < embassy_time::Duration::from_millis(10),
+            "{elapsed:?}"
+        );
+        assert!(t < Duration::from_millis(10), "{t:?}");
+    }
+
+    #[tokio::test]
+    async fn wait_until_waits_real_time_when_unscaled() {
+        let fifty_ms = Duration::from_millis(50);
+        let wall_t0 = embassy_time::Instant::now();
+        let t0 = Clock::now();
+        let t = Clock::wait_until(&t0, fifty_ms, core::future::pending(), 1).await;
+        let elapsed = embassy_time::Instant::now().saturating_duration_since(wall_t0);
+        assert!(
+            elapsed >= embassy_time::Duration::from_millis(50),
+            "{elapsed:?}"
+        );
+        assert!(
+            elapsed <= embassy_time::Duration::from_millis(250),
+            "{elapsed:?}"
+        );
+        assert!(t >= fifty_ms, "{t:?}");
+        assert!(t <= Duration::from_millis(250), "{t:?}");
     }
 }
