@@ -156,8 +156,8 @@ pub unsafe trait AbstractSimulator {
         mut propagate_output: impl FnMut(&Self::Output),
     ) -> impl Future<Output = ()> {
         async move {
-            let t0 = C::now();
             let mult = config.mult.max(1);
+            let clock = C::build(mult);
             let t_stop = config.duration;
             let mut t = Duration::ZERO;
             let mut t_next_internal = self.start();
@@ -166,7 +166,7 @@ pub unsafe trait AbstractSimulator {
             while t < t_stop {
                 let t_until = Duration::min(t_next_internal, t_stop);
                 let future = input_handler.handle(&mut component_input);
-                t = C::wait_until(&t0, t_until, future, mult).await;
+                t = clock.wait_until(t_until, future).await;
                 if t >= t_next_internal {
                     if let Some(max_jitter) = config.max_jitter {
                         let jitter =
@@ -1319,15 +1319,14 @@ mod tests {
         struct MockClock;
 
         impl Clock for MockClock {
-            type Instant = ();
-
-            fn now() {}
+            fn build(_mult: u64) -> Self {
+                Self
+            }
 
             async fn wait_until(
-                _t0: &Self::Instant,
+                &self,
                 t_until: Duration,
                 input_handler: impl core::future::Future<Output = ()>,
-                _mult: u64,
             ) -> Duration {
                 let mut input_handler = core::pin::pin!(input_handler);
                 let mut cx = core::task::Context::from_waker(core::task::Waker::noop());
@@ -1339,15 +1338,14 @@ mod tests {
         struct JitterClock;
 
         impl Clock for JitterClock {
-            type Instant = ();
-
-            fn now() {}
+            fn build(_mult: u64) -> Self {
+                Self
+            }
 
             async fn wait_until(
-                _t0: &Self::Instant,
+                &self,
                 t_until: Duration,
                 _input_handler: impl core::future::Future<Output = ()>,
-                _mult: u64,
             ) -> Duration {
                 t_until.saturating_add(Duration::from_millis(10))
             }

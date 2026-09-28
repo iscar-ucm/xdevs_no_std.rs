@@ -99,28 +99,31 @@ impl<O: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<O, N> {
 
 impl<O: Clone, const N: usize> Sealed for OutputChannel<O, N> {}
 
-pub struct Clock;
+pub struct Clock {
+    t0: tokio::time::Instant,
+    mult: u64,
+}
 impl crate::clock::Clock for Clock {
-    type Instant = tokio::time::Instant;
-
     #[inline(always)]
-    fn now() -> Self::Instant {
-        Self::Instant::now()
+    fn build(mult: u64) -> Self {
+        Self {
+            t0: tokio::time::Instant::now(),
+            mult,
+        }
     }
 
     async fn wait_until(
-        t0: &Self::Instant,
+        &self,
         t_until: Duration,
         input_handler: impl Future<Output = ()>,
-        mult: u64,
     ) -> Duration {
-        let wall_offset = std::time::Duration::from_micros(t_until.as_micros().div_ceil(mult));
-        let deadline = *t0 + wall_offset;
+        let wall_offset = std::time::Duration::from_micros(t_until.as_micros().div_ceil(self.mult));
+        let deadline = self.t0 + wall_offset;
         let _ = tokio::time::timeout_at(deadline, input_handler).await;
-        let now = Self::Instant::now();
+        let now = tokio::time::Instant::now();
         let elapsed =
-            u64::try_from(now.saturating_duration_since(*t0).as_micros()).unwrap_or(u64::MAX);
-        Duration::from_micros(elapsed.saturating_mul(mult))
+            u64::try_from(now.saturating_duration_since(self.t0).as_micros()).unwrap_or(u64::MAX);
+        Duration::from_micros(elapsed.saturating_mul(self.mult))
     }
 }
 
@@ -132,8 +135,10 @@ mod tests {
     #[tokio::test]
     async fn wait_until_scales_wall_time_by_multiplier() {
         let wall_t0 = std::time::Instant::now();
-        let t0 = Clock::now();
-        let t = Clock::wait_until(&t0, Duration::from_secs(1), core::future::pending(), 10).await;
+        let clock = Clock::build(10);
+        let t = clock
+            .wait_until(Duration::from_secs(1), core::future::pending())
+            .await;
         let elapsed = wall_t0.elapsed();
         assert!(
             elapsed >= std::time::Duration::from_millis(100),
@@ -150,8 +155,10 @@ mod tests {
     #[tokio::test]
     async fn wait_until_returns_early_when_input_is_ready() {
         let wall_t0 = std::time::Instant::now();
-        let t0 = Clock::now();
-        let t = Clock::wait_until(&t0, Duration::from_secs(1), core::future::ready(()), 1).await;
+        let clock = Clock::build(1);
+        let t = clock
+            .wait_until(Duration::from_secs(1), core::future::ready(()))
+            .await;
         let elapsed = wall_t0.elapsed();
         assert!(
             elapsed < std::time::Duration::from_millis(10),
@@ -164,8 +171,8 @@ mod tests {
     async fn wait_until_waits_real_time_when_unscaled() {
         let fifty_ms = Duration::from_millis(50);
         let wall_t0 = std::time::Instant::now();
-        let t0 = Clock::now();
-        let t = Clock::wait_until(&t0, fifty_ms, core::future::pending(), 1).await;
+        let clock = Clock::build(1);
+        let t = clock.wait_until(fifty_ms, core::future::pending()).await;
         let elapsed = wall_t0.elapsed();
         assert!(
             elapsed >= std::time::Duration::from_millis(50),
