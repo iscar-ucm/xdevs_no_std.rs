@@ -1,4 +1,4 @@
-use crate::{bag::Bag, Component, ComponentsKind, Duration};
+use crate::{bag::Bag, clock::Clock, Component, ComponentsKind, Duration};
 use core::future::Future;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
@@ -137,40 +137,35 @@ pub unsafe trait AbstractSimulator {
     /// Executes simulation for `config.duration` of model time with a real-time
     /// clock and asynchronous input handling. Model time advances `config.mult`
     /// times faster than the wall clock.
-    #[cfg(any(feature = "embassy", feature = "tokio"))]
-    #[inline(always)]
     fn simulate_rt(
         &mut self,
-        config: &Config,
-        input_handler: impl AsyncInput<Input = Self::Input>,
-        propagate_output: impl FnMut(&Self::Output),
-    ) -> impl Future<Output = ()> {
-        self.simulate_rt_clocked::<crate::export::Clock>(config, input_handler, propagate_output)
-    }
-
-    /// Same as `simulate_rt`, with a caller-supplied `crate::clock::Clock` implementation.
-    fn simulate_rt_clocked<C: crate::clock::Clock>(
-        &mut self,
+        mut clock: impl Clock,
         config: &Config,
         mut input_handler: impl AsyncInput<Input = Self::Input>,
         mut propagate_output: impl FnMut(&Self::Output),
     ) -> impl Future<Output = ()> {
         async move {
             let mult = config.mult.max(1);
-            let clock = C::build(mult);
             let t_stop = config.duration;
+            clock.start();
             let mut t = Duration::ZERO;
             let mut t_next_internal = self.start();
             let mut component_input = <Self::Input>::build();
             let mut component_output = <Self::Output>::build();
             while t < t_stop {
                 let t_until = Duration::min(t_next_internal, t_stop);
+                let t_until_wall = Duration::from_micros(t_until.as_micros().div_ceil(mult));
                 let future = input_handler.handle(&mut component_input);
-                t = clock.wait_until(t_until, future).await;
+                let t_wall = clock.wait_until(t_until_wall, future).await;
+                // An exact deadline hit means no jitter occurred.
+                t = if t_wall == t_until_wall {
+                    t_until
+                } else {
+                    Duration::from_micros(t_wall.as_micros().saturating_mul(mult))
+                };
                 if t >= t_next_internal {
                     if let Some(max_jitter) = config.max_jitter {
-                        let jitter =
-                            Duration::from_micros(t.saturating_sub(t_until).as_micros() / mult);
+                        let jitter = t_wall.saturating_sub(t_until_wall);
                         if jitter > max_jitter {
                             panic!("Jitter too high: {:?} > {:?}", jitter, max_jitter);
                         }
@@ -812,7 +807,7 @@ mod tests {
     use crate::{
         component::coupled::PartialCoupled,
         prelude::*,
-        simulation::{simulator::Simulator, Config},
+        simulation::{simulator::Simulator, AsyncInput, Config},
         Component, Duration, Port,
     };
 
@@ -820,7 +815,7 @@ mod tests {
         injected: bool,
     }
 
-    impl crate::simulation::AsyncInput for InjectInput {
+    impl AsyncInput for InjectInput {
         type Input = Port<usize, 1>;
 
         async fn handle(&mut self, input: &mut Self::Input) {
@@ -913,7 +908,13 @@ mod tests {
         async fn simulate_rt_single_event() {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
             let config = Config::new(Duration::from_millis(10), 1, None);
-            sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
+            sim.simulate_rt(
+                crate::export::Clock::new(),
+                &config,
+                IdentityAsyncInput,
+                |_| {},
+            )
+            .await;
             assert_eq!(sim.int_calls, 1, "rt single event");
             assert_eq!(sim.ext_calls, 0, "no external transitions");
         }
@@ -923,8 +924,13 @@ mod tests {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
             let config = Config::new(Duration::from_millis(10), 1, None);
 
-            sim.simulate_rt(&config, InjectInput { injected: false }, |_| {})
-                .await;
+            sim.simulate_rt(
+                crate::export::Clock::new(),
+                &config,
+                InjectInput { injected: false },
+                |_| {},
+            )
+            .await;
 
             assert_eq!(sim.ext_calls, 1, "external transition via input_handler");
         }
@@ -935,11 +941,16 @@ mod tests {
             let config = Config::new(Duration::from_millis(10), 1, None);
             let mut captured = Port::<usize, 1>::new();
 
-            sim.simulate_rt(&config, IdentityAsyncInput, |output| {
-                for v in output.get_values() {
-                    let _ = captured.add_value(v);
-                }
-            })
+            sim.simulate_rt(
+                crate::export::Clock::new(),
+                &config,
+                IdentityAsyncInput,
+                |output| {
+                    for v in output.get_values() {
+                        let _ = captured.add_value(v);
+                    }
+                },
+            )
             .await;
 
             assert_eq!(
@@ -955,7 +966,13 @@ mod tests {
             let config = Config::new(Duration::from_millis(20), 1, None);
 
             let start = Instant::now();
-            sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
+            sim.simulate_rt(
+                crate::export::Clock::new(),
+                &config,
+                IdentityAsyncInput,
+                |_| {},
+            )
+            .await;
             let elapsed = Duration::from_micros(Instant::now().duration_since(start).as_micros());
 
             assert!(
@@ -971,7 +988,13 @@ mod tests {
             let config = Config::new(Duration::from_millis(200), 4, None);
 
             let start = Instant::now();
-            sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
+            sim.simulate_rt(
+                crate::export::Clock::new(),
+                &config,
+                IdentityAsyncInput,
+                |_| {},
+            )
+            .await;
             let elapsed = Duration::from_micros(Instant::now().duration_since(start).as_micros());
 
             assert_eq!(sim.int_calls, 1, "internal event fires");
@@ -988,7 +1011,13 @@ mod tests {
             let config = Config::new(Duration::from_millis(20), 0, None);
 
             let start = Instant::now();
-            sim.simulate_rt(&config, IdentityAsyncInput, |_| {}).await;
+            sim.simulate_rt(
+                crate::export::Clock::new(),
+                &config,
+                IdentityAsyncInput,
+                |_| {},
+            )
+            .await;
             let elapsed = Duration::from_micros(Instant::now().duration_since(start).as_micros());
 
             assert_eq!(sim.int_calls, 1, "internal event fires");
@@ -1319,9 +1348,7 @@ mod tests {
         struct MockClock;
 
         impl Clock for MockClock {
-            fn build(_mult: u64) -> Self {
-                Self
-            }
+            fn start(&mut self) {}
 
             async fn wait_until(
                 &self,
@@ -1338,15 +1365,16 @@ mod tests {
         struct JitterClock;
 
         impl Clock for JitterClock {
-            fn build(_mult: u64) -> Self {
-                Self
-            }
+            fn start(&mut self) {}
 
             async fn wait_until(
                 &self,
                 t_until: Duration,
-                _input_handler: impl core::future::Future<Output = ()>,
+                input_handler: impl core::future::Future<Output = ()>,
             ) -> Duration {
+                let mut input_handler = core::pin::pin!(input_handler);
+                let mut cx = core::task::Context::from_waker(core::task::Waker::noop());
+                let _ = input_handler.as_mut().poll(&mut cx);
                 t_until.saturating_add(Duration::from_millis(10))
             }
         }
@@ -1363,7 +1391,7 @@ mod tests {
 
         struct NoInput;
 
-        impl crate::simulation::AsyncInput for NoInput {
+        impl AsyncInput for NoInput {
             type Input = Port<usize, 1>;
 
             async fn handle(&mut self, _input: &mut Self::Input) {
@@ -1376,7 +1404,7 @@ mod tests {
             let mut sim =
                 TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(2)).to_simulator();
             let config = Config::new(Duration::from_secs(9), 1, None);
-            block_on(sim.simulate_rt_clocked::<MockClock>(&config, NoInput, |_| {}));
+            block_on(sim.simulate_rt(MockClock, &config, NoInput, |_| {}));
             assert_eq!(sim.int_calls, 5, "expected 5 internal transitions in 9s");
             assert_eq!(sim.ext_calls, 0, "no external transitions");
         }
@@ -1385,12 +1413,34 @@ mod tests {
         fn mock_clock_injects_external_input() {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
             let config = Config::new(Duration::from_millis(10), 1, None);
-            block_on(sim.simulate_rt_clocked::<MockClock>(
+            block_on(sim.simulate_rt(MockClock, &config, InjectInput { injected: false }, |_| {}));
+            assert_eq!(sim.ext_calls, 1, "external transition via input_handler");
+        }
+
+        #[test]
+        fn timeout_lands_on_exact_model_deadline() {
+            let mut sim = TestAtomic::periodic(Duration::from_micros(99), Duration::from_micros(1))
+                .to_simulator();
+            let config = Config::new(Duration::from_micros(100), 7, None);
+            block_on(sim.simulate_rt(MockClock, &config, NoInput, |_| {}));
+            assert_eq!(sim.int_calls, 2, "event at t=100us must not be skipped");
+        }
+
+        #[test]
+        fn clock_overshoot_preserves_jitter_in_model_time() {
+            let mut sim = TestAtomic::oneshot(Duration::from_secs(10)).to_simulator();
+            let config = Config::new(Duration::from_secs(1), 1, None);
+            block_on(sim.simulate_rt(
+                JitterClock,
                 &config,
                 InjectInput { injected: false },
                 |_| {},
             ));
-            assert_eq!(sim.ext_calls, 1, "external transition via input_handler");
+            assert_eq!(
+                sim.last_elapsed,
+                Duration::from_millis(1010),
+                "wall-clock overshoot must appear in elapsed model time"
+            );
         }
 
         #[test]
@@ -1398,7 +1448,7 @@ mod tests {
         fn clock_overshoot_above_max_jitter_panics() {
             let mut sim = TestAtomic::oneshot(Duration::from_secs(1)).to_simulator();
             let config = Config::new(Duration::from_secs(1), 1, Some(Duration::from_millis(1)));
-            block_on(sim.simulate_rt_clocked::<JitterClock>(&config, NoInput, |_| {}));
+            block_on(sim.simulate_rt(JitterClock, &config, NoInput, |_| {}));
         }
     }
 }

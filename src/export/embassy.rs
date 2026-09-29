@@ -111,15 +111,25 @@ impl<'a, O: Clone, const CAP: usize, const SUBS: usize> Sealed for OutputChannel
 
 pub struct Clock {
     t0: embassy_time::Instant,
-    mult: u64,
+}
+
+impl Clock {
+    pub const fn new() -> Self {
+        Self {
+            // We don't need current time here, because we will use embassy_time::Instant::now() in start() method to get the current time when the simulation starts.
+            t0: embassy_time::Instant::MIN,
+        }
+    }
+}
+impl Default for Clock {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 impl crate::clock::Clock for Clock {
     #[inline(always)]
-    fn build(mult: u64) -> Self {
-        Self {
-            t0: embassy_time::Instant::now(),
-            mult,
-        }
+    fn start(&mut self) {
+        self.t0 = embassy_time::Instant::now();
     }
 
     async fn wait_until(
@@ -127,17 +137,12 @@ impl crate::clock::Clock for Clock {
         t_until: Duration,
         input_handler: impl Future<Output = ()>,
     ) -> Duration {
-        let wall_offset =
-            embassy_time::Duration::from_micros(t_until.as_micros().div_ceil(self.mult));
+        let wall_offset = embassy_time::Duration::from_micros(t_until.as_micros());
         let deadline = self.t0.saturating_add(wall_offset);
         let _ = embassy_time::with_deadline(deadline, input_handler).await;
         let now = embassy_time::Instant::now();
 
-        Duration::from_micros(
-            now.saturating_duration_since(self.t0)
-                .as_micros()
-                .saturating_mul(self.mult),
-        )
+        Duration::from_micros(now.saturating_duration_since(self.t0).as_micros())
     }
 }
 
@@ -147,29 +152,10 @@ mod tests {
     use crate::clock::Clock as _;
 
     #[tokio::test]
-    async fn wait_until_scales_wall_time_by_multiplier() {
-        let wall_t0 = embassy_time::Instant::now();
-        let clock = Clock::build(10);
-        let t = clock
-            .wait_until(Duration::from_secs(1), core::future::pending())
-            .await;
-        let elapsed = embassy_time::Instant::now().saturating_duration_since(wall_t0);
-        assert!(
-            elapsed >= embassy_time::Duration::from_millis(100),
-            "{elapsed:?}"
-        );
-        assert!(
-            elapsed <= embassy_time::Duration::from_millis(500),
-            "{elapsed:?}"
-        );
-        assert!(t >= Duration::from_secs(1), "{t:?}");
-        assert!(t <= Duration::from_secs(5), "{t:?}");
-    }
-
-    #[tokio::test]
     async fn wait_until_returns_early_when_input_is_ready() {
         let wall_t0 = embassy_time::Instant::now();
-        let clock = Clock::build(1);
+        let mut clock = Clock::new();
+        clock.start();
         let t = clock
             .wait_until(Duration::from_secs(1), core::future::ready(()))
             .await;
@@ -182,10 +168,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn wait_until_waits_real_time_when_unscaled() {
+    async fn wait_until_waits_requested_wall_time() {
         let fifty_ms = Duration::from_millis(50);
         let wall_t0 = embassy_time::Instant::now();
-        let clock = Clock::build(1);
+        let mut clock = Clock::new();
+        clock.start();
         let t = clock.wait_until(fifty_ms, core::future::pending()).await;
         let elapsed = embassy_time::Instant::now().saturating_duration_since(wall_t0);
         assert!(
