@@ -23,17 +23,14 @@ pub use rayon::join as parallel_join;
 pub mod coordinator;
 pub mod simulator;
 
-/// Configuration for the DEVS simulator.
+/// Configuration for real-time simulations.
 #[derive(Debug, Clone, Copy)]
-pub struct Config {
-    /// The duration of the simulation.
-    pub duration: Duration,
-
+pub struct RtConfig {
     /// The time multiplier for the simulation.
     ///
     /// Model time advances `mult` times faster than the wall clock. Since
     /// `duration` is measured in model time, the wall-clock run time is
-    /// `duration / mult`. A value of 0 is treated as 1. Ignored by `simulate_vt`.
+    /// `duration / mult`. A value of 0 is treated as 1.
     pub mult: u64,
 
     /// The maximum jitter duration allowed in the simulation.
@@ -43,24 +40,20 @@ pub struct Config {
     pub max_jitter: Option<Duration>,
 }
 
-impl Config {
-    /// Creates a new `SimulatorConfig` with the specified parameters.
+impl RtConfig {
+    /// Creates a new `RtConfig` with the specified parameters.
     #[inline]
-    pub fn new(duration: Duration, mult: u64, max_jitter: Option<Duration>) -> Self {
-        Self {
-            duration,
-            mult,
-            max_jitter,
-        }
+    pub fn new(mult: u64, max_jitter: Option<Duration>) -> Self {
+        Self { mult, max_jitter }
     }
 }
 
-impl Default for Config {
-    /// Default configuration runs for an infinite duration, with a
-    /// time scale of 1 (real-time simulation) and no maximum jitter.
+impl Default for RtConfig {
+    /// Default configuration runs with a time scale of 1 (real-time
+    /// simulation) and no maximum jitter.
     #[inline]
     fn default() -> Self {
-        Self::new(Duration::MAX, 1, None)
+        Self::new(1, None)
     }
 }
 
@@ -113,10 +106,10 @@ pub unsafe trait AbstractSimulator {
         self.delta(input, output, t)
     }
 
-    /// Executes simulation from time 0 to `config.duration` with a virtual clock.
+    /// Executes simulation from time 0 to `duration` with a virtual clock.
     #[inline]
-    fn simulate_vt(&mut self, config: &Config) {
-        let t_stop = config.duration;
+    fn simulate_vt(&mut self, duration: Duration) {
+        let t_stop = duration;
         let mut t = Duration::ZERO;
         let mut t_next_internal = self.start();
         let mut component_input = <Self::Input>::build();
@@ -134,19 +127,20 @@ pub unsafe trait AbstractSimulator {
         self.stop();
     }
 
-    /// Executes simulation for `config.duration` of model time with a real-time
+    /// Executes simulation for `duration` of model time with a real-time
     /// clock and asynchronous input handling. Model time advances `config.mult`
     /// times faster than the wall clock.
     fn simulate_rt(
         &mut self,
         mut clock: impl Clock,
-        config: &Config,
+        duration: Duration,
+        config: &RtConfig,
         mut input_handler: impl AsyncInput<Input = Self::Input>,
         mut propagate_output: impl FnMut(&Self::Output),
     ) -> impl Future<Output = ()> {
         async move {
             let mult = config.mult.max(1);
-            let t_stop = config.duration;
+            let t_stop = duration;
             clock.start();
             let mut t = Duration::ZERO;
             let mut t_next_internal = self.start();
@@ -807,7 +801,7 @@ mod tests {
     use crate::{
         component::coupled::PartialCoupled,
         prelude::*,
-        simulation::{simulator::Simulator, AsyncInput, Config},
+        simulation::{simulator::Simulator, AsyncInput, RtConfig},
         Component, Duration, Port,
     };
 
@@ -862,8 +856,7 @@ mod tests {
     #[test]
     fn simulate_vt_single_event() {
         let mut sim = TestAtomic::oneshot(Duration::from_secs(5)).to_simulator();
-        let config = Config::new(Duration::from_secs(20), 1, None);
-        sim.simulate_vt(&config);
+        sim.simulate_vt(Duration::from_secs(20));
 
         assert_eq!(sim.int_calls, 1, "one internal transition");
         assert_eq!(sim.ext_calls, 0, "no external transitions");
@@ -873,8 +866,7 @@ mod tests {
     fn simulate_vt_multiple_events() {
         let mut sim =
             TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(2)).to_simulator();
-        let config = Config::new(Duration::from_secs(9), 1, None);
-        sim.simulate_vt(&config);
+        sim.simulate_vt(Duration::from_secs(9));
 
         assert_eq!(sim.int_calls, 5, "expected 5 internal transitions in 9s");
         assert_eq!(sim.ext_calls, 0, "no external transitions");
@@ -883,8 +875,7 @@ mod tests {
     #[test]
     fn simulate_vt_no_spurious_transitions() {
         let mut sim = TestAtomic::oneshot(Duration::MAX).to_simulator();
-        let config = Config::new(Duration::from_secs(10), 1, None);
-        sim.simulate_vt(&config);
+        sim.simulate_vt(Duration::from_secs(10));
 
         assert_eq!(sim.int_calls, 0, "no internal events");
         assert_eq!(sim.ext_calls, 0, "no external events");
@@ -893,6 +884,7 @@ mod tests {
     #[cfg(any(feature = "embassy", feature = "tokio"))]
     mod rt {
         use super::*;
+        use crate::export::Clock;
         use embassy_time::Instant;
 
         struct IdentityAsyncInput;
@@ -907,10 +899,10 @@ mod tests {
         #[tokio::test]
         async fn simulate_rt_single_event() {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-            let config = Config::new(Duration::from_millis(10), 1, None);
             sim.simulate_rt(
-                crate::export::Clock::new(),
-                &config,
+                Clock::new(),
+                Duration::from_millis(10),
+                &RtConfig::new(1, None),
                 IdentityAsyncInput,
                 |_| {},
             )
@@ -922,11 +914,11 @@ mod tests {
         #[tokio::test]
         async fn simulate_rt_injects_external_input() {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-            let config = Config::new(Duration::from_millis(10), 1, None);
 
             sim.simulate_rt(
-                crate::export::Clock::new(),
-                &config,
+                Clock::new(),
+                Duration::from_millis(10),
+                &RtConfig::new(1, None),
                 InjectInput { injected: false },
                 |_| {},
             )
@@ -938,12 +930,12 @@ mod tests {
         #[tokio::test]
         async fn simulate_rt_propagate_output() {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-            let config = Config::new(Duration::from_millis(10), 1, None);
             let mut captured = Port::<usize, 1>::new();
 
             sim.simulate_rt(
-                crate::export::Clock::new(),
-                &config,
+                Clock::new(),
+                Duration::from_millis(10),
+                &RtConfig::new(1, None),
                 IdentityAsyncInput,
                 |output| {
                     for v in output.get_values() {
@@ -963,12 +955,12 @@ mod tests {
         #[tokio::test]
         async fn simulate_rt_respects_duration() {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-            let config = Config::new(Duration::from_millis(20), 1, None);
 
             let start = Instant::now();
             sim.simulate_rt(
-                crate::export::Clock::new(),
-                &config,
+                Clock::new(),
+                Duration::from_millis(20),
+                &RtConfig::new(1, None),
                 IdentityAsyncInput,
                 |_| {},
             )
@@ -985,12 +977,12 @@ mod tests {
         #[tokio::test]
         async fn simulate_rt_mult_speeds_up_wall_time() {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-            let config = Config::new(Duration::from_millis(200), 4, None);
 
             let start = Instant::now();
             sim.simulate_rt(
-                crate::export::Clock::new(),
-                &config,
+                Clock::new(),
+                Duration::from_millis(200),
+                &RtConfig::new(4, None),
                 IdentityAsyncInput,
                 |_| {},
             )
@@ -1008,12 +1000,12 @@ mod tests {
         #[tokio::test]
         async fn simulate_rt_mult_zero_clamped_to_one() {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-            let config = Config::new(Duration::from_millis(20), 0, None);
 
             let start = Instant::now();
             sim.simulate_rt(
-                crate::export::Clock::new(),
-                &config,
+                Clock::new(),
+                Duration::from_millis(20),
+                &RtConfig::new(0, None),
                 IdentityAsyncInput,
                 |_| {},
             )
@@ -1228,8 +1220,7 @@ mod tests {
         let a1 = TestAtomic::oneshot(Duration::MAX); // passive, expects external
         let model = TestCoupled::build(a0, a1);
         let mut coord = model.to_simulator();
-        let config = Config::new(Duration::from_secs(5), 1, None);
-        coord.simulate_vt(&config);
+        coord.simulate_vt(Duration::from_secs(5));
 
         let comps = <TestCoupled as PartialCoupled>::get_components(&coord);
         assert_eq!(comps.a0.int_calls, 1, "atomic[0] fires once");
@@ -1244,8 +1235,7 @@ mod tests {
         let a0 = TestAtomic::oneshot(Duration::from_secs(1));
         let model = TestCoupledWithOption::build(a0, None);
         let mut coord = model.to_simulator();
-        let config = Config::new(Duration::from_secs(3), 1, None);
-        coord.simulate_vt(&config);
+        coord.simulate_vt(Duration::from_secs(3));
 
         let comps = <TestCoupledWithOption as PartialCoupled>::get_components(&coord);
         assert_eq!(comps.a0.int_calls, 1, "atomic[0] fires");
@@ -1309,8 +1299,7 @@ mod tests {
         );
 
         let mut coord = model.to_simulator();
-        let config = Config::new(Duration::from_secs(5), 1, None);
-        coord.simulate_vt(&config);
+        coord.simulate_vt(Duration::from_secs(5));
 
         let arr = &coord.components.inner;
         assert_eq!(arr[0].int_calls, 3, "a0 fires 3 times (t=0,2,4)");
@@ -1325,17 +1314,15 @@ mod tests {
     }
 
     #[test]
-    fn config_default() {
-        let c = Config::default();
-        assert_eq!(c.duration, Duration::MAX);
+    fn rt_config_default() {
+        let c = RtConfig::default();
         assert_eq!(c.mult, 1);
         assert!(c.max_jitter.is_none());
     }
 
     #[test]
-    fn config_custom() {
-        let c = Config::new(Duration::from_secs(10), 2, Some(Duration::from_millis(100)));
-        assert_eq!(c.duration, Duration::from_secs(10));
+    fn rt_config_custom() {
+        let c = RtConfig::new(2, Some(Duration::from_millis(100)));
         assert_eq!(c.mult, 2);
         assert_eq!(c.max_jitter, Some(Duration::from_millis(100)));
     }
@@ -1403,8 +1390,13 @@ mod tests {
         fn mock_clock_runs_full_duration() {
             let mut sim =
                 TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(2)).to_simulator();
-            let config = Config::new(Duration::from_secs(9), 1, None);
-            block_on(sim.simulate_rt(MockClock, &config, NoInput, |_| {}));
+            block_on(sim.simulate_rt(
+                MockClock,
+                Duration::from_secs(9),
+                &RtConfig::new(1, None),
+                NoInput,
+                |_| {},
+            ));
             assert_eq!(sim.int_calls, 5, "expected 5 internal transitions in 9s");
             assert_eq!(sim.ext_calls, 0, "no external transitions");
         }
@@ -1412,8 +1404,13 @@ mod tests {
         #[test]
         fn mock_clock_injects_external_input() {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
-            let config = Config::new(Duration::from_millis(10), 1, None);
-            block_on(sim.simulate_rt(MockClock, &config, InjectInput { injected: false }, |_| {}));
+            block_on(sim.simulate_rt(
+                MockClock,
+                Duration::from_millis(10),
+                &RtConfig::new(1, None),
+                InjectInput { injected: false },
+                |_| {},
+            ));
             assert_eq!(sim.ext_calls, 1, "external transition via input_handler");
         }
 
@@ -1421,18 +1418,23 @@ mod tests {
         fn timeout_lands_on_exact_model_deadline() {
             let mut sim = TestAtomic::periodic(Duration::from_micros(99), Duration::from_micros(1))
                 .to_simulator();
-            let config = Config::new(Duration::from_micros(100), 7, None);
-            block_on(sim.simulate_rt(MockClock, &config, NoInput, |_| {}));
+            block_on(sim.simulate_rt(
+                MockClock,
+                Duration::from_micros(100),
+                &RtConfig::new(7, None),
+                NoInput,
+                |_| {},
+            ));
             assert_eq!(sim.int_calls, 2, "event at t=100us must not be skipped");
         }
 
         #[test]
         fn clock_overshoot_preserves_jitter_in_model_time() {
             let mut sim = TestAtomic::oneshot(Duration::from_secs(10)).to_simulator();
-            let config = Config::new(Duration::from_secs(1), 1, None);
             block_on(sim.simulate_rt(
                 JitterClock,
-                &config,
+                Duration::from_secs(1),
+                &RtConfig::new(1, None),
                 InjectInput { injected: false },
                 |_| {},
             ));
@@ -1447,8 +1449,13 @@ mod tests {
         #[should_panic(expected = "Jitter too high")]
         fn clock_overshoot_above_max_jitter_panics() {
             let mut sim = TestAtomic::oneshot(Duration::from_secs(1)).to_simulator();
-            let config = Config::new(Duration::from_secs(1), 1, Some(Duration::from_millis(1)));
-            block_on(sim.simulate_rt(JitterClock, &config, NoInput, |_| {}));
+            block_on(sim.simulate_rt(
+                JitterClock,
+                Duration::from_secs(1),
+                &RtConfig::new(1, Some(Duration::from_millis(1))),
+                NoInput,
+                |_| {},
+            ));
         }
     }
 }

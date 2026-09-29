@@ -39,17 +39,17 @@ where
         }
     }
 
-    pub async fn simulate_rt(&mut self, config: &crate::Config) {
+    pub async fn simulate_rt(
+        &mut self,
+        clock: impl crate::clock::Clock,
+        duration: crate::Duration,
+        config: &crate::RtConfig,
+    ) {
         let input_handler = RtEngineInputHandler::<K, M>::new(&mut self.input_channel);
         self.simulator
-            .simulate_rt(
-                crate::export::Clock::new(),
-                config,
-                input_handler,
-                |output| {
-                    output.map_output(&self.output_channel);
-                },
-            )
+            .simulate_rt(clock, duration, config, input_handler, |output| {
+                output.map_output(&self.output_channel);
+            })
             .await;
     }
 }
