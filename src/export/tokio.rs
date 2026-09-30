@@ -1,8 +1,15 @@
-use crate::rt_engine::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel};
+use crate::{
+    rt_engine::{sealed::Sealed, RtEngineInputChannel, RtEngineOutputChannel},
+    Duration,
+};
+use core::future::Future;
 
 pub use tokio::sync::broadcast::error::RecvError;
 pub type SubscribeError = core::convert::Infallible;
-use tokio::sync::mpsc::error::SendError;
+use tokio::{
+    sync::mpsc::error::SendError,
+    time::{self, Instant},
+};
 
 #[repr(transparent)]
 pub struct Sender<I> {
@@ -94,3 +101,85 @@ impl<O: Clone, const N: usize> RtEngineOutputChannel for OutputChannel<O, N> {
 }
 
 impl<O: Clone, const N: usize> Sealed for OutputChannel<O, N> {}
+
+pub struct Clock {
+    t0: Instant,
+}
+
+impl Clock {
+    #[inline(always)]
+    pub fn new() -> Self {
+        Self {
+            // The value here doesn't matter, because start() will overwrite it with the current time when the simulation starts.
+            t0: Instant::now(),
+        }
+    }
+}
+
+impl Default for Clock {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl crate::clock::Clock for Clock {
+    #[inline(always)]
+    fn start(&mut self) {
+        self.t0 = Instant::now();
+    }
+
+    async fn wait_until(
+        &self,
+        t_until: Duration,
+        input_handler: impl Future<Output = ()>,
+    ) -> Duration {
+        let deadline = self.t0 + t_until.into();
+        let _ = time::timeout_at(deadline, input_handler).await;
+        let now = Instant::now();
+        let elapsed =
+            u64::try_from(now.saturating_duration_since(self.t0).as_micros()).unwrap_or(u64::MAX);
+        Duration::from_micros(elapsed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::clock::Clock as _;
+
+    #[tokio::test]
+    async fn wait_until_returns_early_when_input_is_ready() {
+        let wall_t0 = std::time::Instant::now();
+        let mut clock = Clock::new();
+        clock.start();
+        let t = clock
+            .wait_until(Duration::from_secs(1), core::future::ready(()))
+            .await;
+        let elapsed = wall_t0.elapsed();
+        assert!(
+            elapsed < std::time::Duration::from_millis(10),
+            "{elapsed:?}"
+        );
+        assert!(t < Duration::from_millis(10), "{t:?}");
+    }
+
+    #[tokio::test]
+    async fn wait_until_waits_requested_wall_time() {
+        let fifty_ms = Duration::from_millis(50);
+        let wall_t0 = std::time::Instant::now();
+        let mut clock = Clock::new();
+        clock.start();
+        let t = clock.wait_until(fifty_ms, core::future::pending()).await;
+        let elapsed = wall_t0.elapsed();
+        assert!(
+            elapsed >= std::time::Duration::from_millis(50),
+            "{elapsed:?}"
+        );
+        assert!(
+            elapsed <= std::time::Duration::from_millis(250),
+            "{elapsed:?}"
+        );
+        assert!(t >= fifty_ms, "{t:?}");
+        assert!(t <= Duration::from_millis(250), "{t:?}");
+    }
+}

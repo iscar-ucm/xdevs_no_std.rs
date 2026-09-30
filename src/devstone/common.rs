@@ -1,11 +1,11 @@
-#[cfg(not(feature = "std"))]
-use crate::Instant;
 use crate::{
     couple, Atomic, AtomicKind, Bag, Component, ComponentsInput, ComponentsOutput, Coupled,
     CoupledKind, Duration, Port,
 };
 #[cfg(feature = "std")]
 use cpu_time::ThreadTime;
+#[cfg(not(feature = "std"))]
+use embassy_time::Instant;
 
 /// Simple atomic model that generates jobs and sends them to the input port of the model
 pub struct JobGenerator {

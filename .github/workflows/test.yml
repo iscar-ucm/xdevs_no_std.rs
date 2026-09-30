@@ -34,6 +34,7 @@ jobs:
           - "--features embassy"
           - "--features alloc,embassy"
           - "--features std"
+          - "--features tokio"
         exclude: # For some reason, alloc + embassy fails on Windows, so we exclude that combination.
           - os: windows-latest
             toolchain: stable
@@ -84,7 +85,7 @@ jobs:
 
       - name: Run tests and generate HTML coverage
         run: >-
-          cargo llvm-cov --all --features std
+          cargo llvm-cov --all --features tokio
           --html --output-dir coverage-html
           --fail-under-lines "${MIN_COVERAGE_LINES}"
 
