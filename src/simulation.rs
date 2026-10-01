@@ -25,7 +25,8 @@ pub mod simulator;
 
 /// Configuration for real-time simulations.
 #[derive(Debug, Clone, Copy)]
-pub struct RtConfig {
+pub struct RtConfig<C: Clock> {
+    pub clock: C,
     /// The time multiplier for the simulation.
     ///
     /// Model time advances `mult` times faster than the wall clock. Since
@@ -40,20 +41,15 @@ pub struct RtConfig {
     pub max_jitter: Option<Duration>,
 }
 
-impl RtConfig {
+impl<C: Clock> RtConfig<C> {
     /// Creates a new `RtConfig` with the specified parameters.
     #[inline]
-    pub fn new(mult: u64, max_jitter: Option<Duration>) -> Self {
-        Self { mult, max_jitter }
-    }
-}
-
-impl Default for RtConfig {
-    /// Default configuration runs with a time scale of 1 (real-time
-    /// simulation) and no maximum jitter.
-    #[inline]
-    fn default() -> Self {
-        Self::new(1, None)
+    pub fn new(clock: C, mult: u64, max_jitter: Option<Duration>) -> Self {
+        Self {
+            clock,
+            mult,
+            max_jitter,
+        }
     }
 }
 
@@ -132,16 +128,15 @@ pub unsafe trait AbstractSimulator {
     /// times faster than the wall clock.
     fn simulate_rt(
         &mut self,
-        mut clock: impl Clock,
         duration: Duration,
-        config: &RtConfig,
+        mut config: RtConfig<impl Clock>,
         mut input_handler: impl AsyncInput<Input = Self::Input>,
         mut propagate_output: impl FnMut(&Self::Output),
     ) -> impl Future<Output = ()> {
         async move {
             let mult = config.mult.max(1);
             let t_stop = duration;
-            clock.start();
+            config.clock.start();
             let mut t = Duration::ZERO;
             let mut t_next_internal = self.start();
             let mut component_input = <Self::Input>::build();
@@ -150,7 +145,7 @@ pub unsafe trait AbstractSimulator {
                 let t_until = Duration::min(t_next_internal, t_stop);
                 let t_until_wall = Duration::from_micros(t_until.as_micros().div_ceil(mult));
                 let future = input_handler.handle(&mut component_input);
-                let t_wall = clock.wait_until(t_until_wall, future).await;
+                let t_wall = config.clock.wait_until(t_until_wall, future).await;
                 // An exact deadline hit means no jitter occurred.
                 t = if t_wall == t_until_wall {
                     t_until
@@ -900,9 +895,8 @@ mod tests {
         async fn simulate_rt_single_event() {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
             sim.simulate_rt(
-                Clock::new(),
                 Duration::from_millis(10),
-                &RtConfig::new(1, None),
+                RtConfig::new(Clock::new(), 1, None),
                 IdentityAsyncInput,
                 |_| {},
             )
@@ -916,9 +910,8 @@ mod tests {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
 
             sim.simulate_rt(
-                Clock::new(),
                 Duration::from_millis(10),
-                &RtConfig::new(1, None),
+                RtConfig::new(Clock::new(), 1, None),
                 InjectInput { injected: false },
                 |_| {},
             )
@@ -933,9 +926,8 @@ mod tests {
             let mut captured = Port::<usize, 1>::new();
 
             sim.simulate_rt(
-                Clock::new(),
                 Duration::from_millis(10),
-                &RtConfig::new(1, None),
+                RtConfig::new(Clock::new(), 1, None),
                 IdentityAsyncInput,
                 |output| {
                     for v in output.get_values() {
@@ -958,9 +950,8 @@ mod tests {
 
             let start = Instant::now();
             sim.simulate_rt(
-                Clock::new(),
                 Duration::from_millis(20),
-                &RtConfig::new(1, None),
+                RtConfig::new(Clock::new(), 1, None),
                 IdentityAsyncInput,
                 |_| {},
             )
@@ -980,9 +971,8 @@ mod tests {
 
             let start = Instant::now();
             sim.simulate_rt(
-                Clock::new(),
                 Duration::from_millis(200),
-                &RtConfig::new(4, None),
+                RtConfig::new(Clock::new(), 4, None),
                 IdentityAsyncInput,
                 |_| {},
             )
@@ -1003,9 +993,8 @@ mod tests {
 
             let start = Instant::now();
             sim.simulate_rt(
-                Clock::new(),
                 Duration::from_millis(20),
-                &RtConfig::new(0, None),
+                RtConfig::new(Clock::new(), 0, None),
                 IdentityAsyncInput,
                 |_| {},
             )
@@ -1018,6 +1007,13 @@ mod tests {
                 "mult 0 must behave as real time, elapsed: {} ms",
                 elapsed.as_millis(),
             );
+        }
+
+        #[test]
+        fn rt_config_custom() {
+            let c = RtConfig::new(Clock::new(), 2, Some(Duration::from_millis(100)));
+            assert_eq!(c.mult, 2);
+            assert_eq!(c.max_jitter, Some(Duration::from_millis(100)));
         }
     }
 
@@ -1313,19 +1309,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn rt_config_default() {
-        let c = RtConfig::default();
-        assert_eq!(c.mult, 1);
-        assert!(c.max_jitter.is_none());
-    }
-
-    #[test]
-    fn rt_config_custom() {
-        let c = RtConfig::new(2, Some(Duration::from_millis(100)));
-        assert_eq!(c.mult, 2);
-        assert_eq!(c.max_jitter, Some(Duration::from_millis(100)));
-    }
     /// Deterministic tests for the generic real-time loop. A mock clock
     /// replaces the wall clock, so these run under any feature set.
     mod rt_clocked {
@@ -1391,9 +1374,8 @@ mod tests {
             let mut sim =
                 TestAtomic::periodic(Duration::from_secs(0), Duration::from_secs(2)).to_simulator();
             block_on(sim.simulate_rt(
-                MockClock,
                 Duration::from_secs(9),
-                &RtConfig::new(1, None),
+                RtConfig::new(MockClock, 1, None),
                 NoInput,
                 |_| {},
             ));
@@ -1405,9 +1387,8 @@ mod tests {
         fn mock_clock_injects_external_input() {
             let mut sim = TestAtomic::oneshot(Duration::from_millis(5)).to_simulator();
             block_on(sim.simulate_rt(
-                MockClock,
                 Duration::from_millis(10),
-                &RtConfig::new(1, None),
+                RtConfig::new(MockClock, 1, None),
                 InjectInput { injected: false },
                 |_| {},
             ));
@@ -1419,9 +1400,8 @@ mod tests {
             let mut sim = TestAtomic::periodic(Duration::from_micros(99), Duration::from_micros(1))
                 .to_simulator();
             block_on(sim.simulate_rt(
-                MockClock,
                 Duration::from_micros(100),
-                &RtConfig::new(7, None),
+                RtConfig::new(MockClock, 7, None),
                 NoInput,
                 |_| {},
             ));
@@ -1432,9 +1412,8 @@ mod tests {
         fn clock_overshoot_preserves_jitter_in_model_time() {
             let mut sim = TestAtomic::oneshot(Duration::from_secs(10)).to_simulator();
             block_on(sim.simulate_rt(
-                JitterClock,
                 Duration::from_secs(1),
-                &RtConfig::new(1, None),
+                RtConfig::new(JitterClock, 1, None),
                 InjectInput { injected: false },
                 |_| {},
             ));
@@ -1450,9 +1429,8 @@ mod tests {
         fn clock_overshoot_above_max_jitter_panics() {
             let mut sim = TestAtomic::oneshot(Duration::from_secs(1)).to_simulator();
             block_on(sim.simulate_rt(
-                JitterClock,
                 Duration::from_secs(1),
-                &RtConfig::new(1, Some(Duration::from_millis(1))),
+                RtConfig::new(JitterClock, 1, Some(Duration::from_millis(1))),
                 NoInput,
                 |_| {},
             ));

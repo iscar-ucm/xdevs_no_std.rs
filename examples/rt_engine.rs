@@ -104,7 +104,7 @@ async fn receiver(mut receiver: TransparentReceiver) {
 async fn main() {
     let transparent = Transparent::new();
     let mut engine = transparent.into_rt_engine();
-    let config = RtConfig::new(1, None);
+    let config = RtConfig::new(Clock::new(), 1, None);
 
     let send = engine.sender();
     let recv = engine.receiver().unwrap();
@@ -112,7 +112,5 @@ async fn main() {
     tokio::spawn(sender(send));
     tokio::spawn(receiver(recv));
 
-    engine
-        .simulate_rt(Clock::new(), Duration::from_secs(15), &config)
-        .await;
+    engine.simulate_rt(Duration::from_secs(15), config).await;
 }

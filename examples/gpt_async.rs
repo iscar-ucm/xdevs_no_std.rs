@@ -20,16 +20,10 @@ async fn main() {
     let gpt = GPT::build(generator, processor, transducer);
 
     let mut simulator = gpt.to_simulator();
-    let config = RtConfig::new(1, None);
+    let config = RtConfig::new(Clock::new(), 1, None);
     let input_handler = SleepAsync::new();
 
     simulator
-        .simulate_rt(
-            Clock::new(),
-            Duration::from_secs(14),
-            &config,
-            input_handler,
-            |_| {},
-        )
+        .simulate_rt(Duration::from_secs(14), config, input_handler, |_| {})
         .await;
 }
