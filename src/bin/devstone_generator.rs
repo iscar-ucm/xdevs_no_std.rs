@@ -182,11 +182,10 @@ fn render_example(
         println!("Model creation time: {{:?}}", duration);
         let start = Instant::now();
         let mut simulator = top_model.to_simulator();
-        let config = xdevs::Config::new(xdevs::Duration::from_secs(10), 1, None);
         let duration = start.elapsed();
         println!("Simulator creation time: {{:?}}", duration);
         let start = Instant::now();
-        simulator.simulate_vt(&config);
+        simulator.simulate_vt(xdevs::Duration::from_secs(10));
         let duration = start.elapsed();
         println!("Simulation time: {{:?}}", duration);
     }}

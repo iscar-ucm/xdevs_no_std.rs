@@ -4,7 +4,7 @@ use xdevs::{
     devstone::li,
     generate_li,
     prelude::*,
-    Config, Duration,
+    Duration,
 };
 #[cfg(feature = "alloc")]
 use xdevs::{devstone::li_box, generate_li_box};
@@ -18,13 +18,11 @@ fn bench_li(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: li::TopModel<'_, W> = li::TopModel::build(generator, &mut model_li);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(Duration::from_secs(10), 1, None);
-
     let mut group = c.benchmark_group("li-group");
     group.bench_function("li-sim", |b| {
         b.iter(|| {
             simulator.reset();
-            simulator.simulate_vt(&config);
+            simulator.simulate_vt(Duration::from_secs(10));
             assert_eq!(N, simulator.get_n_atomics());
             assert_eq!(N, simulator.get_n_events());
             assert_eq!(simulator.get_n_internals(), simulator.get_n_externals());
@@ -42,13 +40,11 @@ fn bench_li_cycles(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: li::TopModel<'_, W> = li::TopModel::build(generator, &mut model_li);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(Duration::from_secs(10), 1, None);
-
     let mut group = c.benchmark_group("li-group");
     group.bench_function("li-cycles-sim", |b| {
         b.iter(|| {
             simulator.reset();
-            simulator.simulate_vt(&config);
+            simulator.simulate_vt(Duration::from_secs(10));
             assert_eq!(N, simulator.get_n_atomics());
             assert_eq!(N, simulator.get_n_events());
             assert_eq!(simulator.get_n_internals(), simulator.get_n_externals());
@@ -70,13 +66,11 @@ fn bench_li_box(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: li_box::TopModel<W> = li_box::TopModel::build(generator, model_li);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(Duration::from_secs(10), 1, None);
-
     let mut group = c.benchmark_group("li-group");
     group.bench_function("li-box-sim", |b| {
         b.iter(|| {
             simulator.reset();
-            simulator.simulate_vt(&config);
+            simulator.simulate_vt(Duration::from_secs(10));
             assert_eq!(N, simulator.get_n_atomics());
             assert_eq!(N, simulator.get_n_events());
             assert_eq!(simulator.get_n_internals(), simulator.get_n_externals());

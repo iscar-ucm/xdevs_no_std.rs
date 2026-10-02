@@ -122,7 +122,7 @@ impl Default for Clock {
     }
 }
 
-impl crate::clock::Clock for Clock {
+impl crate::simulation::Clock for Clock {
     #[inline(always)]
     fn start(&mut self) {
         self.t0 = Instant::now();
@@ -145,7 +145,7 @@ impl crate::clock::Clock for Clock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::clock::Clock as _;
+    use crate::simulation::Clock as _;
 
     #[tokio::test]
     async fn wait_until_returns_early_when_input_is_ready() {

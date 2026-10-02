@@ -6,7 +6,6 @@ extern crate self as xdevs;
 extern crate std;
 
 pub mod bag;
-pub mod clock;
 pub mod component;
 pub mod devstone;
 pub mod export;
@@ -23,7 +22,7 @@ pub use component::{
 };
 /// Simulation time, stored as a whole number of microseconds.
 pub type Duration = fugit::MicrosDurationU64;
-pub use simulation::Config;
+pub use simulation::RtConfig;
 pub use xdevs_no_std_macros::*;
 
 /// Port is an alias for a heapless::Vec.
@@ -42,7 +41,7 @@ pub mod prelude {
             coupled::{ComponentsInput, ComponentsOutput, Coupled},
             AtomicKind, Component, ComponentsKind, CoupledKind,
         },
-        simulation::{AbstractSimulator, Config, Simulable},
+        simulation::{AbstractSimulator, RtConfig, Simulable},
         Port,
     };
 }
