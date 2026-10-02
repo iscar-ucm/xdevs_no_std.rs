@@ -75,6 +75,15 @@ impl<C: Clock> RtConfig<C> {
     }
 }
 
+impl<C: Clock + Default> Default for RtConfig<C> {
+    /// Creates a configuration with a default clock, real-time speed
+    /// (`mult = 1`) and no maximum jitter.
+    #[inline]
+    fn default() -> Self {
+        Self::new(C::default(), 1, None)
+    }
+}
+
 /// Public simulation API for DEVS processors and processor collections.
 ///
 /// This trait provides transition-level methods (`start`, `stop`, `lambda`, `delta`)
