@@ -1,4 +1,4 @@
-use crate::{bag::Bag, clock::Clock, Component, ComponentsKind, Duration};
+use crate::{bag::Bag, Component, ComponentsKind, Duration};
 use core::future::Future;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
@@ -22,6 +22,28 @@ pub use rayon::join as parallel_join;
 
 pub mod coordinator;
 pub mod simulator;
+
+/// Wall-clock abstraction used by real-time simulations.
+pub trait Clock {
+    /// Captures the current instant as the start time of the simulation.
+    fn start(&mut self);
+
+    /// Waits until `t_until` of wall-clock time has elapsed since
+    /// [`start`](Self::start), or until `input_handler` completes, whichever
+    /// happens first. Returns the wall-clock time elapsed since `start`.
+    ///
+    /// # Note
+    ///
+    /// Both `t_until` and the returned duration are measured from the instant
+    /// captured by [`start`](Self::start). The returned duration must not be
+    /// greater than `t_until`. Otherwise, the simulation might panic due to
+    /// excessive jitter.
+    fn wait_until(
+        &self,
+        t_until: Duration,
+        input_handler: impl Future<Output = ()>,
+    ) -> impl Future<Output = Duration>;
+}
 
 /// Configuration for real-time simulations.
 #[derive(Debug, Clone, Copy)]
@@ -1313,7 +1335,7 @@ mod tests {
     /// replaces the wall clock, so these run under any feature set.
     mod rt_clocked {
         use super::*;
-        use crate::clock::Clock;
+        use crate::simulation::Clock;
 
         struct MockClock;
 

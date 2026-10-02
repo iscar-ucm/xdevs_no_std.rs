@@ -3,7 +3,7 @@ use core::future::Future;
 pub use crate::export::{RecvError, SubscribeError};
 use crate::{
     bag::Bag,
-    simulation::{AbstractSimulator, AsyncInput, Simulable},
+    simulation::{AbstractSimulator, AsyncInput, Clock, Simulable},
     Component,
 };
 use sealed::Sealed;
@@ -42,7 +42,7 @@ where
     pub async fn simulate_rt(
         &mut self,
         duration: crate::Duration,
-        config: crate::RtConfig<impl crate::clock::Clock>,
+        config: crate::RtConfig<impl Clock>,
     ) {
         let input_handler = RtEngineInputHandler::<K, M>::new(&mut self.input_channel);
         self.simulator
