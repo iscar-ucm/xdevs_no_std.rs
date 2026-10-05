@@ -4,7 +4,7 @@ use xdevs::{
     devstone::ho,
     generate_ho,
     prelude::*,
-    Config, Duration,
+    Duration,
 };
 #[cfg(feature = "alloc")]
 use xdevs::{devstone::ho_box, generate_ho_box};
@@ -19,13 +19,11 @@ fn bench_ho(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: ho::TopModel<'_, W> = ho::TopModel::build(generator, &mut model_ho);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(Duration::from_secs(10), 1, None);
-
     let mut group = c.benchmark_group("ho-group");
     group.bench_function("ho-sim", |b| {
         b.iter(|| {
             simulator.reset();
-            simulator.simulate_vt(&config);
+            simulator.simulate_vt(Duration::from_secs(10));
             assert_eq!(N, simulator.get_n_atomics());
             assert_eq!(E, simulator.get_n_events());
             assert_eq!(simulator.get_n_internals(), simulator.get_n_externals());
@@ -44,13 +42,11 @@ fn bench_ho_cycles(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: ho::TopModel<'_, W> = ho::TopModel::build(generator, &mut model_ho);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(Duration::from_secs(10), 1, None);
-
     let mut group = c.benchmark_group("ho-group");
     group.bench_function("ho-cycles-sim", |b| {
         b.iter(|| {
             simulator.reset();
-            simulator.simulate_vt(&config);
+            simulator.simulate_vt(Duration::from_secs(10));
             assert_eq!(N, simulator.get_n_atomics());
             assert_eq!(E, simulator.get_n_events());
             assert_eq!(simulator.get_n_internals(), simulator.get_n_externals());
@@ -73,13 +69,11 @@ fn bench_ho_box(c: &mut Criterion) {
     let generator = JobGenerator::new(5);
     let top_model: ho_box::TopModel<W> = ho_box::TopModel::build(generator, model_ho);
     let mut simulator = top_model.to_simulator();
-    let config = Config::new(Duration::from_secs(10), 1, None);
-
     let mut group = c.benchmark_group("ho-group");
     group.bench_function("ho-box-sim", |b| {
         b.iter(|| {
             simulator.reset();
-            simulator.simulate_vt(&config);
+            simulator.simulate_vt(Duration::from_secs(10));
             assert_eq!(N, simulator.get_n_atomics());
             assert_eq!(E, simulator.get_n_events());
             assert_eq!(simulator.get_n_internals(), simulator.get_n_externals());

@@ -152,8 +152,7 @@ mod test {
         let generator = JobGenerator::new(5);
         let top_model: TopModel<'_, W> = TopModel::build(generator, &mut model_ho);
         let mut simulator = top_model.to_simulator();
-        let config = crate::simulation::Config::new(Duration::from_secs(10), 1, None);
-        simulator.simulate_vt(&config);
+        simulator.simulate_vt(Duration::from_secs(10));
 
         assert_eq!(expected_n_atomic(WIDTH, DEPTH), simulator.get_n_atomics());
         assert_eq!(expected_n_events(WIDTH, DEPTH), simulator.get_n_events());

@@ -1,7 +1,7 @@
 /// This example demonstrates how the rt_engine can be used to simplify the DEVS simulation
 /// interaction with other tasks. An array is used for the input to showcase how the input enum
 /// would look like for an input array.
-use xdevs::{prelude::*, AtomicKind, Config, Duration, Port};
+use xdevs::{export::Clock, prelude::*, AtomicKind, Duration, Port, RtConfig};
 
 #[derive(xdevs::Bag)]
 pub struct TransparentInput {
@@ -104,7 +104,7 @@ async fn receiver(mut receiver: TransparentReceiver) {
 async fn main() {
     let transparent = Transparent::new();
     let mut engine = transparent.into_rt_engine();
-    let config = Config::new(Duration::from_secs(15), 1, None);
+    let config = RtConfig::new(Clock::new(), 1, None);
 
     let send = engine.sender();
     let recv = engine.receiver().unwrap();
@@ -112,5 +112,5 @@ async fn main() {
     tokio::spawn(sender(send));
     tokio::spawn(receiver(recv));
 
-    engine.simulate_rt(&config).await;
+    engine.simulate_rt(Duration::from_secs(15), config).await;
 }
