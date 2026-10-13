@@ -128,23 +128,9 @@ unsafe impl<T: Clone + Ord, K: binary_heap::Kind, const N: usize> Bag for Binary
     }
 
     /// Values are yielded in priority order.
-    ///
-    /// # Warning
-    ///
-    /// This `get_values` implementation costs `O(n^2)` per full drain; avoid it in performance-critical code.
     fn get_values(&self) -> impl Iterator<Item = T> + '_ {
-        let desc = K::ordering() == core::cmp::Ordering::Greater;
-        let mut used = [false; N];
-        (0..self.len()).map(move |_| {
-            let (i, v) = self
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| !used[*i])
-                .min_by(|a, b| if desc { b.1.cmp(a.1) } else { a.1.cmp(b.1) })
-                .unwrap();
-            used[i] = true;
-            v.clone()
-        })
+        let mut heap = self.clone();
+        core::iter::from_fn(move || heap.pop())
     }
 }
 
