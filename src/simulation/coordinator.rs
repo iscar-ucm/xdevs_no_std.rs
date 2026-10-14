@@ -88,7 +88,9 @@ unsafe impl<T: Coupled> AbstractSimulator for Coordinator<T> {
             return self.t_next;
         }
 
-        T::eic(input, &mut self.components_input);
+        if !input.is_empty() {
+            T::eic(input, &mut self.components_input);
+        }
         T::ic(&self.components_output, &mut self.components_input);
         self.t_next = self.component.get_components_mut().delta(
             &mut self.components_input,
@@ -110,8 +112,29 @@ mod tests {
         bag::Bag,
         component::coupled::PartialCoupled,
         simulation::test_utils::{TestAtomic, TestCoupled},
-        Duration, Port,
+        Component, Duration, Port,
     };
+    use core::sync::atomic::{AtomicUsize, Ordering};
+
+    static EIC_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    #[crate::coupled]
+    struct CountingCoupled {
+        a0: TestAtomic,
+    }
+
+    impl Component for CountingCoupled {
+        type Kind = CoupledKind;
+        type Input = Port<usize, 1>;
+        type Output = ();
+    }
+
+    impl Coupled for CountingCoupled {
+        fn eic(from: &Self::Input, to: &mut ComponentsInput<Self>) {
+            EIC_CALLS.fetch_add(1, Ordering::Relaxed);
+            let _ = crate::couple(from, &mut to.a0);
+        }
+    }
 
     #[test]
     fn start_delegates() {
@@ -214,5 +237,29 @@ mod tests {
 
         let comps = <TestCoupled as PartialCoupled>::get_components(&coord);
         assert_eq!(comps.a1.ext_calls, 1, "ic routes a0's output to a1's input");
+    }
+
+    #[test]
+    fn eic_skipped_on_empty_input() {
+        EIC_CALLS.store(0, Ordering::Relaxed);
+        let mut coord = Coordinator::new(CountingCoupled::build(TestAtomic::periodic(
+            Duration::from_secs(0),
+            Duration::MAX,
+        )));
+        coord.start();
+
+        // Internal transition with empty input: eic must not run.
+        coord.delta(&mut Port::new(), &mut (), Duration::from_secs(0));
+        assert_eq!(
+            EIC_CALLS.load(Ordering::Relaxed),
+            0,
+            "eic skipped when empty"
+        );
+
+        // External transition with input: eic must run.
+        let mut input = Port::<usize, 1>::new();
+        input.add_value(7).unwrap();
+        coord.delta(&mut input, &mut (), Duration::from_secs(0));
+        assert_eq!(EIC_CALLS.load(Ordering::Relaxed), 1, "eic runs with input");
     }
 }
