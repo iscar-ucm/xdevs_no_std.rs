@@ -123,15 +123,15 @@ impl Parse for RtEngineArgs {
             }
         }
 
-        #[cfg(not(any(feature = "embassy-backend", feature = "std-backend")))]
+        #[cfg(not(any(feature = "embassy-backend", feature = "tokio-backend")))]
         {
             return Err(syn::Error::new(
                 input.span(),
-                "No backend feature enabled. Please enable either the `embassy` or `std` feature.",
+                "No backend feature enabled. Please enable either the `embassy` or `tokio` feature.",
             ));
         }
 
-        #[cfg(any(feature = "embassy-backend", feature = "std-backend"))]
+        #[cfg(any(feature = "embassy-backend", feature = "tokio-backend"))]
         {
             if let Some(err) = acc {
                 return Err(err);

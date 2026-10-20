@@ -17,18 +17,19 @@ This allows a robust Model-Based design approach, from a mathematical model to a
 - **Performant** - test it by yourself using the built-in DEVStone benchmark implementation.
 - **Real-Time guarantees** - for critical IoT applications in which timing is key.
 - **`async` support** - seamless interaction between your simulation and external tasks.
-- **Extra tools for the most popular executors** — choose between `std` (Tokio) and `embassy` backends.
+- **Extra tools for the most popular executors** — choose between `tokio` and `embassy` backends.
 
 ## Feature flags
 
 | Feature | Description |
 |---------|-------------|
-| `std` | Tokio-based async backend. Enables heap-allocated (`alloc`) variants. |
+| `tokio` | Tokio-based async backend. Implies `std`. |
 | `embassy` | Embassy-based async backend for bare-metal targets. |
 | `alloc` | Enables `Box` of DEVS models and `Box`-based DEVStone models. |
+| `std` | Host/`std` support: enables `alloc`. |
 | `rayon` | Parallel simulation of independent components (arrays/tuples/struct fields). Implies `std`; components must be `Send`. |
 
-Both `std` and `embassy` enable executor-dependent tools. They are mutually exclusive and interchangeable.
+The `tokio` and `embassy` backends are mutually exclusive and interchangeable.
 
 ## Work in progress!
 

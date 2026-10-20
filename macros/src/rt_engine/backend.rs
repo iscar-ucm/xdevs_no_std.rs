@@ -4,16 +4,16 @@ mod embassy;
 #[cfg(feature = "embassy-backend")]
 pub use embassy::RtEngineBackend;
 
-#[cfg(feature = "std-backend")]
+#[cfg(feature = "tokio-backend")]
 mod tokio;
 
-#[cfg(feature = "std-backend")]
+#[cfg(feature = "tokio-backend")]
 pub use tokio::RtEngineBackend;
 
-#[cfg(not(any(feature = "embassy-backend", feature = "std-backend")))]
+#[cfg(not(any(feature = "embassy-backend", feature = "tokio-backend")))]
 mod no_backend;
 
-#[cfg(not(any(feature = "embassy-backend", feature = "std-backend")))]
+#[cfg(not(any(feature = "embassy-backend", feature = "tokio-backend")))]
 pub use no_backend::RtEngineBackend;
 
 use super::{ChannelTokens, RtEngineArgs};

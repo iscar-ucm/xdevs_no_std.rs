@@ -34,14 +34,21 @@ jobs:
           - "--features embassy"
           - "--features alloc,embassy"
           - "--features std"
+          - "--features std,embassy"
           - "--features tokio"
-        exclude: # For some reason, alloc + embassy fails on Windows, so we exclude that combination.
+        exclude: # For some reason, alloc + embassy fails on Windows, so we exclude that combination (std implies alloc).
           - os: windows-latest
             toolchain: stable
             cargo_flags: "--features alloc,embassy"
           - os: windows-latest
             toolchain: nightly
             cargo_flags: "--features alloc,embassy"
+          - os: windows-latest
+            toolchain: stable
+            cargo_flags: "--features std,embassy"
+          - os: windows-latest
+            toolchain: nightly
+            cargo_flags: "--features std,embassy"
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4

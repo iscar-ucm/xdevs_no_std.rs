@@ -46,6 +46,7 @@ jobs:
           - "--features tokio,rayon"
           - "--features embassy"
           - "--features embassy,alloc"
+          - "--features std,embassy"
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4

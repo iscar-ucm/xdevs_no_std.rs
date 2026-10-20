@@ -13,12 +13,12 @@ impl Backend for RtEngineBackend {
             .require_ident()
             .map(|i| i.to_string())
             .unwrap_or_default();
-        // Only max_out_subs is not supported specifically in the std backend,
+        // Only max_out_subs is not supported specifically in the tokio backend,
         // other incompatible arguments are handled in the main macro code.
         match name.as_str() {
             "max_out_subs" => Err(syn::Error::new_spanned(
                 path,
-                "max_out_subs is not supported in the std backend",
+                "max_out_subs is not supported in the tokio backend",
             )),
             _ => Ok(()),
         }
