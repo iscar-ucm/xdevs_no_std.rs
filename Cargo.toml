@@ -40,10 +40,9 @@ embassy = ["embassy-sync", "xdevs-no-std-macros/embassy-backend"]
 rayon = ["std", "dep:rayon", "xdevs-no-std-macros/rayon-backend"]
 std = [
     "alloc",
-    "xdevs-no-std-macros/std-backend",
     "cpu-time",
 ]
-tokio = ["std", "dep:tokio"]
+tokio = ["std", "dep:tokio", "xdevs-no-std-macros/tokio-backend"]
 
 [[bench]]
 name = "ho"
