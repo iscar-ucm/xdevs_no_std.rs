@@ -86,4 +86,4 @@ path = "src/bin/devstone_generator.rs"
 test = false
 
 [package.metadata.docs.rs]
-all-features = true
+features = ["tokio", "rayon"]

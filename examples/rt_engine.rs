@@ -91,7 +91,7 @@ async fn receiver(mut receiver: TransparentReceiver) {
             Err(xdevs::rt_engine::RecvError::Lagged(count)) => {
                 println!("[Receiver] lagged by {} messages", count);
             }
-            // This error exists only in std
+            // This error exists only in the tokio backend
             Err(xdevs::rt_engine::RecvError::Closed) => {
                 println!("[Receiver] receive channel closed");
                 break;
