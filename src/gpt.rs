@@ -184,7 +184,7 @@ impl Transducer {
 
     pub fn throughput(&self) -> f64 {
         if self.n_processed > 0 {
-            self.n_processed as f64 / self.clock.as_secs() as f64
+            self.n_processed as f64 / self.clock.as_secs_f64()
         } else {
             0.0
         }
@@ -450,6 +450,28 @@ mod tests {
     }
 
     #[test]
+    fn throughput_uses_fractional_seconds() {
+        let mut sub_second = Transducer::new(Duration::from_millis(500));
+        let mut input = TransducerInput::build();
+        input.in_processor.add_value(0).unwrap();
+        sub_second.delta_ext(Duration::from_millis(500), &input);
+        assert_eq!(
+            sub_second.throughput(),
+            2.0,
+            "1 event / 0.5 s = 2 events/s, not inf"
+        );
+
+        let mut fractional = Transducer::new(Duration::from_millis(1500));
+        let mut input = TransducerInput::build();
+        input.in_processor.add_value(0).unwrap();
+        fractional.delta_ext(Duration::from_millis(1500), &input);
+        assert!(
+            (fractional.throughput() - 2.0 / 3.0).abs() < 1e-12,
+            "1 event / 1.5 s, not 1 event / 1 s"
+        );
+    }
+
+    #[test]
     fn transducer_sends_stop_signal() {
         let trans = Transducer::new(Duration::from_secs(10));
         let mut output = <Transducer as Component>::Output::build();
@@ -475,7 +497,7 @@ mod tests {
 
         let expected_acceptance = n_processed as f64 / n_generated as f64;
 
-        let clock_secs = (clock_us / 1_000_000) as f64;
+        let clock_secs = clock_us as f64 / 1_000_000.0;
 
         let expected_throughput = n_processed as f64 / clock_secs;
 
@@ -517,7 +539,7 @@ mod tests {
 
         let expected_acceptance = n_processed as f64 / n_generated as f64;
 
-        let clock_secs = (clock_us / 1_000_000) as f64;
+        let clock_secs = clock_us as f64 / 1_000_000.0;
 
         let expected_throughput = n_processed as f64 / clock_secs;
 
