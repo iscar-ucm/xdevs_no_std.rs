@@ -194,3 +194,172 @@ pub(crate) mod sealed {
     /// Trait used to prevent users from implementing certain traits manually.
     pub trait Sealed {}
 }
+
+#[cfg(test)]
+mod tests {
+    use super::RecvError;
+    use crate::{export::Clock, prelude::*, Duration};
+
+    #[derive(crate::Bag)]
+    pub struct EchoInput {
+        job: Port<usize, 1>,
+    }
+
+    #[derive(crate::Bag)]
+    pub struct EchoOutput {
+        job: Port<usize, 1>,
+    }
+
+    pub struct Echo {
+        sigma: Duration,
+        pending: Option<usize>,
+    }
+
+    impl Echo {
+        fn new() -> Self {
+            Self {
+                sigma: Duration::MAX,
+                pending: None,
+            }
+        }
+    }
+
+    #[crate::rt_engine(in_channel_size = 1, out_channel_size = 1)]
+    impl Component for Echo {
+        type Kind = AtomicKind;
+        type Input = EchoInput;
+        type Output = EchoOutput;
+    }
+
+    impl Atomic for Echo {
+        fn delta_int(&mut self) {
+            self.sigma = Duration::MAX;
+        }
+
+        fn lambda(&self, output: &mut Self::Output) {
+            if let Some(value) = self.pending {
+                output.job.add_value(value).unwrap();
+            }
+        }
+
+        fn ta(&self) -> Duration {
+            self.sigma
+        }
+
+        fn delta_ext(&mut self, _elapsed: Duration, input: &Self::Input) {
+            if let Some(&value) = input.job.last() {
+                self.pending = Some(value);
+                self.sigma = Duration::ZERO;
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn rt_engine_delivers_input_and_publishes_output() {
+        let mut engine = Echo::new().into_rt_engine();
+        let sender = engine.sender();
+        let mut receiver = engine.receiver().unwrap();
+
+        sender.send(EchoInputEnum::Job(7)).await.unwrap();
+
+        tokio::time::timeout(
+            core::time::Duration::from_secs(2),
+            engine.simulate_rt(
+                Duration::from_millis(20),
+                RtConfig::new(Clock::new(), 1, None),
+            ),
+        )
+        .await
+        .expect("simulation timed out");
+
+        let output = tokio::time::timeout(core::time::Duration::from_secs(1), receiver.recv())
+            .await
+            .expect("no output published");
+
+        match output {
+            Ok(EchoOutputEnum::Job(value)) => assert_eq!(value, 7),
+            Err(_) => panic!("output channel closed"),
+        }
+    }
+
+    #[derive(crate::Bag)]
+    pub struct BurstOutput {
+        job: Port<usize, 1>,
+    }
+
+    pub struct Burst {
+        next: usize,
+        sigma: Duration,
+    }
+
+    impl Burst {
+        fn new() -> Self {
+            Self {
+                next: 1,
+                sigma: Duration::ZERO,
+            }
+        }
+    }
+
+    #[crate::rt_engine(in_channel_size = 1, out_channel_size = 1)]
+    impl Component for Burst {
+        type Kind = AtomicKind;
+        type Input = ();
+        type Output = BurstOutput;
+    }
+
+    impl Atomic for Burst {
+        fn delta_int(&mut self) {
+            if self.next < 3 {
+                self.next += 1;
+                self.sigma = Duration::ZERO;
+            } else {
+                self.sigma = Duration::MAX;
+            }
+        }
+
+        fn lambda(&self, output: &mut Self::Output) {
+            output.job.add_value(self.next).unwrap();
+        }
+
+        fn ta(&self) -> Duration {
+            self.sigma
+        }
+
+        fn delta_ext(&mut self, _elapsed: Duration, _input: &Self::Input) {}
+    }
+
+    #[tokio::test]
+    async fn rt_engine_reports_lagged_outputs_when_receiver_not_polled() {
+        let mut engine = Burst::new().into_rt_engine();
+        let mut receiver = engine.receiver().unwrap();
+
+        tokio::time::timeout(
+            core::time::Duration::from_secs(2),
+            engine.simulate_rt(
+                Duration::from_millis(20),
+                RtConfig::new(Clock::new(), 1, None),
+            ),
+        )
+        .await
+        .expect("simulation timed out");
+
+        let first = tokio::time::timeout(core::time::Duration::from_secs(1), receiver.recv())
+            .await
+            .expect("no lag reported");
+
+        match first {
+            Err(RecvError::Lagged(missed)) => assert_eq!(missed, 2),
+            _ => panic!("expected a lagged receiver"),
+        }
+
+        let second = tokio::time::timeout(core::time::Duration::from_secs(1), receiver.recv())
+            .await
+            .expect("no retained output");
+
+        match second {
+            Ok(BurstOutputEnum::Job(value)) => assert_eq!(value, 3),
+            _ => panic!("expected the last published output"),
+        }
+    }
+}
