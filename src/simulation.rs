@@ -35,9 +35,7 @@ pub trait Clock {
     /// # Note
     ///
     /// Both `t_until` and the returned duration are measured from the instant
-    /// captured by [`start`](Self::start). The returned duration must not be
-    /// greater than `t_until`. Otherwise, the simulation might panic due to
-    /// excessive jitter.
+    /// captured by [`start`](Self::start).
     fn wait_until(
         &self,
         t_until: Duration,
