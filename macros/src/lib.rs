@@ -59,7 +59,11 @@ pub fn to_component(args: TokenStream, item: TokenStream) -> TokenStream {
     err.to_compile_error().into()
 }
 
-/// Macro to generate RT engine components
+/// Macro to generate RT engine components.
+///
+/// The component's `Input` and `Output` bags must be types defined in the
+/// calling crate, usually a `struct` deriving [`Bag`](macro@Bag). Do not use
+/// foreign bag types as the orphan rule may reject the generated code.
 #[proc_macro_attribute]
 pub fn rt_engine(args: TokenStream, item: TokenStream) -> TokenStream {
     let args = match parse::<rt_engine::RtEngineArgs>(args) {
