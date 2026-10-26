@@ -10,28 +10,22 @@ use sealed::Sealed;
 
 /// Automated simulation engine for real-time execution of DEVS models.
 /// Its interfaces are created through the use of the `rt_engine` macro.
-pub struct RtEngine<K, M>
+pub struct RtEngine<K, M, IC, OC>
 where
     M: Component<Kind = K> + Simulable<K>,
-    M::Input: InjectInput,
-    M::Output: EjectOutput,
 {
     simulator: <M as Simulable<K>>::Simulator,
-    input_channel: <M::Input as InjectInput>::InputChannel,
-    output_channel: <M::Output as EjectOutput>::OutputChannel,
+    input_channel: IC,
+    output_channel: OC,
 }
 
-impl<K, M> RtEngine<K, M>
+impl<K, M, IC, OC> RtEngine<K, M, IC, OC>
 where
     M: Component<Kind = K> + Simulable<K>,
-    M::Input: InjectInput,
-    M::Output: EjectOutput,
+    IC: RtEngineInputChannel<Input = <M::Input as Bag>::Value>,
+    OC: RtEngineOutputChannel<Output = <M::Output as Bag>::Value>,
 {
-    pub fn new(
-        model: M,
-        input_channel: <M::Input as InjectInput>::InputChannel,
-        output_channel: <M::Output as EjectOutput>::OutputChannel,
-    ) -> Self {
+    pub fn new(model: M, input_channel: IC, output_channel: OC) -> Self {
         Self {
             simulator: model.to_simulator(),
             input_channel,
@@ -44,108 +38,54 @@ where
         duration: crate::Duration,
         config: crate::RtConfig<impl Clock>,
     ) {
-        let input_handler = RtEngineInputHandler::<K, M>::new(&mut self.input_channel);
+        let input_handler = RtEngineInputHandler::<M, IC>::new(&mut self.input_channel);
         self.simulator
             .simulate_rt(duration, config, input_handler, |output| {
-                output.map_output(&self.output_channel);
+                crate::bag::propagate(output, |event| self.output_channel.publish(event));
             })
             .await;
     }
-}
 
-/// Specialized implementation: Only exists if IC is RtEngineInputChannel.
-impl<K, M> RtEngine<K, M>
-where
-    M: Component<Kind = K> + Simulable<K>,
-    M::Input: InjectInput,
-    M::Output: EjectOutput,
-    <M::Input as InjectInput>::InputChannel: RtEngineInputChannel,
-{
-    pub fn sender(
-        &self,
-    ) -> <<M::Input as InjectInput>::InputChannel as RtEngineInputChannel>::Sender {
+    pub fn sender(&self) -> IC::Sender {
         self.input_channel.sender()
     }
-}
 
-/// Specialized implementation: Only exists if OC is RtEngineOutputChannel.
-impl<K, M> RtEngine<K, M>
-where
-    M: Component<Kind = K> + Simulable<K>,
-    M::Input: InjectInput,
-    M::Output: EjectOutput,
-    <M::Output as EjectOutput>::OutputChannel: RtEngineOutputChannel,
-{
-    pub fn receiver(
-        &self,
-    ) -> Result<
-        <<M::Output as EjectOutput>::OutputChannel as RtEngineOutputChannel>::Receiver,
-        crate::rt_engine::SubscribeError,
-    > {
+    pub fn receiver(&self) -> Result<OC::Receiver, crate::rt_engine::SubscribeError> {
         self.output_channel.receiver()
     }
 }
 
-struct RtEngineInputHandler<'a, K, M>
-where
-    M: Component<Kind = K> + Simulable<K>,
-    M::Input: InjectInput,
-{
-    input_channel: &'a mut <M::Input as InjectInput>::InputChannel,
+struct RtEngineInputHandler<'a, M, IC> {
+    input_channel: &'a mut IC,
+    marker: core::marker::PhantomData<fn() -> M>,
 }
 
-impl<'a, K, M> RtEngineInputHandler<'a, K, M>
-where
-    M: Component<Kind = K> + Simulable<K>,
-    M::Input: InjectInput,
-{
-    fn new(input_channel: &'a mut <M::Input as InjectInput>::InputChannel) -> Self {
-        Self { input_channel }
+impl<'a, M, IC> RtEngineInputHandler<'a, M, IC> {
+    fn new(input_channel: &'a mut IC) -> Self {
+        Self {
+            input_channel,
+            marker: core::marker::PhantomData,
+        }
     }
 }
 
-impl<'a, K, M> AsyncInput for RtEngineInputHandler<'a, K, M>
+impl<'a, M, IC> AsyncInput for RtEngineInputHandler<'a, M, IC>
 where
-    M: Component<Kind = K> + Simulable<K>,
-    M::Input: InjectInput,
+    M: Component,
+    IC: RtEngineInputChannel<Input = <M::Input as Bag>::Value>,
 {
     type Input = M::Input;
 
     async fn handle(&mut self, input: &mut Self::Input) {
-        input.map_input(self.input_channel).await;
+        let event = self.input_channel.recv().await;
+        // TODO determine how to handle the case where the input bag is full. For now, we just ignore the error.
+        let _ = input.add_value(event);
     }
-}
-
-/// Input port interface for DEVS models that can be simulated in real-time using the `RtEngine`.
-///
-/// # Safety
-///
-/// This trait must be implemented via macros. Do not implement it manually.
-pub unsafe trait InjectInput: Bag {
-    /// Input channel for the rt_engine macro.
-    type InputChannel;
-
-    /// Maps the input enum to the corresponding input port
-    fn map_input(&mut self, in_channel: &mut Self::InputChannel)
-        -> impl Future<Output = ()> + Send;
-}
-
-/// Output port interface for DEVS models that can be simulated in real-time using the `RtEngine`.
-///
-/// # Safety
-///
-/// This trait must be implemented via macros. Do not implement it manually.
-pub unsafe trait EjectOutput: Bag {
-    /// Output channel for the rt_engine macro.
-    type OutputChannel;
-
-    /// Maps the output enum to the corresponding output port
-    fn map_output(&self, out_channel: &Self::OutputChannel);
 }
 
 /// Input channel for the rt_engine macro.
 pub trait RtEngineInputChannel: Sealed {
-    /// Enum representing the input ports of the model. Each variant corresponds to an input port.
+    /// Value received from the channel and injected into the model.
     type Input;
     /// Type of the sender used to send input events to the model.
     type Sender;
@@ -158,7 +98,7 @@ pub trait RtEngineInputChannel: Sealed {
 
 /// Output channel for the rt_engine macro.
 pub trait RtEngineOutputChannel: Sealed {
-    /// Enum representing the output ports of the model. Each variant corresponds to an output port.
+    /// Value published by the model through the channel.
     type Output;
 
     /// Type of the receiver used to receive output events from the model.
@@ -171,24 +111,29 @@ pub trait RtEngineOutputChannel: Sealed {
     fn publish(&self, output: Self::Output);
 }
 
-unsafe impl InjectInput for () {
-    type InputChannel = ();
+impl RtEngineInputChannel for () {
+    type Input = ();
+    type Sender = ();
 
-    #[inline(always)]
-    fn map_input(
-        &mut self,
-        _in_channel: &mut Self::InputChannel,
-    ) -> impl Future<Output = ()> + Send {
+    fn sender(&self) {}
+
+    fn recv(&mut self) -> impl Future<Output = ()> + Send {
         core::future::pending()
     }
 }
 
-unsafe impl EjectOutput for () {
-    type OutputChannel = ();
+impl RtEngineOutputChannel for () {
+    type Output = ();
+    type Receiver = ();
 
-    #[inline(always)]
-    fn map_output(&self, _out_channel: &Self::OutputChannel) {}
+    fn receiver(&self) -> Result<Self::Receiver, crate::rt_engine::SubscribeError> {
+        Ok(())
+    }
+
+    fn publish(&self, _output: Self::Output) {}
 }
+
+impl Sealed for () {}
 
 pub(crate) mod sealed {
     /// Trait used to prevent users from implementing certain traits manually.
@@ -199,16 +144,6 @@ pub(crate) mod sealed {
 mod tests {
     use super::RecvError;
     use crate::{export::Clock, prelude::*, Duration};
-
-    #[derive(crate::Bag)]
-    pub struct EchoInput {
-        job: Port<usize, 1>,
-    }
-
-    #[derive(crate::Bag)]
-    pub struct EchoOutput {
-        job: Port<usize, 1>,
-    }
 
     pub struct Echo {
         sigma: Duration,
@@ -227,8 +162,8 @@ mod tests {
     #[crate::rt_engine(in_channel_size = 1, out_channel_size = 1)]
     impl Component for Echo {
         type Kind = AtomicKind;
-        type Input = EchoInput;
-        type Output = EchoOutput;
+        type Input = Port<usize, 1>;
+        type Output = Port<usize, 1>;
     }
 
     impl Atomic for Echo {
@@ -238,7 +173,7 @@ mod tests {
 
         fn lambda(&self, output: &mut Self::Output) {
             if let Some(value) = self.pending {
-                output.job.add_value(value).unwrap();
+                output.add_value(value).unwrap();
             }
         }
 
@@ -247,7 +182,7 @@ mod tests {
         }
 
         fn delta_ext(&mut self, _elapsed: Duration, input: &Self::Input) {
-            if let Some(&value) = input.job.last() {
+            if let Some(&value) = input.last() {
                 self.pending = Some(value);
                 self.sigma = Duration::ZERO;
             }
@@ -260,7 +195,7 @@ mod tests {
         let sender = engine.sender();
         let mut receiver = engine.receiver().unwrap();
 
-        sender.send(EchoInputEnum::Job(7)).await.unwrap();
+        sender.send(7).await.unwrap();
 
         tokio::time::timeout(
             core::time::Duration::from_secs(2),
@@ -276,15 +211,7 @@ mod tests {
             .await
             .expect("no output published");
 
-        match output {
-            Ok(EchoOutputEnum::Job(value)) => assert_eq!(value, 7),
-            Err(_) => panic!("output channel closed"),
-        }
-    }
-
-    #[derive(crate::Bag)]
-    pub struct BurstOutput {
-        job: Port<usize, 1>,
+        assert_eq!(output.unwrap(), 7);
     }
 
     pub struct Burst {
@@ -305,7 +232,7 @@ mod tests {
     impl Component for Burst {
         type Kind = AtomicKind;
         type Input = ();
-        type Output = BurstOutput;
+        type Output = Port<usize, 1>;
     }
 
     impl Atomic for Burst {
@@ -319,7 +246,7 @@ mod tests {
         }
 
         fn lambda(&self, output: &mut Self::Output) {
-            output.job.add_value(self.next).unwrap();
+            output.add_value(self.next).unwrap();
         }
 
         fn ta(&self) -> Duration {
@@ -357,9 +284,6 @@ mod tests {
             .await
             .expect("no retained output");
 
-        match second {
-            Ok(BurstOutputEnum::Job(value)) => assert_eq!(value, 3),
-            _ => panic!("expected the last published output"),
-        }
+        assert_eq!(second.unwrap(), 3);
     }
 }

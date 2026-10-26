@@ -1,6 +1,6 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
 use heck::ToShoutySnakeCase;
-use syn::{Ident, ItemImpl, MetaNameValue, Result};
+use syn::{Ident, ItemImpl, MetaNameValue, Result, TypeGenerics};
 
 /// Arguments for the `#[rt_engine]` attribute macro.
 #[derive(Debug, Clone)]
@@ -20,12 +20,15 @@ impl Backend for RtEngineBackend {
             Ok(())
         }
     }
-    fn input_channel(args: &RtEngineArgs, model_ident: &Ident) -> ChannelTokens {
-        let input_ident = quote::format_ident!("{}Input", model_ident);
+    fn input_channel(
+        args: &RtEngineArgs,
+        model_ident: &Ident,
+        model_ty_generics: &TypeGenerics,
+    ) -> ChannelTokens {
         let in_channel_size = args.in_channel_size;
 
         let channel_type = quote::quote! { ::xdevs::export::InputChannel<'static,
-            <Self as ::xdevs::bag::Bag>::Value,
+            <<#model_ident #model_ty_generics as ::xdevs::Component>::Input as ::xdevs::bag::Bag>::Value,
             #in_channel_size
         > };
         let upper_name = model_ident.to_string().to_shouty_snake_case();
@@ -35,7 +38,7 @@ impl Backend for RtEngineBackend {
         let private_channel = quote::quote! {
             /// Auto-generated static input channel.
             pub static #channel_ident: ::xdevs::export::Channel<
-                <#input_ident as ::xdevs::bag::Bag>::Value,
+                <<#model_ident as ::xdevs::Component>::Input as ::xdevs::bag::Bag>::Value,
                 #in_channel_size
             > = ::xdevs::export::Channel::new();
         };
@@ -47,13 +50,16 @@ impl Backend for RtEngineBackend {
         }
     }
 
-    fn output_channel(args: &RtEngineArgs, model_ident: &Ident) -> ChannelTokens {
-        let output_ident = quote::format_ident!("{}Output", model_ident);
+    fn output_channel(
+        args: &RtEngineArgs,
+        model_ident: &Ident,
+        model_ty_generics: &TypeGenerics,
+    ) -> ChannelTokens {
         let out_channel_size = args.out_channel_size;
         let max_out_subs = args.max_out_subs;
 
         let channel_type = quote::quote! { ::xdevs::export::OutputChannel<'static,
-            <Self as ::xdevs::bag::Bag>::Value,
+            <<#model_ident #model_ty_generics as ::xdevs::Component>::Output as ::xdevs::bag::Bag>::Value,
             #out_channel_size,
             #max_out_subs
         > };
@@ -64,7 +70,7 @@ impl Backend for RtEngineBackend {
         let private_channel = quote::quote! {
             /// Auto-generated static output PubSub channel.
             pub static #channel_ident: ::xdevs::export::PubSubChannel<
-                <#output_ident as ::xdevs::bag::Bag>::Value,
+                <<#model_ident as ::xdevs::Component>::Output as ::xdevs::bag::Bag>::Value,
                 #out_channel_size,
                 #max_out_subs,
             > = ::xdevs::export::PubSubChannel::new();
