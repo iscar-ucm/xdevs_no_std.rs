@@ -1,6 +1,6 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Ident, ItemImpl, MetaNameValue, Result};
+use syn::{Ident, ItemImpl, MetaNameValue, Result, TypeGenerics};
 
 /// Arguments for the `#[rt_engine]` attribute macro.
 #[derive(Debug, Clone)]
@@ -27,10 +27,14 @@ impl Backend for RtEngineBackend {
         Ok(())
     }
 
-    fn input_channel(args: &RtEngineArgs, _model_ident: &Ident) -> ChannelTokens {
+    fn input_channel(
+        args: &RtEngineArgs,
+        model_ident: &Ident,
+        model_ty_generics: &TypeGenerics,
+    ) -> ChannelTokens {
         let in_channel_size = args.in_channel_size;
         let channel_type = quote::quote! { ::xdevs::export::InputChannel<
-            <Self as ::xdevs::bag::Bag>::Value,
+            <<#model_ident #model_ty_generics as ::xdevs::Component>::Input as ::xdevs::bag::Bag>::Value,
             #in_channel_size
         > };
         let channel_call = quote::quote! {::xdevs::export::InputChannel::new() };
@@ -42,10 +46,14 @@ impl Backend for RtEngineBackend {
         }
     }
 
-    fn output_channel(args: &RtEngineArgs, _model_ident: &Ident) -> ChannelTokens {
+    fn output_channel(
+        args: &RtEngineArgs,
+        model_ident: &Ident,
+        model_ty_generics: &TypeGenerics,
+    ) -> ChannelTokens {
         let out_channel_size = args.out_channel_size;
         let channel_type = quote::quote! { ::xdevs::export::OutputChannel<
-            <Self as ::xdevs::bag::Bag>::Value,
+            <<#model_ident #model_ty_generics as ::xdevs::Component>::Output as ::xdevs::bag::Bag>::Value,
             #out_channel_size
         > };
         let channel_call = quote::quote! {::xdevs::export::OutputChannel::new() };

@@ -17,11 +17,19 @@ mod no_backend;
 pub use no_backend::RtEngineBackend;
 
 use super::{ChannelTokens, RtEngineArgs};
-use syn::{Ident, ItemImpl, MetaNameValue, Result};
+use syn::{Ident, ItemImpl, MetaNameValue, Result, TypeGenerics};
 
 pub trait Backend {
     fn check_arg_compatibility(arg: &MetaNameValue) -> Result<()>;
     fn check_item_compatibility(item: &ItemImpl) -> Result<()>;
-    fn input_channel(args: &RtEngineArgs, model_ident: &Ident) -> ChannelTokens;
-    fn output_channel(args: &RtEngineArgs, model_ident: &Ident) -> ChannelTokens;
+    fn input_channel(
+        args: &RtEngineArgs,
+        model_ident: &Ident,
+        model_ty_generics: &TypeGenerics,
+    ) -> ChannelTokens;
+    fn output_channel(
+        args: &RtEngineArgs,
+        model_ident: &Ident,
+        model_ty_generics: &TypeGenerics,
+    ) -> ChannelTokens;
 }

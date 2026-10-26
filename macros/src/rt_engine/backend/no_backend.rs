@@ -1,6 +1,6 @@
 use super::{Backend, ChannelTokens, RtEngineArgs};
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{Ident, MetaNameValue, Result};
+use syn::{Ident, MetaNameValue, Result, TypeGenerics};
 
 /// Placeholder backend used when no backend feature is enabled.
 #[derive(Debug, Clone)]
@@ -17,7 +17,11 @@ impl Backend for RtEngineBackend {
         Ok(())
     }
 
-    fn input_channel(_args: &RtEngineArgs, _model_ident: &Ident) -> ChannelTokens {
+    fn input_channel(
+        _args: &RtEngineArgs,
+        _model_ident: &Ident,
+        _model_ty_generics: &TypeGenerics,
+    ) -> ChannelTokens {
         ChannelTokens {
             channel_type: quote::quote! { () },
             channel_call: quote::quote! { () },
@@ -25,7 +29,11 @@ impl Backend for RtEngineBackend {
         }
     }
 
-    fn output_channel(_args: &RtEngineArgs, _model_ident: &Ident) -> ChannelTokens {
+    fn output_channel(
+        _args: &RtEngineArgs,
+        _model_ident: &Ident,
+        _model_ty_generics: &TypeGenerics,
+    ) -> ChannelTokens {
         ChannelTokens {
             channel_type: quote::quote! { () },
             channel_call: quote::quote! { () },
