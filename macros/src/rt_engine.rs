@@ -88,6 +88,16 @@ impl Parse for RtEngineArgs {
                 }
             };
             let name = name.as_str();
+            if value == 0
+                && matches!(
+                    name,
+                    "in_channel_size" | "out_channel_size" | "max_out_subs"
+                )
+            {
+                let err = Error::new_spanned(lit_int, format!("{name} must be greater than 0"));
+                combine_err(&mut acc, err);
+                continue;
+            }
             match name {
                 "in_channel_size" => {
                     if in_channel_size.is_some() {
