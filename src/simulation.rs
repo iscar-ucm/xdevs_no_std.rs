@@ -165,11 +165,11 @@ pub unsafe trait AbstractSimulator {
         async move {
             let mult = config.mult.max(1);
             let t_stop = duration;
-            config.clock.start();
             let mut t = Duration::ZERO;
             let mut t_next_internal = self.start();
             let mut component_input = <Self::Input>::build();
             let mut component_output = <Self::Output>::build();
+            config.clock.start();
             while t < t_stop {
                 let t_until = Duration::min(t_next_internal, t_stop);
                 let t_until_wall = Duration::from_micros(t_until.as_micros().div_ceil(mult));
