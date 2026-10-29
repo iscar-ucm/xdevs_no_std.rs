@@ -30,7 +30,9 @@ pub trait Clock {
 
     /// Waits until `t_until` of wall-clock time has elapsed since
     /// [`start`](Self::start), or until `input_handler` completes, whichever
-    /// happens first. Returns the wall-clock time elapsed since `start`.
+    /// happens first. When the deadline wins, `input_handler` is dropped at its
+    /// current await point and is not polled again, as [`AsyncInput::handle`]
+    /// guarantees. Returns the wall-clock time elapsed since `start`.
     ///
     /// # Note
     ///
@@ -241,8 +243,14 @@ pub trait AsyncInput {
     /// Handles input events asynchronously.
     ///
     /// It receives a mutable reference to the input event bag.
-    /// The deadline is managed externally by the simulator via `embassy_time::with_deadline`.
+    /// The deadline is managed externally by the simulator via [`Clock::wait_until`].
     /// When called, it should wait for external input events.
+    ///
+    /// When the deadline elapses first, the future returned by this method is
+    /// dropped at its current await point and is never polled again.
+    /// Implementations must be cancellation-safe, and the input bag must never be
+    /// left partially updated across an await point: the simulator does not clear it,
+    /// so leftovers are consumed as input by the next simulation step.
     fn handle(&mut self, input: &mut Self::Input) -> impl Future<Output = ()>;
 }
 
