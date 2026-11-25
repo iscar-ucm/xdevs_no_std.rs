@@ -30,7 +30,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
             "Bag cannot be derived for tuple structs",
         )),
         Fields::Unit => Ok(quote::quote! {
-            unsafe impl #impl_generics ::xdevs::bag::Bag for #ident #ty_generics #where_clause {
+            impl #impl_generics ::xdevs::bag::Bag for #ident #ty_generics #where_clause {
                 type Value = ();
 
                 #[inline]
@@ -120,7 +120,7 @@ pub fn derive_bag(input: DeriveInput) -> Result<TokenStream2> {
                 .collect();
 
             Ok(quote::quote! {
-                unsafe impl #impl_generics ::xdevs::bag::Bag for #ident #ty_generics #where_clause {
+                impl #impl_generics ::xdevs::bag::Bag for #ident #ty_generics #where_clause {
                     type Value = #private_mod_ident::PortMux #ty_generics;
 
                     #[inline]

@@ -5,7 +5,7 @@ use super::Bag;
 use core::hash::Hash;
 use std::collections::{HashMap, HashSet};
 
-unsafe impl<T: Clone + Eq + Hash> Bag for HashSet<T> {
+impl<T: Clone + Eq + Hash> Bag for HashSet<T> {
     type Value = T;
 
     #[inline]
@@ -44,7 +44,7 @@ unsafe impl<T: Clone + Eq + Hash> Bag for HashSet<T> {
     }
 }
 
-unsafe impl<K: Clone + Eq + Hash, V: Clone> Bag for HashMap<K, V> {
+impl<K: Clone + Eq + Hash, V: Clone> Bag for HashMap<K, V> {
     type Value = (K, V);
 
     #[inline]
@@ -165,7 +165,7 @@ mod tests {
         src.add_value(3).unwrap();
         let mut dst = <Vec<u32> as Bag>::build();
         assert!(couple(&src, &mut dst).is_ok());
-        let mut got = dst.as_slice().to_vec();
+        let mut got = dst.to_vec();
         got.sort();
         assert_eq!(got.as_slice(), &[1, 2, 3]);
     }
@@ -178,7 +178,7 @@ mod tests {
         src.add_value(3).unwrap();
         let mut dst = <Vec<u64> as Bag>::build();
         assert!(adapt_and_couple(&src, &mut dst, |v| v as u64 * 2).is_ok());
-        let mut got = dst.as_slice().to_vec();
+        let mut got = dst.to_vec();
         got.sort();
         assert_eq!(got.as_slice(), &[2, 4, 6]);
     }
@@ -263,7 +263,7 @@ mod tests {
         src.add_value((3, 30)).unwrap();
         let mut dst = <Vec<(u8, u32)> as Bag>::build();
         assert!(couple(&src, &mut dst).is_ok());
-        let mut got = dst.as_slice().to_vec();
+        let mut got = dst.to_vec();
         got.sort();
         assert_eq!(got.as_slice(), &[(1, 10), (2, 20), (3, 30)]);
     }
@@ -275,7 +275,7 @@ mod tests {
         src.add_value((2, 20)).unwrap();
         let mut dst = <Vec<(u8, u64)> as Bag>::build();
         assert!(adapt_and_couple(&src, &mut dst, |(k, v)| (k, v as u64 * 100)).is_ok());
-        let mut got = dst.as_slice().to_vec();
+        let mut got = dst.to_vec();
         got.sort();
         assert_eq!(got.as_slice(), &[(1, 1000), (2, 2000)]);
     }
