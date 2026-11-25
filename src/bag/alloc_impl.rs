@@ -2,7 +2,7 @@
 
 use super::Bag;
 
-unsafe impl<T: Clone> Bag for alloc::vec::Vec<T> {
+impl<T: Clone> Bag for alloc::vec::Vec<T> {
     type Value = T;
 
     #[inline]

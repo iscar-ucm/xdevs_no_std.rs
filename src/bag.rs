@@ -11,7 +11,7 @@ mod std_impl;
 /// # Safety
 ///
 /// This trait must be implemented via the [`macro@crate::Bag`] macro. Do not implement it manually.
-pub unsafe trait Bag {
+pub trait Bag {
     /// The data type of the events stored in the event bag.
     type Value: Clone;
 
@@ -80,7 +80,7 @@ pub fn propagate<S: Bag>(from: &S, propagator: impl FnMut(S::Value)) {
 }
 
 // Implement `Bag` for the unit type `()`, which represents an empty bag.
-unsafe impl Bag for () {
+impl Bag for () {
     type Value = ();
 
     #[inline]
@@ -114,7 +114,7 @@ unsafe impl Bag for () {
 }
 
 // Implement `Bag` for `Option<T>`, which can hold at most one value of type `T`.
-unsafe impl<T: Clone> Bag for Option<T> {
+impl<T: Clone> Bag for Option<T> {
     type Value = T;
 
     #[inline]
@@ -150,7 +150,7 @@ unsafe impl<T: Clone> Bag for Option<T> {
 }
 
 // Implement `Bag` for arrays of bags, where each element is a bag of the same type.
-unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
+impl<T: Bag, const N: usize> Bag for [T; N] {
     type Value = (usize, T::Value); // Include index to identify which bag the value came from
 
     #[inline]
@@ -188,7 +188,7 @@ unsafe impl<T: Bag, const N: usize> Bag for [T; N] {
 
 macro_rules! impl_bag_for_tuple {
     ($($idx:tt => $T:ident),+) => {
-        unsafe impl<$($T: Bag),+> Bag for ($($T,)+) {
+        impl<$($T: Bag),+> Bag for ($($T,)+) {
             type Value = ($(Option<$T::Value>,)+);
 
             #[inline]

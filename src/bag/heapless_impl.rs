@@ -3,7 +3,7 @@
 use super::Bag;
 use heapless::{binary_heap, BinaryHeap, Deque, HistoryBuf, Vec};
 
-unsafe impl<T: Clone, const N: usize> Bag for Vec<T, N> {
+impl<T: Clone, const N: usize> Bag for Vec<T, N> {
     type Value = T;
 
     #[inline]
@@ -32,7 +32,7 @@ unsafe impl<T: Clone, const N: usize> Bag for Vec<T, N> {
     }
 }
 
-unsafe impl<T: Clone, const N: usize> Bag for Deque<T, N> {
+impl<T: Clone, const N: usize> Bag for Deque<T, N> {
     type Value = T;
 
     #[inline]
@@ -61,7 +61,7 @@ unsafe impl<T: Clone, const N: usize> Bag for Deque<T, N> {
     }
 }
 
-unsafe impl<T: Clone, const N: usize> Bag for HistoryBuf<T, N> {
+impl<T: Clone, const N: usize> Bag for HistoryBuf<T, N> {
     type Value = T;
 
     #[inline]
@@ -104,7 +104,7 @@ unsafe impl<T: Clone, const N: usize> Bag for HistoryBuf<T, N> {
     }
 }
 
-unsafe impl<T: Clone + Ord, K: binary_heap::Kind, const N: usize> Bag for BinaryHeap<T, K, N> {
+impl<T: Clone + Ord, K: binary_heap::Kind, const N: usize> Bag for BinaryHeap<T, K, N> {
     type Value = T;
 
     #[inline]
