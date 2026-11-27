@@ -1,6 +1,6 @@
 //! Implementations of the `Bag` trait for various types of the `hashbrown` crate.
 
-use super::Bag;
+use super::{map_bag::HashbrownMapBag, Bag};
 use core::hash::Hash;
 use hashbrown::{HashMap, HashSet};
 
@@ -75,6 +75,46 @@ impl<K: Clone + Eq + Hash, V: Clone> Bag for HashMap<K, V> {
     #[inline]
     fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_ {
         self.iter().map(|(k, v)| (k.clone(), v.clone()))
+    }
+}
+
+impl<K: Clone + Eq + Hash, B: Bag> Bag for HashbrownMapBag<K, B> {
+    type Value = (K, B::Value);
+
+    #[inline]
+    fn build() -> Self {
+        Self(HashMap::new())
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.0.values().all(Bag::is_empty)
+    }
+
+    #[inline]
+    fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    #[inline]
+    fn add_value(&mut self, (key, value): Self::Value) -> Result<(), Self::Value> {
+        if let Some(bag) = self.0.get_mut(&key) {
+            return bag.add_value(value).map_err(|value| (key, value));
+        }
+
+        let mut bag = B::build();
+        if let Err(value) = bag.add_value(value) {
+            return Err((key, value));
+        }
+        self.0.insert(key, bag);
+        Ok(())
+    }
+
+    #[inline]
+    fn get_values(&self) -> impl Iterator<Item = Self::Value> + '_ {
+        self.0
+            .iter()
+            .flat_map(|(key, bag)| bag.get_values().map(move |value| (key.clone(), value)))
     }
 }
 
@@ -278,5 +318,33 @@ mod tests {
         let mut got = dst.to_vec();
         got.sort();
         assert_eq!(got.as_slice(), &[(1, 1000), (2, 2000)]);
+    }
+
+    #[test]
+    fn hashmap_of_bags_groups_and_flattens_events() {
+        let mut bag = <HashbrownMapBag<u8, Vec<u32>> as Bag>::build();
+        bag.0.insert(9, Vec::new());
+        assert!(Bag::is_empty(&bag));
+        bag.add_values([(1, 10), (1, 20), (2, 30)]).unwrap();
+        assert!(!Bag::is_empty(&bag));
+        assert_eq!(bag.0[&1], [10, 20]);
+        let mut events: Vec<_> = bag.get_values().collect();
+        events.sort_unstable();
+        assert_eq!(events, [(1, 10), (1, 20), (2, 30)]);
+        Bag::clear(&mut bag);
+        assert!(Bag::is_empty(&bag));
+        assert!(bag.0.is_empty());
+    }
+
+    #[test]
+    fn hashmap_of_bags_preserves_failed_event() {
+        let mut bag = <HashbrownMapBag<u8, heapless::Vec<u32, 1>> as Bag>::build();
+        bag.add_value((1, 10)).unwrap();
+        assert_eq!(bag.add_value((1, 20)), Err((1, 20)));
+        assert_eq!(bag.0[&1].as_slice(), &[10]);
+
+        let mut full = <HashbrownMapBag<u8, heapless::Vec<u32, 0>> as Bag>::build();
+        assert_eq!(full.add_value((2, 30)), Err((2, 30)));
+        assert!(!full.0.contains_key(&2));
     }
 }

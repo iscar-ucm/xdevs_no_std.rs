@@ -27,6 +27,20 @@ pub use xdevs_no_std_macros::*;
 /// Port is an alias for a heapless::Vec.
 pub type Port<T, const N: usize> = heapless::Vec<T, N>;
 
+/// Map bag type alias depending on the available features.
+///
+/// - If only the `alloc` feature is enabled, `MapBag` refers to `HashbrownMapBag`.
+/// - If the `std` feature is enabled, `MapBag` refers to `StdMapBag`.
+#[cfg(all(feature = "alloc", not(feature = "std")))]
+pub use bag::map_bag::HashbrownMapBag as MapBag;
+
+/// Map bag type alias depending on the available features.
+///
+/// - If only the `alloc` feature is enabled, `MapBag` refers to `HashbrownMapBag`.
+/// - If the `std` feature is enabled, `MapBag` refers to `StdMapBag`.
+#[cfg(feature = "std")]
+pub use bag::map_bag::StdMapBag as MapBag;
+
 /// Prelude with the traits needed to call the high-level simulation methods
 /// (`.to_simulator()`, `.simulate_vt()`, `.simulate_rt()`, `.simulate_rt_async()`)
 /// directly on components and simulators.
@@ -43,4 +57,9 @@ pub mod prelude {
         simulation::{AbstractSimulator, Config, Simulable},
         Port,
     };
+
+    #[cfg(feature = "alloc")]
+    pub use crate::bag::map_bag::HashbrownMapBag;
+    #[cfg(feature = "std")]
+    pub use crate::bag::map_bag::StdMapBag;
 }

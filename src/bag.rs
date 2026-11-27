@@ -6,6 +6,9 @@ mod heapless_impl;
 #[cfg(feature = "std")]
 mod std_impl;
 
+#[cfg(feature = "alloc")]
+pub mod map_bag;
+
 /// Trait that defines the methods that a DEVS event bag set must implement.
 ///
 /// # Safety
