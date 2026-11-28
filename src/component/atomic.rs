@@ -310,3 +310,66 @@ mod tests {
         assert!(raw.stop, "stop delegates through Box<T>");
     }
 }
+
+#[cfg(kani)]
+mod proofs {
+    use crate::{
+        verification::{
+            component::atomic::atomic_sanity,
+            simulation::simulator::{delta_is_noop_when_quiescent, lambda_is_noop_when_quiescent},
+        },
+        Atomic, AtomicKind, Bag, Component, Port,
+    };
+
+    /// Minimal processor-like model with a symbolic remaining time `sigma`.
+    #[derive(Clone, PartialEq)]
+    struct DemoModel {
+        sigma: f64,
+    }
+
+    impl Component for DemoModel {
+        type Kind = AtomicKind;
+        type Input = Port<usize, 1>;
+        type Output = Port<usize, 1>;
+    }
+
+    impl Atomic for DemoModel {
+        fn delta_int(&mut self) {
+            self.sigma = f64::INFINITY;
+        }
+        fn delta_ext(&mut self, _elapsed: f64, _input: &Self::Input) {
+            self.sigma = 1.0;
+        }
+        fn lambda(&self, output: &mut Self::Output) {
+            let _ = output.add_value(42);
+        }
+        fn ta(&self) -> f64 {
+            self.sigma
+        }
+    }
+
+    #[kani::proof]
+    fn demo_model_delta_quiescence() {
+        let sigma: f64 = kani::any();
+        kani::assume(sigma >= 0.0); // model invariant; also rules out NaN
+        delta_is_noop_when_quiescent(DemoModel { sigma });
+    }
+
+    #[kani::proof]
+    fn demo_model_lambda_quiescence() {
+        let sigma: f64 = kani::any();
+        kani::assume(sigma >= 0.0);
+        lambda_is_noop_when_quiescent(DemoModel { sigma });
+    }
+
+    #[kani::proof]
+    fn demo_model_sanity() {
+        let sigma: f64 = kani::any();
+        kani::assume(sigma >= 0.0);
+        let mut input = Port::new();
+        if kani::any() {
+            let _ = input.push(kani::any());
+        }
+        atomic_sanity(DemoModel { sigma }, input);
+    }
+}
