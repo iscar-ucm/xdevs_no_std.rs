@@ -148,6 +148,49 @@ impl<T: Clone + Ord, K: binary_heap::Kind, const N: usize> Bag for BinaryHeap<T,
     }
 }
 
+#[cfg(kani)]
+mod proofs {
+    use super::*;
+    use crate::verification::bag::check_bag_laws;
+    use heapless::binary_heap::{Max, Min};
+
+    #[kani::proof]
+    #[kani::unwind(8)]
+    fn vec_bag_laws() {
+        check_bag_laws::<Vec<u8, 2>>(4);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(8)]
+    fn zero_capacity_vec_bag_laws() {
+        check_bag_laws::<Vec<u8, 0>>(4);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(8)]
+    fn deque_bag_laws() {
+        check_bag_laws::<Deque<u8, 2>>(4);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(8)]
+    fn history_buf_bag_laws() {
+        check_bag_laws::<HistoryBuf<u8, 2>>(4);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(8)]
+    fn max_heap_bag_laws() {
+        check_bag_laws::<BinaryHeap<u8, Max, 2>>(4);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(8)]
+    fn min_heap_bag_laws() {
+        check_bag_laws::<BinaryHeap<u8, Min, 2>>(4);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

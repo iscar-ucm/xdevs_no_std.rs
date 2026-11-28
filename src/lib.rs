@@ -13,6 +13,9 @@ pub mod gpt;
 #[cfg(any(feature = "embassy", feature = "std"))]
 pub mod rt_engine;
 pub mod simulation;
+/// Reusable Kani proof functions for user-defined models (only under `cargo kani`).
+#[cfg(kani)]
+pub mod verification;
 
 pub use bag::{adapt_and_couple, couple, Bag};
 pub use component::{

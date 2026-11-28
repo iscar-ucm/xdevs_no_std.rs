@@ -258,6 +258,48 @@ impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T
 impl_bag_for_tuple!(0 => T0, 1 => T1, 2 => T2, 3 => T3, 4 => T4, 5 => T5, 6 => T6, 7 => T7, 8 => T8, 9 => T9, 10 => T10, 11 => T11);
 // We could go further, but 12-element tuples are already quite large and rare in practice.
 
+#[cfg(kani)]
+mod proofs {
+    use crate::verification::bag::check_bag_laws;
+
+    #[kani::proof]
+    #[kani::unwind(2)]
+    fn unit_bag_laws() {
+        check_bag_laws::<()>(0);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(4)]
+    fn option_bag_laws() {
+        check_bag_laws::<Option<u8>>(2);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(4)]
+    fn bounded_option_bag_laws() {
+        check_bag_laws::<Option<u16>>(0);
+        check_bag_laws::<Option<u16>>(2);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(8)]
+    fn array_bag_laws() {
+        check_bag_laws::<[Option<u8>; 2]>(2);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(4)]
+    fn empty_array_bag_laws() {
+        check_bag_laws::<[Option<u8>; 0]>(0);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(4)]
+    fn tuple_bag_laws() {
+        check_bag_laws::<(Option<u8>, Option<u16>)>(2);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{bag::propagate, *};

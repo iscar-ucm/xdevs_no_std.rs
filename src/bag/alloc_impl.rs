@@ -41,6 +41,17 @@ impl<T: Clone> Bag for alloc::vec::Vec<T> {
     }
 }
 
+#[cfg(kani)]
+mod proofs {
+    use crate::verification::bag::check_bag_laws;
+
+    #[kani::proof]
+    #[kani::unwind(8)]
+    fn vec_bag_laws() {
+        check_bag_laws::<alloc::vec::Vec<u8>>(4);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

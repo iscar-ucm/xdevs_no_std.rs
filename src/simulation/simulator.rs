@@ -204,3 +204,98 @@ mod tests {
         assert_eq!(sim.t_next, 3.0, "t_next = t + ta() (= period)");
     }
 }
+
+#[cfg(kani)]
+mod proofs {
+    use super::*;
+    use crate::{Component, Port};
+
+    struct QuiescentAtomic {
+        state: u64,
+    }
+
+    impl Component for QuiescentAtomic {
+        type Kind = AtomicKind;
+        type Input = Port<usize, 1>;
+        type Output = Port<usize, 1>;
+    }
+
+    impl Atomic for QuiescentAtomic {
+        fn delta_int(&mut self) {
+            self.state = self.state.wrapping_add(1);
+            kani::assert(false, "delta_int must not be called");
+        }
+        fn delta_ext(&mut self, _elapsed: f64, _input: &Self::Input) {
+            self.state = self.state.wrapping_add(1);
+            kani::assert(false, "delta_ext must not be called");
+        }
+        fn lambda(&self, _output: &mut Self::Output) {
+            kani::assert(false, "lambda must not be called");
+        }
+        fn ta(&self) -> f64 {
+            f64::INFINITY
+        }
+    }
+
+    #[kani::proof]
+    fn delta_quiescent_is_noop() {
+        let state: u64 = kani::any();
+        let t_last: f64 = kani::any();
+        let t_next: f64 = kani::any();
+        let t: f64 = kani::any();
+        kani::assume(t_last < t_next);
+        kani::assume(t_last <= t);
+        kani::assume(t < t_next);
+
+        let mut sim = Simulator {
+            component: QuiescentAtomic { state },
+            t_last,
+            t_next,
+        };
+        let mut input = Port::<usize, 1>::new();
+        let mut output = Port::<usize, 1>::new();
+        let output_full: bool = kani::any();
+        let output_val: usize = kani::any();
+        if output_full {
+            let _ = output.push(output_val);
+        }
+
+        let returned = sim.delta(&mut input, &mut output, t);
+
+        kani::assert(sim.component.state == state, "component state unchanged");
+        // Preserve the exact floating-point representation, including signed zero.
+        kani::assert(sim.t_last.to_bits() == t_last.to_bits(), "t_last unchanged");
+        kani::assert(sim.t_next.to_bits() == t_next.to_bits(), "t_next unchanged");
+        kani::assert(
+            returned.to_bits() == t_next.to_bits(),
+            "delta returns t_next",
+        );
+        kani::assert(
+            output.len() == output_full as usize,
+            "output bag length unchanged",
+        );
+        if output_full {
+            kani::assert(output[0] == output_val, "output bag content unchanged");
+        }
+    }
+
+    #[kani::proof]
+    fn lambda_quiescent_is_noop() {
+        let t_last: f64 = kani::any();
+        let t_next: f64 = kani::any();
+        let t: f64 = kani::any();
+        kani::assume(t_last < t_next);
+        kani::assume(t_last <= t);
+        kani::assume(t < t_next);
+
+        let mut sim = Simulator {
+            component: QuiescentAtomic { state: kani::any() },
+            t_last,
+            t_next,
+        };
+        let mut output = Port::<usize, 1>::new();
+        sim.lambda(&mut output, t);
+
+        kani::assert(output.is_empty(), "output bag untouched");
+    }
+}
